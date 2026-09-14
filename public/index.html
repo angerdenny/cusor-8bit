@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 네트워크 통합관제 시스템</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white font-sans">
+    <!-- 상단 헤더 -->
+    <header class="bg-slate-800 border-b border-slate-700 p-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold text-blue-400">🌐 AI 기반 네트워크 장애 예측 및 통합관제 시스템</h1>
+        <div class="flex items-center gap-4">
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900 text-green-300">
+                ● 시스템 정상 동작 중
+            </span>
+            <span class="text-sm text-slate-400">8 bit Team</span>
+        </div>
+    </header>
+
+    <!-- 메인 관제 레이아웃 -->
+    <div class="grid grid-cols-12 gap-4 p-4 h-[calc(100vh-70px)]">
+        <!-- 왼쪽: 네트워크 토폴로지 맵 & 장비 상태 -->
+        <main class="col-span-8 flex flex-col gap-4">
+            <div class="bg-slate-800 border border-slate-700 rounded-lg p-4 flex-1">
+                <h2 class="text-md font-semibold mb-2 text-slate-300">네트워크 토폴로지 맵 (실시간 상태)</h2>
+                <div class="w-full h-[320px] bg-slate-950 rounded flex items-center justify-center border border-slate-800">
+                    <div class="flex gap-12 items-center">
+                        <div class="p-4 bg-slate-800 border-2 border-green-500 rounded-lg text-center">
+                            <p class="font-bold">Core Router</p>
+                            <p class="text-xs text-green-400">192.168.1.1</p>
+                        </div>
+                        <div class="text-slate-500">━━━</div>
+                        <div class="p-4 bg-slate-800 border-2 border-yellow-500 rounded-lg text-center">
+                            <p class="font-bold">Distribution SW</p>
+                            <p class="text-xs text-yellow-400">CPU 82% (주의)</p>
+                        </div>
+                        <div class="text-slate-500">━━━</div>
+                        <div class="p-4 bg-slate-800 border-2 border-green-500 rounded-lg text-center">
+                            <p class="font-bold">Access SW</p>
+                            <p class="text-xs text-green-400">192.168.1.10</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 하단 트래픽 모니터링 영역 -->
+            <div class="bg-slate-800 border border-slate-700 rounded-lg p-4 h-48">
+                <h2 class="text-md font-semibold mb-2 text-slate-300">실시간 네트워크 트래픽 및 AI 장애 예측 스코어</h2>
+                <div class="flex items-center justify-center h-32 text-slate-500 bg-slate-950 rounded">
+                    [ 트래픽 차트 그래프 출력 영역 ]
+                </div>
+            </div>
+        </main>
+
+        <!-- 오른쪽: 실시간 알람 & 예측 패널 -->
+        <aside class="col-span-4 bg-slate-800 border border-slate-700 rounded-lg p-4 flex flex-col">
+            <h2 class="text-md font-semibold mb-4 text-slate-300">🚨 실시간 장애 감지 / AI 예측 알림</h2>
+            <div class="flex flex-col gap-3 overflow-y-auto flex-1">
+                <div class="p-3 bg-red-950/60 border border-red-800 rounded">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-xs font-bold text-red-400">[경고] 장애 위험 감지</span>
+                        <span class="text-xs text-slate-400">14:02:11</span>
+                    </div>
+                    <p class="text-sm">Distribution SW 인터페이스 트래픽 급증 (AI 예측 장애 확률 87%)</p>
+                </div>
+
+                <div class="p-3 bg-yellow-950/60 border border-yellow-800 rounded">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-xs font-bold text-yellow-400">[주의] CPU 임계치 초과</span>
+                        <span class="text-xs text-slate-400">13:58:40</span>
+                    </div>
+                    <p class="text-sm">Core Router CPU 사용량 80% 달성</p>
+                </div>
+            </div>
+        </aside>
+    </div>
+</body>
+</html>

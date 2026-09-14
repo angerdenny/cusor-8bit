@@ -1,0 +1,18 @@
+# APEX Project Cursor Rules
+
+## 1. Tech Stack
+- Language: Python 3.10+, JavaScript (Node.js)
+- Database: MySQL 8.0
+- Web Framework: Node.js (Express) or Python (FastAPI/Flask)
+- Frontend: HTML5, TailwindCSS / React
+- Security & Network Tools: Cisco CLI, SNMP, Nmap, OpenVAS
+
+## 2. Coding Guidelines
+- Write clean, modular, and well-documented code.
+- Always include type hints for Python functions.
+- Keep DB queries optimized and separate SQL logic from API controllers.
+- Commit messages must follow the convention: `feat:`, `fix:`, `docs:`, `style:`.
+
+## 3. Security Requirements
+- Do NOT hardcode DB passwords, secret keys, or API tokens. Always use `.env` files.
+- Input validation must be strictly implemented to prevent SQL Injection and XSS.
