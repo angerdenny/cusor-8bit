@@ -6,74 +6,327 @@
     <title>AI 네트워크 통합관제 시스템</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-900 text-white font-sans">
-    <!-- 상단 헤더 -->
-    <header class="bg-slate-800 border-b border-slate-700 p-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold text-blue-400">🌐 AI 기반 네트워크 장애 예측 및 통합관제 시스템</h1>
-        <div class="flex items-center gap-4">
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900 text-green-300">
-                ● 시스템 정상 동작 중
-            </span>
-            <span class="text-sm text-slate-400">8 bit Team</span>
+<body class="bg-slate-900 text-white font-sans min-h-screen">
+
+    <!-- 1. 로그인 화면 -->
+    <div id="login-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950 p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl p-8 max-w-sm w-full text-center shadow-2xl relative">
+            <div class="mb-6">
+                <div class="w-20 h-20 mx-auto bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-2xl flex items-center justify-center shadow-lg mb-3">
+                    <span class="text-3xl font-extrabold tracking-wider text-white">8bit</span>
+                </div>
+                <h2 class="text-xl font-bold text-slate-100">통합관제 시스템 로그인</h2>
+                <p class="text-xs text-slate-400 mt-1">접속을 위해 비밀번호를 입력하세요.</p>
+            </div>
+
+            <!-- IP 차단 경고 화면 -->
+            <div id="banned-screen" class="hidden py-4 space-y-3">
+                <div class="p-3 bg-red-950/80 border border-red-700 rounded-lg text-red-300 text-xs">
+                    🚨 <strong>접속 차단됨 (IP Banned)</strong><br>
+                    비밀번호 연속 오류(10회)로 인해 해당 IP의 접근이 보안 정책상 차단되었습니다. 관리자에게 문의하세요.
+                </div>
+            </div>
+
+            <!-- 일반 로그인 폼 -->
+            <form id="login-form" class="space-y-4" onsubmit="handleLogin(event)">
+                <div>
+                    <input type="password" id="password-input" placeholder="비밀번호 입력 (admin / 8bit)" 
+                        class="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition disabled:opacity-50">
+                </div>
+
+                <!-- 실패 횟수 및 에러/잠금 타이머 메시지 -->
+                <div class="space-y-1">
+                    <p id="error-msg" class="text-xs text-red-400 hidden">비밀번호가 올바르지 않습니다.</p>
+                    <p id="fail-count-msg" class="text-xs text-slate-400 hidden">
+                        실패 횟수: <span id="fail-count" class="text-yellow-400 font-bold">0</span>회
+                    </p>
+                    <p id="lockout-msg" class="text-xs text-orange-400 font-semibold hidden">
+                        🔒 비밀번호 오류 초과로 로그인 잠금 중입니다.<br>
+                        남은 시간: <span id="timer-text" class="text-white font-bold">00:00</span>
+                    </p>
+                </div>
+
+                <button type="submit" id="login-btn"
+                    class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg shadow-md transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                    로그인
+                </button>
+            </form>
         </div>
-    </header>
-
-    <!-- 메인 관제 레이아웃 -->
-    <div class="grid grid-cols-12 gap-4 p-4 h-[calc(100vh-70px)]">
-        <!-- 왼쪽: 네트워크 토폴로지 맵 & 장비 상태 -->
-        <main class="col-span-8 flex flex-col gap-4">
-            <div class="bg-slate-800 border border-slate-700 rounded-lg p-4 flex-1">
-                <h2 class="text-md font-semibold mb-2 text-slate-300">네트워크 토폴로지 맵 (실시간 상태)</h2>
-                <div class="w-full h-[320px] bg-slate-950 rounded flex items-center justify-center border border-slate-800">
-                    <div class="flex gap-12 items-center">
-                        <div class="p-4 bg-slate-800 border-2 border-green-500 rounded-lg text-center">
-                            <p class="font-bold">Core Router</p>
-                            <p class="text-xs text-green-400">192.168.1.1</p>
-                        </div>
-                        <div class="text-slate-500">━━━</div>
-                        <div class="p-4 bg-slate-800 border-2 border-yellow-500 rounded-lg text-center">
-                            <p class="font-bold">Distribution SW</p>
-                            <p class="text-xs text-yellow-400">CPU 82% (주의)</p>
-                        </div>
-                        <div class="text-slate-500">━━━</div>
-                        <div class="p-4 bg-slate-800 border-2 border-green-500 rounded-lg text-center">
-                            <p class="font-bold">Access SW</p>
-                            <p class="text-xs text-green-400">192.168.1.10</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 하단 트래픽 모니터링 영역 -->
-            <div class="bg-slate-800 border border-slate-700 rounded-lg p-4 h-48">
-                <h2 class="text-md font-semibold mb-2 text-slate-300">실시간 네트워크 트래픽 및 AI 장애 예측 스코어</h2>
-                <div class="flex items-center justify-center h-32 text-slate-500 bg-slate-950 rounded">
-                    [ 트래픽 차트 그래프 출력 영역 ]
-                </div>
-            </div>
-        </main>
-
-        <!-- 오른쪽: 실시간 알람 & 예측 패널 -->
-        <aside class="col-span-4 bg-slate-800 border border-slate-700 rounded-lg p-4 flex flex-col">
-            <h2 class="text-md font-semibold mb-4 text-slate-300">🚨 실시간 장애 감지 / AI 예측 알림</h2>
-            <div class="flex flex-col gap-3 overflow-y-auto flex-1">
-                <div class="p-3 bg-red-950/60 border border-red-800 rounded">
-                    <div class="flex justify-between items-center mb-1">
-                        <span class="text-xs font-bold text-red-400">[경고] 장애 위험 감지</span>
-                        <span class="text-xs text-slate-400">14:02:11</span>
-                    </div>
-                    <p class="text-sm">Distribution SW 인터페이스 트래픽 급증 (AI 예측 장애 확률 87%)</p>
-                </div>
-
-                <div class="p-3 bg-yellow-950/60 border border-yellow-800 rounded">
-                    <div class="flex justify-between items-center mb-1">
-                        <span class="text-xs font-bold text-yellow-400">[주의] CPU 임계치 초과</span>
-                        <span class="text-xs text-slate-400">13:58:40</span>
-                    </div>
-                    <p class="text-sm">Core Router CPU 사용량 80% 달성</p>
-                </div>
-            </div>
-        </aside>
     </div>
+
+    <!-- 2. 메인 관제 대시보드 -->
+    <div id="dashboard-screen" class="hidden min-h-screen flex flex-col">
+        <header class="bg-slate-800 border-b border-slate-700 px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+            <h1 class="text-lg md:text-xl font-bold text-blue-400 flex items-center gap-2 shrink-0">
+                <span>🌐</span> <span class="whitespace-nowrap">AI 기반 네트워크 장애 예측 및 통합관제 System</span>
+            </h1>
+            <div class="flex items-center gap-2 md:gap-3 flex-wrap">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-green-950/80 border border-green-700/50 text-green-400 whitespace-nowrap">
+                    <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                    시스템 정상 동작 중
+                </span>
+                
+                <button id="admin-manage-btn" onclick="toggleAdminModal(true)" class="hidden text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow-sm transition whitespace-nowrap items-center gap-1.5 border border-indigo-400/30">
+                    ⚙️ 기기/권한 부여 관리
+                </button>
+
+                <span id="user-role-badge" class="text-xs px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg font-semibold text-blue-300 whitespace-nowrap flex items-center gap-1">
+                    👑 관리자 (이지환)
+                </span>
+
+                <button onclick="logout()" class="text-xs px-3 py-1.5 bg-slate-700 hover:bg-red-900/40 hover:text-red-300 hover:border-red-700/50 text-slate-300 font-medium rounded-lg border border-slate-600 transition whitespace-nowrap">
+                    로그아웃
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 flex-1">
+            <main class="lg:col-span-8 flex flex-col gap-4">
+                <div class="bg-slate-800 border border-slate-700 rounded-lg p-4 flex-1 flex flex-col">
+                    <h2 class="text-md font-semibold mb-2 text-slate-300">네트워크 토폴로지 맵 (실시간 상태)</h2>
+                    <div class="w-full min-h-[280px] flex-1 bg-slate-950 rounded flex items-center justify-center border border-slate-800 p-4 overflow-x-auto">
+                        <div class="flex gap-4 md:gap-8 items-center min-w-max">
+                            <div class="p-3 md:p-4 bg-slate-800 border-2 border-green-500 rounded-lg text-center shadow-lg">
+                                <p class="font-bold text-sm md:text-base">Core Router</p>
+                                <p class="text-xs text-green-400 font-mono">192.168.1.1</p>
+                            </div>
+                            <div class="text-slate-500 font-bold">━━━</div>
+                            <div class="p-3 md:p-4 bg-slate-800 border-2 border-yellow-500 rounded-lg text-center shadow-lg">
+                                <p class="font-bold text-sm md:text-base">Distribution SW</p>
+                                <p class="text-xs text-yellow-400 font-mono">CPU 82% (주의)</p>
+                            </div>
+                            <div class="text-slate-500 font-bold">━━━</div>
+                            <div class="p-3 md:p-4 bg-slate-800 border-2 border-green-500 rounded-lg text-center shadow-lg">
+                                <p class="font-bold text-sm md:text-base">Access SW</p>
+                                <p class="text-xs text-green-400 font-mono">192.168.1.10</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800 border border-slate-700 rounded-lg p-4 h-48">
+                    <h2 class="text-md font-semibold mb-2 text-slate-300">실시간 네트워크 트래픽 및 AI 장애 예측 스코어</h2>
+                    <div class="flex items-center justify-center h-32 text-slate-500 bg-slate-950 rounded border border-slate-800">
+                        [ 트래픽 차트 그래프 출력 영역 ]
+                    </div>
+                </div>
+            </main>
+
+            <aside class="lg:col-span-4 bg-slate-800 border border-slate-700 rounded-lg p-4 flex flex-col min-h-[250px]">
+                <h2 class="text-md font-semibold mb-3 text-slate-300">🚨 실시간 장애 감지 / AI 예측 알림</h2>
+                <div class="flex flex-col gap-3 overflow-y-auto flex-1">
+                    <div class="p-3 bg-red-950/60 border border-red-800 rounded-lg">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-xs font-bold text-red-400">[경고] 장애 위험 감지</span>
+                            <span class="text-xs text-slate-400">14:02:11</span>
+                        </div>
+                        <p class="text-sm">Distribution SW 인터페이스 트래픽 급증 (AI 예측 장애 확률 87%)</p>
+                    </div>
+
+                    <div class="p-3 bg-yellow-950/60 border border-yellow-800 rounded-lg">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-xs font-bold text-yellow-400">[주의] CPU 임계치 초과</span>
+                            <span class="text-xs text-slate-400">13:58:40</span>
+                        </div>
+                        <p class="text-sm">Core Router CPU 사용량 80% 달성</p>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- 3. [관리자 전용] 기기 할당 및 사용자 권한 관리 모달 -->
+    <div id="admin-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-3xl overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
+            <div class="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center">
+                <h3 class="text-base md:text-lg font-bold text-indigo-400 flex items-center gap-2">
+                    ⚙️ 접속 기기 할당 및 사용자 권한 관리 (Root/Admin 전용)
+                </h3>
+                <button onclick="toggleAdminModal(false)" class="text-slate-400 hover:text-white text-xl px-2">✕</button>
+            </div>
+            
+            <div class="p-4 md:p-6 space-y-6 overflow-y-auto flex-1">
+                <div>
+                    <h4 class="text-sm font-semibold text-slate-300 mb-3">📡 최근 접속된 기기 및 소유자 할당</h4>
+                    <div class="overflow-x-auto rounded-lg border border-slate-700">
+                        <table class="w-full text-sm text-left text-slate-300 min-w-[500px]">
+                            <thead class="text-xs text-slate-400 uppercase bg-slate-800 border-b border-slate-700">
+                                <tr>
+                                    <th class="px-4 py-3">IP 주소</th>
+                                    <th class="px-4 py-3">기기 이름</th>
+                                    <th class="px-4 py-3">기기 종류</th>
+                                    <th class="px-4 py-3">현재 상태</th>
+                                    <th class="px-4 py-3">소유자 할당</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800 bg-slate-950">
+                                <tr>
+                                    <td class="px-4 py-3 font-mono text-xs">172.28.8.34</td>
+                                    <td class="px-4 py-3">지환 님 스마트폰</td>
+                                    <td class="px-4 py-3"><span class="px-2 py-0.5 text-xs bg-slate-800 rounded">Mobile</span></td>
+                                    <td class="px-4 py-3 text-green-400">● Online</td>
+                                    <td class="px-4 py-3">
+                                        <select class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-white">
+                                            <option value="1" selected>지환 (admin)</option>
+                                            <option value="2">user1</option>
+                                            <option value="none">미할당</option>
+                                        </select>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 font-mono text-xs">192.168.1.15</td>
+                                    <td class="px-4 py-3">개발용 PC 01</td>
+                                    <td class="px-4 py-3"><span class="px-2 py-0.5 text-xs bg-slate-800 rounded">PC</span></td>
+                                    <td class="px-4 py-3 text-green-400">● Online</td>
+                                    <td class="px-4 py-3">
+                                        <select class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-white">
+                                            <option value="1">지환 (admin)</option>
+                                            <option value="2" selected>user1</option>
+                                            <option value="none">미할당</option>
+                                        </select>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-slate-800 p-4 border-t border-slate-700 flex justify-end gap-3">
+                <button onclick="toggleAdminModal(false)" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-xs font-semibold">닫기</button>
+                <button onclick="saveAssignments()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded text-xs font-semibold">변경사항 저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 스크립트 -->
+    <script>
+        let currentRole = 'user';
+        let failCount = 0;
+        let lockTimer = null;
+
+        // 단계별 잠금 시간 테이블 (초 단위)
+        const lockDurations = {
+            5: 30,       // 5회 실패: 30초
+            6: 60,       // 6회 실패: 1분 (60초)
+            7: 180,      // 7회 실패: 3분 (180초)
+            8: 600,      // 8회 실패: 10분 (600초)
+            9: 1200      // 9회 실패: 20분 (1200초)
+        };
+
+        function handleLogin(event) {
+            event.preventDefault();
+            const passwordInput = document.getElementById('password-input').value;
+            const errorMsg = document.getElementById('error-msg');
+            const failCountMsg = document.getElementById('fail-count-msg');
+            const failCountSpan = document.getElementById('fail-count');
+            const adminBtn = document.getElementById('admin-manage-btn');
+            const roleBadge = document.getElementById('user-role-badge');
+            
+            // 비밀번호 검증
+            if (passwordInput === 'admin' || passwordInput === '8bit') {
+                // 성공 시 실패 카운트 초기화
+                failCount = 0;
+                failCountMsg.classList.add('hidden');
+                errorMsg.classList.add('hidden');
+
+                if (passwordInput === 'admin') {
+                    currentRole = 'admin';
+                    adminBtn.classList.remove('hidden');
+                    adminBtn.classList.add('inline-flex');
+                    roleBadge.textContent = '👑 관리자 (이지환)';
+                } else {
+                    currentRole = 'user';
+                    adminBtn.classList.add('hidden');
+                    adminBtn.classList.remove('inline-flex');
+                    roleBadge.textContent = '👤 일반 사용자';
+                }
+                showDashboard();
+            } else {
+                // 실패 처리
+                failCount++;
+                failCountSpan.textContent = failCount;
+                failCountMsg.classList.remove('hidden');
+                errorMsg.classList.remove('hidden');
+
+                // 10회 이상 실패 시 IP 차단
+                if (failCount >= 10) {
+                    banIP();
+                    return;
+                }
+
+                // 5회 이상 실패 시 단계별 잠금
+                if (failCount >= 5) {
+                    const lockSeconds = lockDurations[failCount] || 1200;
+                    startLockout(lockSeconds);
+                }
+            }
+        }
+
+        // 잠금 타이머 처리
+        function startLockout(seconds) {
+            const passwordInput = document.getElementById('password-input');
+            const loginBtn = document.getElementById('login-btn');
+            const lockoutMsg = document.getElementById('lockout-msg');
+            const timerText = document.getElementById('timer-text');
+
+            passwordInput.disabled = true;
+            loginBtn.disabled = true;
+            lockoutMsg.classList.remove('hidden');
+
+            let remaining = seconds;
+            updateTimerDisplay(remaining, timerText);
+
+            clearInterval(lockTimer);
+            lockTimer = setInterval(() => {
+                remaining--;
+                updateTimerDisplay(remaining, timerText);
+
+                if (remaining <= 0) {
+                    clearInterval(lockTimer);
+                    passwordInput.disabled = false;
+                    loginBtn.disabled = false;
+                    lockoutMsg.classList.add('hidden');
+                    passwordInput.focus();
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay(totalSeconds, displayElem) {
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            displayElem.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        // IP 차단 처리
+        function banIP() {
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('banned-screen').classList.remove('hidden');
+        }
+
+        function showDashboard() {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('dashboard-screen').classList.remove('hidden');
+            document.getElementById('error-msg').classList.add('hidden');
+        }
+
+        function logout() {
+            document.getElementById('dashboard-screen').classList.add('hidden');
+            document.getElementById('login-screen').classList.remove('hidden');
+            document.getElementById('password-input').value = '';
+            toggleAdminModal(false);
+        }
+
+        function toggleAdminModal(show) {
+            const modal = document.getElementById('admin-modal');
+            if (show) modal.classList.remove('hidden');
+            else modal.classList.add('hidden');
+        }
+
+        function saveAssignments() {
+            alert('기기 소유자 할당 정보가 저장되었습니다. (추후 DB 반영 예정)');
+            toggleAdminModal(false);
+        }
+    </script>
 </body>
-</html>
+</html> 
