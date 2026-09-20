@@ -1,15 +1,38 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI 기반 네트워크 장애 예측 및 통합관제 시스템</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Chart.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            dark: '#0b0f19',
+                            card: '#111827',
+                            border: '#1f293d',
+                            accent: '#06b6d4'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        /* 반투명 유리(Glassmorphism) 카드 스타일 */
+        body {
+            background-color: #070913;
+            color: #f3f4f6;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow-x: hidden;
+        }
+        /* 로그인 카드 Glassmorphism 효과 */
         .login-card {
             background: rgba(255, 255, 255, 0.05);
             backdrop-filter: blur(24px);
@@ -17,11 +40,31 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
             box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
         }
+        /* 커스텀 스크롤바 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0b0f19; }
+        ::-webkit-scrollbar-thumb { background: #1f293d; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #374151; }
+
+        /* 라이트 모드 전용 카드 및 헤더 화이트 배경 적용 */
+        html:not(.dark) .bg-\[\#111827\],
+        html:not(.dark) .bg-slate-900,
+        html:not(.dark) .bg-slate-950,
+        html:not(.dark) header {
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+            border-color: #e2e8f0 !important;
+        }
+        html:not(.dark) .text-slate-200,
+        html:not(.dark) .text-slate-300,
+        html:not(.dark) .text-slate-400 {
+            color: #334155 !important;
+        }
     </style>
 </head>
-<body class="bg-[#070913] text-white font-sans min-h-screen antialiased selection:bg-indigo-500 selection:text-white">
+<body class="min-h-screen bg-[#070913] text-slate-100 antialiased selection:bg-indigo-500 selection:text-white">
 
-    <!-- 1. 로그인 화면 -->
+    <!-- 1. 로그인 화면 (3D 네트워크 Orb & Glassmorphism) -->
     <div id="login-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#070913] p-4 overflow-y-auto">
         
         <!-- 상단 3D 네트워크 노드 회전 AI Orb Canvas -->
@@ -33,7 +76,7 @@
         <!-- 헤드라인 타이틀 -->
         <div class="text-center mb-6 px-4">
             <h1 class="text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-snug">
-                Your AI workspace, one login away.
+                AI 기반 네트워크 관제 시스템에 오신 것을 환영합니다
             </h1>
             <p class="text-xs md:text-sm text-slate-400 mt-1">
                 AI 기반 네트워크 장애 예측 및 통합관제 시스템
@@ -42,10 +85,9 @@
 
         <!-- 로그인 모달 카드 -->
         <div class="login-card rounded-2xl p-7 max-w-sm w-full relative">
-            
             <div class="mb-5 text-left">
-                <h2 class="text-lg font-bold text-slate-100">Welcome back</h2>
-                <p class="text-xs text-slate-400 mt-0.5">Sign in to continue to your workspace</p>
+                <h2 class="text-lg font-bold text-slate-100">로그인</h2>
+                <p class="text-xs text-slate-400 mt-0.5">시스템 이용을 위해 계정정보를 입력해주세요</p>
             </div>
 
             <!-- IP 차단 경고 화면 -->
@@ -58,22 +100,18 @@
 
             <!-- 로그인 폼 -->
             <form id="login-form" class="space-y-4" onsubmit="handleLogin(event)">
-                
-                <!-- 1. Name 입력란 -->
                 <div class="text-left">
                     <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Name</label>
                     <input type="text" id="username-input" placeholder="이름 입력 (예: 이지환)" required
                         class="w-full px-3.5 py-2.5 bg-[#1a2035]/80 border border-slate-700/70 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition text-sm">
                 </div>
 
-                <!-- 2. Password 입력란 -->
                 <div class="text-left">
                     <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Password</label>
                     <input type="password" id="password-input" placeholder="비밀번호 (8bit / admin)" required
                         class="w-full px-3.5 py-2.5 bg-[#1a2035]/80 border border-slate-700/70 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition text-sm disabled:opacity-50">
                 </div>
 
-                <!-- 에러/타이머 메시지 -->
                 <div class="space-y-1 text-left">
                     <p id="error-msg" class="text-xs text-rose-400 font-medium hidden">⚠️ 비밀번호가 올바르지 않습니다.</p>
                     <p id="fail-count-msg" class="text-xs text-slate-400 hidden">
@@ -85,104 +123,291 @@
                     </p>
                 </div>
 
-                <!-- 로그인 버튼 -->
                 <button type="submit" id="login-btn"
                     class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow-lg shadow-indigo-600/30 transition duration-200 disabled:opacity-50 text-sm flex items-center justify-center gap-1 mt-2">
-                    <span>Sign in</span>
+                    <span>로그인하기</span>
                     <span>→</span>
                 </button>
             </form>
         </div>
     </div>
 
-    <!-- 2. 메인 관제 대시보드 -->
-    <div id="dashboard-screen" class="hidden min-h-screen flex flex-col">
-        <header class="bg-[#111625] border-b border-slate-800 px-6 py-3.5 flex flex-wrap justify-between items-center gap-4 sticky top-0 z-40">
-            <div class="flex items-center gap-3">
-                <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-black text-sm text-white shadow-md shadow-indigo-500/20">8b</div>
-                <h1 class="text-base md:text-lg font-bold text-slate-100 flex items-center gap-2">
-                    <span>AI 기반 네트워크 장애 예측 및 통합관제 System</span>
-                </h1>
-            </div>
+    <!-- 2. 메인 통합관제 대시보드 (로그인 후 표시) -->
+    <div id="dashboard-screen" class="hidden min-h-screen flex-col">
+        <!-- 상단 헤더 -->
+        <header class="border-b border-slate-800 bg-[#111827]/90 backdrop-blur sticky top-0 z-40 px-4 py-3">
+            <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-500 to-cyan-400 p-0.5 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                        <div class="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
+                            <i data-lucide="activity" class="w-5 h-5 text-cyan-400"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="font-extrabold text-lg tracking-wider text-white">8bit <span class="text-cyan-400 font-normal text-sm">AI Pulse</span></span>
+                            <span class="bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[10px] font-mono px-2 py-0.5 rounded-full">v2.4 Live</span>
+                        </div>
+                        <p class="text-xs text-slate-400 hidden sm:block">AI 기반 네트워크 장애 예측 및 통합관제 시스템</p>
+                    </div>
+                </div>
 
-            <div class="flex items-center gap-3 flex-wrap">
-                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-950/80 border border-emerald-700/50 text-emerald-400">
-                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                    시스템 정상 동작 중
-                </span>
-                
-                <button id="admin-manage-btn" onclick="toggleAdminModal(true)" class="hidden text-xs px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow-sm transition items-center gap-1.5 border border-indigo-400/30">
-                    ⚙️ 기기/권한 부여 관리
-                </button>
+                <div class="flex items-center space-x-3 flex-wrap">
+                    <div class="flex items-center space-x-2 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-lg">
+                        <span id="system-status-dot" class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
+                        <span id="system-status-text" class="text-xs font-semibold text-green-400">AI 엔진 정상 작동 중</span>
+                    </div>
 
-                <span id="user-role-badge" class="text-xs px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg font-semibold text-indigo-300">
-                    👑 관리자 (이지환)
-                </span>
+                    <!-- 장애 시뮬레이션 버튼 -->
+                    <div class="flex items-center space-x-1.5">
+                        <button onclick="injectAnomaly('ddos')" class="px-2.5 py-1.5 bg-red-900/30 hover:bg-red-800/50 border border-red-700/50 text-red-300 text-xs font-medium rounded-lg transition flex items-center space-x-1">
+                            <i data-lucide="zap" class="w-3.5 h-3.5 text-red-400"></i>
+                            <span class="hidden sm:inline">DDoS 부하 발생</span>
+                        </button>
+                        <button onclick="injectAnomaly('loss')" class="px-2.5 py-1.5 bg-amber-900/30 hover:bg-amber-800/50 border border-amber-700/50 text-amber-300 text-xs font-medium rounded-lg transition flex items-center space-x-1">
+                            <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-amber-400"></i>
+                            <span class="hidden sm:inline">패킷 손실 유발</span>
+                        </button>
+                        <button onclick="resetSimulation()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-medium rounded-lg transition flex items-center space-x-1">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
 
-                <button onclick="logout()" class="text-xs px-3 py-1.5 bg-slate-800 hover:bg-rose-950/50 hover:text-rose-300 text-slate-300 font-medium rounded-lg border border-slate-700 transition">
-                    로그아웃
-                </button>
+                    <button id="admin-manage-btn" onclick="toggleAdminModal(true)" class="hidden text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow-sm transition border border-indigo-400/30">
+                        ⚙️ 기기 관리
+                    </button>
+
+                    <div id="user-role-badge" class="flex items-center space-x-1.5 bg-blue-950/40 border border-blue-800/40 px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-200">
+                        👑 관리자 (이지환)
+                    </div>
+                    <!-- 다크/라이트 모드 전환 버튼 -->
+                    <button onclick="toggleDarkMode()" id="theme-toggle-btn" class="text-xs px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+                        <span id="theme-toggle-icon">☀️</span>
+                        <span id="theme-toggle-text">라이트 모드</span>
+                    </button>
+
+                    <button onclick="logout()" class="text-xs px-3 py-1.5 bg-slate-800 hover:bg-rose-950/50 hover:text-rose-300 text-slate-300 font-medium rounded-lg border border-slate-700 transition">
+                        로그아웃
+                    </button>
+                </div>
             </div>
         </header>
 
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 md:p-6 flex-1">
-            <main class="lg:col-span-8 flex flex-col gap-4">
-                <div class="bg-[#111625] border border-slate-800 rounded-2xl p-5 flex-1 flex flex-col shadow-xl">
-                    <h2 class="text-sm font-bold text-slate-200 mb-4">🌐 네트워크 토폴로지 맵</h2>
-                    <div class="w-full min-h-[260px] flex-1 bg-[#070913] rounded-xl flex items-center justify-center border border-slate-800 p-6 overflow-x-auto">
-                        <div class="flex gap-8 items-center min-w-max">
-                            <div class="p-4 bg-[#111625] border-2 border-emerald-500/80 rounded-xl text-center shadow-lg">
-                                <p class="font-bold text-sm">Core Router</p>
-                                <p class="text-xs text-emerald-400 font-mono mt-1">192.168.1.1</p>
-                            </div>
-                            <div class="text-slate-600 font-bold">━━━━━━</div>
-                            <div class="p-4 bg-[#111625] border-2 border-amber-500/80 rounded-xl text-center shadow-lg">
-                                <p class="font-bold text-sm">Distribution SW</p>
-                                <p class="text-xs text-amber-400 font-mono mt-1">CPU 82% (주의)</p>
-                            </div>
-                            <div class="text-slate-600 font-bold">━━━━━━</div>
-                            <div class="p-4 bg-[#111625] border-2 border-emerald-500/80 rounded-xl text-center shadow-lg">
-                                <p class="font-bold text-sm">Access SW</p>
-                                <p class="text-xs text-emerald-400 font-mono mt-1">192.168.1.10</p>
-                            </div>
+        <!-- 메인 대시보드 본문 -->
+        <main class="max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
+            <!-- 요약 스탯 카드 4종 -->
+            <section class="lg:col-span-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- 1. 실시간 수신 트래픽 -->
+                <div class="bg-[#111827] border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-lg">
+                    <div>
+                        <p class="text-xs font-medium text-slate-400">실시간 수신 트래픽</p>
+                        <h3 id="stat-traffic-in" class="text-2xl font-bold font-mono text-cyan-400 mt-1">452 Mbps</h3>
+                        <p class="text-[11px] text-slate-500 mt-1 flex items-center">
+                            <i data-lucide="trending-up" class="w-3 h-3 text-cyan-400 mr-1"></i> 정상 대역폭 유지 중
+                        </p>
+                    </div>
+                    <div class="w-10 h-10 bg-cyan-950/50 border border-cyan-800/40 rounded-xl flex items-center justify-center">
+                        <i data-lucide="arrow-down-left" class="w-5 h-5 text-cyan-400"></i>
+                    </div>
+                </div>
+
+                <!-- 2. 모니터링 기기 현황 -->
+                <div class="bg-[#111827] border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-lg">
+                    <div>
+                        <p class="text-xs font-medium text-slate-400">Monitored Devices</p>
+                        <h3 class="text-2xl font-bold font-mono text-white mt-1">7 / 7 Online</h3>
+                        <p class="text-[11px] text-slate-500 mt-1 flex items-center">
+                            <i data-lucide="check-circle-2" class="w-3 h-3 text-green-400 mr-1"></i> 100% Reachable
+                        </p>
+                    </div>
+                    <div class="w-10 h-10 bg-blue-950/50 border border-blue-800/40 rounded-xl flex items-center justify-center">
+                        <i data-lucide="server" class="w-5 h-5 text-blue-400"></i>
+                    </div>
+                </div>
+
+                <!-- 3. AI 장애 위험 스코어 -->
+                <div id="ai-score-card" class="bg-[#111827] border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-lg">
+                    <div>
+                        <p class="text-xs font-medium text-slate-400">AI 장애 위험 스코어</p>
+                        <div class="flex items-baseline space-x-2 mt-1">
+                            <h3 id="stat-ai-risk" class="text-2xl font-bold font-mono text-green-400">12.4%</h3>
+                            <span id="stat-ai-badge" class="text-[10px] px-2 py-0.5 bg-green-950 border border-green-800 text-green-300 rounded font-semibold">안전 (낮음)</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 mt-1">이상 감지 모델 작동 중</p>
+                    </div>
+                    <div class="w-10 h-10 bg-emerald-950/50 border border-emerald-800/40 rounded-xl flex items-center justify-center">
+                        <i data-lucide="brain-circuit" class="w-5 h-5 text-emerald-400"></i>
+                    </div>
+                </div>
+
+                <!-- 4. 평균 패킷 손실률 -->
+                <div class="bg-[#111827] border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-lg">
+                    <div>
+                        <p class="text-xs font-medium text-slate-400">평균 패킷 손실률</p>
+                        <h3 id="stat-packet-loss" class="text-2xl font-bold font-mono text-emerald-400 mt-1">0.02%</h3>
+                        <p class="text-[11px] text-slate-500 mt-1">기준 임계치: 1.5% 미만</p>
+                    </div>
+                    <div class="w-10 h-10 bg-indigo-950/50 border border-indigo-800/40 rounded-xl flex items-center justify-center">
+                        <i data-lucide="wifi-off" class="w-5 h-5 text-indigo-400"></i>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 좌측: 네트워크 토폴로지 & 실시간 Canvas 트래픽 차트 -->
+            <section class="lg:col-span-8 flex flex-col space-y-6">
+                <!-- 토폴로지 맵 -->
+                <div class="bg-[#111827] border border-slate-800 rounded-xl p-5 shadow-lg">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="font-bold text-slate-200 text-sm flex items-center gap-2">
+                            <i data-lucide="network" class="w-4 h-4 text-cyan-400"></i>
+                            네트워크 인프라 토폴로지 맵
+                        </h2>
+                        <span class="text-xs text-slate-400">노드 클릭 시 상세 진단 조회</span>
+                    </div>
+
+                    <div class="bg-slate-950 border border-slate-800 rounded-lg p-5 flex flex-col justify-between overflow-x-auto">
+                        <!-- Top: Core Router -->
+                        <div class="flex justify-center my-1">
+                            <button onclick="selectNode('core-router')" class="bg-slate-900 border-2 border-green-500 hover:border-cyan-400 px-5 py-2.5 rounded-xl text-center shadow-lg transition">
+                                <div class="flex items-center space-x-2">
+                                    <i data-lucide="router" class="w-4 h-4 text-green-400"></i>
+                                    <span class="font-bold text-xs text-slate-100">Core Router 01</span>
+                                </div>
+                                <p class="text-[10px] font-mono text-green-400 mt-0.5">192.168.1.1</p>
+                            </button>
+                        </div>
+
+                        <div class="text-center text-slate-700 font-bold my-1 text-xs">│ ───────────────────┼─────────────────── │</div>
+
+                        <!-- Mid: Switches -->
+                        <div class="grid grid-cols-2 gap-4 max-w-md mx-auto w-full my-1">
+                            <button onclick="selectNode('dist-sw-1')" class="bg-slate-900 border-2 border-green-500 hover:border-cyan-400 p-2.5 rounded-xl text-center transition">
+                                <span class="font-bold text-xs text-slate-200">Dist-SW-01</span>
+                                <p class="text-[10px] font-mono text-slate-400">192.168.1.10</p>
+                            </button>
+                            <button onclick="selectNode('dist-sw-2')" class="bg-slate-900 border-2 border-green-500 hover:border-cyan-400 p-2.5 rounded-xl text-center transition">
+                                <span class="font-bold text-xs text-slate-200">Dist-SW-02</span>
+                                <p class="text-[10px] font-mono text-slate-400">192.168.1.11</p>
+                            </button>
+                        </div>
+
+                        <div class="flex justify-around text-slate-700 font-bold my-1 text-xs max-w-md mx-auto w-full">
+                            <span>│ ────── │</span>
+                            <span>│ ────── │</span>
+                        </div>
+
+                        <!-- Bottom: Endpoints -->
+                        <div class="grid grid-cols-4 gap-2 my-1">
+                            <button onclick="selectNode('server-db')" class="bg-slate-900 border border-slate-700 hover:border-blue-500 p-2 rounded-lg text-center transition">
+                                <i data-lucide="database" class="w-3.5 h-3.5 text-cyan-400 mx-auto"></i>
+                                <span class="block text-[10px] font-semibold text-slate-300 truncate">DB Cluster</span>
+                            </button>
+                            <button onclick="selectNode('server-api')" class="bg-slate-900 border border-slate-700 hover:border-blue-500 p-2 rounded-lg text-center transition">
+                                <i data-lucide="cpu" class="w-3.5 h-3.5 text-purple-400 mx-auto"></i>
+                                <span class="block text-[10px] font-semibold text-slate-300 truncate">FastAPI</span>
+                            </button>
+                            <button onclick="selectNode('workstation-pc')" class="bg-slate-900 border border-slate-700 hover:border-blue-500 p-2 rounded-lg text-center transition">
+                                <i data-lucide="monitor" class="w-3.5 h-3.5 text-emerald-400 mx-auto"></i>
+                                <span class="block text-[10px] font-semibold text-slate-300 truncate">Dev-PC</span>
+                            </button>
+                            <button onclick="selectNode('mobile-gateway')" class="bg-slate-900 border border-slate-700 hover:border-blue-500 p-2 rounded-lg text-center transition">
+                                <i data-lucide="smartphone" class="w-3.5 h-3.5 text-amber-400 mx-auto"></i>
+                                <span class="block text-[10px] font-semibold text-slate-300 truncate">Mobile GW</span>
+                            </button>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-[#111625] border border-slate-800 rounded-2xl p-5 shadow-xl">
-                    <h2 class="text-sm font-bold text-slate-200 mb-3">📈 실시간 네트워크 트래픽 & AI 장애 예측 스코어</h2>
-                    <div class="h-52 w-full">
-                        <canvas id="trafficChart"></canvas>
+                <!-- 실시간 Canvas 트래픽 차트 -->
+                <div class="bg-[#111827] border border-slate-800 rounded-xl p-5 shadow-lg">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="font-bold text-slate-200 text-sm flex items-center gap-2">
+                            <i data-lucide="line-chart" class="w-4 h-4 text-blue-400"></i>
+                            실시간 트래픽 & AI 위협 스코어 그래프
+                        </h2>
+                        <div class="flex items-center space-x-3 text-xs">
+                            <span class="flex items-center gap-1"><span class="w-3 h-0.5 bg-cyan-400 inline-block"></span> 수신 트래픽</span>
+                            <span class="flex items-center gap-1"><span class="w-3 h-0.5 bg-red-500 inline-block"></span> AI 위험도</span>
+                        </div>
+                    </div>
+                    <div class="relative h-56 w-full bg-slate-950 border border-slate-800 rounded-lg p-2">
+                        <canvas id="trafficCanvas" class="w-full h-full block"></canvas>
                     </div>
                 </div>
-            </main>
+            </section>
 
-            <aside class="lg:col-span-4 flex flex-col gap-4">
-                <div class="bg-[#111625] border border-slate-800 rounded-2xl p-5 shadow-xl">
-                    <h2 class="text-sm font-bold text-slate-200 mb-3">🚨 실시간 AI 장애 예측 로그</h2>
-                    <div class="flex flex-col gap-2">
-                        <div class="p-3 bg-rose-950/40 border border-rose-800/60 rounded-xl text-xs">
-                            <span class="font-bold text-rose-400">[CRITICAL] 장애 위험 감지</span>
-                            <p class="text-slate-300 mt-1">Distribution SW 트래픽 급증 (AI 예측 확률 87%)</p>
+            <!-- 우측: 노드 인스펙터 & 실시간 알림 로그 -->
+            <section class="lg:col-span-4 flex flex-col space-y-6">
+                <!-- 노드 진단 인스펙터 -->
+                <div class="bg-[#111827] border border-slate-800 rounded-xl p-5 shadow-lg">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                        <h2 class="font-bold text-slate-200 text-xs flex items-center gap-1.5">
+                            <i data-lucide="sliders" class="w-4 h-4 text-indigo-400"></i>
+                            장비 텔레메트리 진단
+                        </h2>
+                        <span id="inspect-node-id" class="text-xs font-mono px-2 py-0.5 bg-slate-800 text-slate-300 rounded">Core Router</span>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-400">CPU Usage</span>
+                                <span id="inspect-cpu-text" class="font-mono text-cyan-400 font-bold">24%</span>
+                            </div>
+                            <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                                <div id="inspect-cpu-bar" class="h-full bg-cyan-500 transition-all duration-500" style="width: 24%"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-400">Memory</span>
+                                <span id="inspect-ram-text" class="font-mono text-blue-400 font-bold">42%</span>
+                            </div>
+                            <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                                <div id="inspect-ram-bar" class="h-full bg-blue-500 transition-all duration-500" style="width: 42%"></div>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-950 rounded-lg p-3 border border-slate-800 space-y-2 text-xs">
+                            <div class="flex justify-between"><span class="text-slate-500">IP:</span><span id="inspect-ip" class="font-mono text-slate-200">192.168.1.1</span></div>
+                            <div class="flex justify-between"><span class="text-slate-500">Owner:</span><span id="inspect-owner" class="text-indigo-300">admin (이지환)</span></div>
+                            <div class="flex justify-between"><span class="text-slate-500">Type:</span><span id="inspect-type" class="text-slate-300">Core Network Router</span></div>
+                            <div class="flex justify-between"><span class="text-slate-500">Status:</span><span id="inspect-status" class="text-green-400 font-medium">● 10 Gbps Link Normal</span></div>
                         </div>
                     </div>
                 </div>
-            </aside>
-        </div>
+
+                <!-- 실시간 AI 알림 스트림 -->
+                <div class="bg-[#111827] border border-slate-800 rounded-xl p-5 shadow-lg flex-1 flex flex-col min-h-[280px]">
+                    <div class="flex items-center justify-between mb-3 border-b border-slate-800 pb-2">
+                        <h2 class="font-bold text-slate-200 text-xs flex items-center gap-1.5">
+                            <i data-lucide="bell-ring" class="w-4 h-4 text-red-400"></i>
+                            실시간 AI 예측 & 보안 로그
+                        </h2>
+                    </div>
+                    <div id="alert-feed-container" class="space-y-2.5 overflow-y-auto flex-1 pr-1 max-h-[320px]">
+                        <div class="p-2.5 bg-red-950/40 border border-red-800/60 rounded-lg text-xs space-y-1">
+                            <div class="flex justify-between font-bold text-red-400">
+                                <span>🚨 [CRITICAL] 장애 위험 감지</span>
+                                <span class="text-[10px] text-slate-400 font-mono">14:02</span>
+                            </div>
+                            <p class="text-slate-300">Distribution SW 트래픽 급증 (AI 예측 확률 87.4%)</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
     </div>
 
-    <!-- 3. [관리자 전용] 기기 할당 및 사용자 권한 관리 모달 -->
+    <!-- 3. [관리자 전용] 모달 -->
     <div id="admin-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col">
             <div class="bg-slate-800/80 px-6 py-4 border-b border-slate-700/80 flex justify-between items-center">
-                <h3 class="text-sm font-bold text-indigo-300 flex items-center gap-2">
-                    <span>⚙️</span> 접속 기기 할당 및 권한 관리 (Root/Admin 전용)
-                </h3>
+                <h3 class="text-sm font-bold text-indigo-300 flex items-center gap-2">⚙️ 접속 기기 할당 및 권한 관리</h3>
                 <button onclick="toggleAdminModal(false)" class="text-slate-400 hover:text-white text-lg font-bold px-2">✕</button>
             </div>
-            
             <div class="p-6 space-y-4">
-                <h4 class="text-xs font-bold text-slate-300">📡 최근 접속 기기 및 소유자 할당</h4>
                 <div class="overflow-x-auto rounded-xl border border-slate-800">
                     <table class="w-full text-xs text-left text-slate-300">
                         <thead class="text-[11px] text-slate-400 uppercase bg-slate-950 border-b border-slate-800 font-mono">
@@ -204,7 +429,6 @@
                                     <select class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white">
                                         <option value="1" selected>지환 (admin)</option>
                                         <option value="2">user1</option>
-                                        <option value="none">미할당</option>
                                     </select>
                                 </td>
                             </tr>
@@ -212,53 +436,40 @@
                     </table>
                 </div>
             </div>
-
             <div class="bg-slate-950 px-6 py-3.5 border-t border-slate-800 flex justify-end gap-2">
-                <button onclick="toggleAdminModal(false)" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-semibold text-slate-300 transition">닫기</button>
-                <button onclick="saveAssignments()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-semibold text-white shadow-md shadow-indigo-600/30 transition">변경사항 저장</button>
+                <button onclick="toggleAdminModal(false)" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-semibold text-slate-300">닫기</button>
+                <button onclick="saveAssignments()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-semibold text-white">저장</button>
             </div>
         </div>
     </div>
 
     <!-- 스크립트 -->
     <script>
-        // 1. 3D 네트워크 노드 회전 AI Orb (Canvas 애니메이션)
-        const canvas = document.getElementById('networkOrbCanvas');
-        const ctx = canvas.getContext('2d');
+        lucide.createIcons();
+
+        // 1. 3D 네트워크 Orb 애니메이션 (렉 방지용 제어변수 추가)
+        const orbCanvas = document.getElementById('networkOrbCanvas');
+        const orbCtx = orbCanvas.getContext('2d');
         const numNodes = 24;
-        const nodes = [];
+        const orbNodes = [];
         const radius = 55;
-        let angleX = 0;
-        let angleY = 0;
+        let angleX = 0, angleY = 0;
+        let orbAnimationId = null;
 
         const phi = Math.PI * (3 - Math.sqrt(5));
         for (let i = 0; i < numNodes; i++) {
             const y = 1 - (i / (numNodes - 1)) * 2;
             const radiusAtY = Math.sqrt(1 - y * y);
             const theta = phi * i;
-            const x = Math.cos(theta) * radiusAtY;
-            const z = Math.sin(theta) * radiusAtY;
-            nodes.push({ x: x * radius, y: y * radius, z: z * radius });
+            orbNodes.push({ x: Math.cos(theta) * radiusAtY * radius, y: y * radius, z: Math.sin(theta) * radiusAtY * radius });
         }
 
         function animate3DOrb() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const cx = canvas.width / 2;
-            const cy = canvas.height / 2;
+            orbCtx.clearRect(0, 0, orbCanvas.width, orbCanvas.height);
+            const cx = orbCanvas.width / 2, cy = orbCanvas.height / 2;
+            angleX += 0.008; angleY += 0.012;
 
-            angleX += 0.008;
-            angleY += 0.012;
-
-            const outerGlow = ctx.createRadialGradient(cx, cy, 20, cx, cy, 80);
-            outerGlow.addColorStop(0, 'rgba(99, 102, 241, 0.35)');
-            outerGlow.addColorStop(0.7, 'rgba(79, 70, 229, 0.1)');
-            outerGlow.addColorStop(1, 'rgba(7, 9, 19, 0)');
-            ctx.fillStyle = outerGlow;
-            ctx.beginPath();
-            ctx.arc(cx, cy, 80, 0, Math.PI * 2);
-            ctx.fill();
-
-            const rotatedNodes = nodes.map(node => {
+            const rotated = orbNodes.map(node => {
                 let x1 = node.x * Math.cos(angleY) - node.z * Math.sin(angleY);
                 let z1 = node.z * Math.cos(angleY) + node.x * Math.sin(angleY);
                 let y2 = node.y * Math.cos(angleX) - z1 * Math.sin(angleX);
@@ -266,162 +477,298 @@
                 return { x: x1 + cx, y: y2 + cy, z: z2 };
             });
 
-            for (let i = 0; i < rotatedNodes.length; i++) {
-                for (let j = i + 1; j < rotatedNodes.length; j++) {
-                    const dx = rotatedNodes[i].x - rotatedNodes[j].x;
-                    const dy = rotatedNodes[i].y - rotatedNodes[j].y;
+            for (let i = 0; i < rotated.length; i++) {
+                for (let j = i + 1; j < rotated.length; j++) {
+                    const dx = rotated[i].x - rotated[j].x, dy = rotated[i].y - rotated[j].y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
-
                     if (dist < 48) {
-                        const alpha = (1 - dist / 48) * 0.4;
-                        ctx.strokeStyle = `rgba(165, 180, 252, ${alpha})`;
-                        ctx.lineWidth = 1;
-                        ctx.beginPath();
-                        ctx.moveTo(rotatedNodes[i].x, rotatedNodes[i].y);
-                        ctx.lineTo(rotatedNodes[j].x, rotatedNodes[j].y);
-                        ctx.stroke();
+                        orbCtx.strokeStyle = `rgba(165, 180, 252, ${(1 - dist / 48) * 0.4})`;
+                        orbCtx.lineWidth = 1;
+                        orbCtx.beginPath(); orbCtx.moveTo(rotated[i].x, rotated[i].y); orbCtx.lineTo(rotated[j].x, rotated[j].y); orbCtx.stroke();
                     }
                 }
             }
-
-            rotatedNodes.forEach(node => {
-                const scale = (node.z + radius) / (radius * 2);
-                const pointRadius = 1.8 + scale * 1.5;
-                const alpha = 0.3 + scale * 0.7;
-
-                ctx.fillStyle = `rgba(199, 210, 254, ${alpha})`;
-                ctx.beginPath();
-                ctx.arc(node.x, node.y, pointRadius, 0, Math.PI * 2);
-                ctx.fill();
+            rotated.forEach(node => {
+                orbCtx.fillStyle = 'rgba(199, 210, 254, 0.8)';
+                orbCtx.beginPath(); orbCtx.arc(node.x, node.y, 2.5, 0, Math.PI * 2); orbCtx.fill();
             });
-
-            requestAnimationFrame(animate3DOrb);
+            orbAnimationId = requestAnimationFrame(animate3DOrb);
         }
         animate3DOrb();
 
-        // 2. 로그인 및 대시보드 로직
-        let currentRole = 'user';
+        // 2. 로그인 및 잠금 로직
         let failCount = 0;
-        let lockTimer = null;
-        let chartInstance = null;
-
         const lockDurations = { 5: 30, 6: 60, 7: 180, 8: 600, 9: 1200 };
-
-        function initChart() {
-            const chartCtx = document.getElementById('trafficChart').getContext('2d');
-            chartInstance = new Chart(chartCtx, {
-                type: 'line',
-                data: {
-                    labels: ['10:00', '10:05', '10:10', '10:15', '10:20', '10:25'],
-                    datasets: [{
-                        label: 'Inbound (Mbps)',
-                        data: [120, 150, 180, 200, 450, 210],
-                        borderColor: '#6366f1',
-                        borderWidth: 2,
-                        fill: false
-                    }]
-                },
-                options: { responsive: true, maintainAspectRatio: false }
-            });
-        }
 
         function handleLogin(event) {
             event.preventDefault();
             const usernameInput = document.getElementById('username-input').value.trim();
             const passwordInput = document.getElementById('password-input').value;
-            const errorMsg = document.getElementById('error-msg');
-            const failCountMsg = document.getElementById('fail-count-msg');
-            const failCountSpan = document.getElementById('fail-count');
             const adminBtn = document.getElementById('admin-manage-btn');
             const roleBadge = document.getElementById('user-role-badge');
-            
+
             if (passwordInput === 'admin' || passwordInput === '8bit') {
                 failCount = 0;
-                failCountMsg.classList.add('hidden');
-                errorMsg.classList.add('hidden');
-
                 if (passwordInput === 'admin') {
-                    currentRole = 'admin';
                     adminBtn.classList.remove('hidden');
-                    adminBtn.classList.add('inline-flex');
                     roleBadge.textContent = `👑 관리자 (${usernameInput || '이지환'})`;
                 } else {
-                    currentRole = 'user';
                     adminBtn.classList.add('hidden');
-                    adminBtn.classList.remove('inline-flex');
                     roleBadge.textContent = `👤 일반 사용자 (${usernameInput || '8bit'})`;
                 }
                 showDashboard();
             } else {
                 failCount++;
-                failCountSpan.textContent = failCount;
-                failCountMsg.classList.remove('hidden');
-                errorMsg.classList.remove('hidden');
+                document.getElementById('fail-count').textContent = failCount;
+                document.getElementById('fail-count-msg').classList.remove('hidden');
+                document.getElementById('error-msg').classList.remove('hidden');
 
                 if (failCount >= 10) {
-                    banIP();
-                    return;
-                }
-
-                if (failCount >= 5) {
-                    const lockSeconds = lockDurations[failCount] || 1200;
-                    startLockout(lockSeconds);
+                    document.getElementById('login-form').classList.add('hidden');
+                    document.getElementById('banned-screen').classList.remove('hidden');
+                } else if (failCount >= 5) {
+                    startLockout(lockDurations[failCount] || 1200);
                 }
             }
         }
 
         function startLockout(seconds) {
-            const passwordInput = document.getElementById('password-input');
-            const loginBtn = document.getElementById('login-btn');
-            const lockoutMsg = document.getElementById('lockout-msg');
-            const timerText = document.getElementById('timer-text');
-
-            passwordInput.disabled = true;
-            loginBtn.disabled = true;
-            lockoutMsg.classList.remove('hidden');
-
+            const pwd = document.getElementById('password-input');
+            const btn = document.getElementById('login-btn');
+            pwd.disabled = true; btn.disabled = true;
+            document.getElementById('lockout-msg').classList.remove('hidden');
             let remaining = seconds;
             const timer = setInterval(() => {
                 remaining--;
-                const min = String(Math.floor(remaining / 60)).padStart(2, '0');
-                const sec = String(remaining % 60).padStart(2, '0');
-                timerText.textContent = `${min}:${sec}`;
-
+                document.getElementById('timer-text').textContent = `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`;
                 if (remaining <= 0) {
                     clearInterval(timer);
-                    passwordInput.disabled = false;
-                    loginBtn.disabled = false;
-                    lockoutMsg.classList.add('hidden');
+                    pwd.disabled = false; btn.disabled = false;
+                    document.getElementById('lockout-msg').classList.add('hidden');
                 }
             }, 1000);
         }
 
-        function banIP() {
-            document.getElementById('login-form').classList.add('hidden');
-            document.getElementById('banned-screen').classList.remove('hidden');
-        }
-
         function showDashboard() {
+            // 렉 방지: 대시보드 입장 시 3D Orb 애니메이션 중단
+            if (orbAnimationId) cancelAnimationFrame(orbAnimationId);
+
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('dashboard-screen').classList.remove('hidden');
-            if (!chartInstance) setTimeout(initChart, 100);
+            document.getElementById('dashboard-screen').classList.add('flex');
+            resizeCanvas();
+            selectNode('core-router');
         }
 
         function logout() {
             document.getElementById('dashboard-screen').classList.add('hidden');
+            document.getElementById('dashboard-screen').classList.remove('flex');
             document.getElementById('login-screen').classList.remove('hidden');
             document.getElementById('password-input').value = '';
+            
+            // 로그인 화면 복귀 시 3D Orb 재가동
+            animate3DOrb();
         }
 
         function toggleAdminModal(show) {
-            const modal = document.getElementById('admin-modal');
-            if (show) modal.classList.remove('hidden');
-            else modal.classList.add('hidden');
+            document.getElementById('admin-modal').classList.toggle('hidden', !show);
         }
 
         function saveAssignments() {
             alert('기기 소유자 할당 정보가 저장되었습니다.');
             toggleAdminModal(false);
+        }
+
+        // 3. 대시보드 데이터 & Canvas 차트 애니메이션
+        const state = {
+            ingressMbps: 450,
+            aiRiskScore: 12.4,
+            packetLossPct: 0.02,
+            activeAnomalyMode: null,
+            selectedNodeId: 'core-router',
+            nodes: {
+                'core-router': { id: 'Core Router 01', ip: '192.168.1.1', type: 'Core Router', owner: 'admin (이지환)', cpu: 24, ram: 42, status: '● 10 Gbps Link Normal' },
+                'dist-sw-1': { id: 'Dist-SW-01', ip: '192.168.1.10', type: 'Distribution Switch', owner: 'admin (이지환)', cpu: 82, ram: 68, status: '▲ High Load Warning' },
+                'dist-sw-2': { id: 'Dist-SW-02', ip: '192.168.1.11', type: 'Distribution Switch', owner: 'user1 (8bit)', cpu: 31, ram: 45, status: '● Normal' },
+                'server-db': { id: 'DB Cluster Node', ip: '10.0.0.5', type: 'Database Server', owner: 'admin (이지환)', cpu: 45, ram: 78, status: '● Normal' },
+                'server-api': { id: 'FastAPI Backend', ip: '10.0.0.12', type: 'Application Server', owner: 'admin (이지환)', cpu: 38, ram: 52, status: '● Normal' },
+                'workstation-pc': { id: 'Dev-PC-01', ip: '192.168.1.15', type: 'Workstation', owner: 'user1 (8bit)', cpu: 18, ram: 30, status: '● Online' },
+                'mobile-gateway': { id: 'Mobile Gateway', ip: '172.28.8.34', type: 'Mobile Endpoint', owner: 'admin (이지환)', cpu: 12, ram: 25, status: '● Online' }
+            }
+        };
+
+        const trafficCanvas = document.getElementById('trafficCanvas');
+        const trafficCtx = trafficCanvas.getContext('2d');
+        const maxPoints = 35;
+        const trafficHistory = Array(maxPoints).fill(450);
+        const riskHistory = Array(maxPoints).fill(12);
+
+        function resizeCanvas() {
+            if (!trafficCanvas || !trafficCanvas.parentElement) return;
+            trafficCanvas.width = trafficCanvas.parentElement.clientWidth;
+            trafficCanvas.height = trafficCanvas.parentElement.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function drawChart() {
+            if (!trafficCtx) return;
+            const w = trafficCanvas.width, h = trafficCanvas.height;
+            trafficCtx.clearRect(0, 0, w, h);
+
+            trafficCtx.strokeStyle = '#1e293b'; trafficCtx.lineWidth = 1;
+            for (let i = 1; i < 4; i++) {
+                trafficCtx.beginPath(); trafficCtx.moveTo(0, (h / 4) * i); trafficCtx.lineTo(w, (h / 4) * i); trafficCtx.stroke();
+            }
+
+            const stepX = w / (maxPoints - 1);
+            trafficCtx.beginPath(); trafficCtx.strokeStyle = '#22d3ee'; trafficCtx.lineWidth = 2;
+            trafficHistory.forEach((val, i) => {
+                const y = h - (val / 1200) * (h - 20) - 10;
+                if (i === 0) trafficCtx.moveTo(0, y); else trafficCtx.lineTo(i * stepX, y);
+            });
+            trafficCtx.stroke();
+
+            trafficCtx.beginPath(); trafficCtx.strokeStyle = '#ef4444'; trafficCtx.lineWidth = 2;
+            riskHistory.forEach((val, i) => {
+                const y = h - (val / 100) * (h - 20) - 10;
+                if (i === 0) trafficCtx.moveTo(0, y); else trafficCtx.lineTo(i * stepX, y);
+            });
+            trafficCtx.stroke();
+        }
+
+        function updateTelemetry() {
+            let trafficBase = 450 + (Math.random() * 60 - 30);
+            let riskBase = 10 + (Math.random() * 5);
+            let lossBase = 0.02 + (Math.random() * 0.03);
+
+            if (state.activeAnomalyMode === 'ddos') {
+                trafficBase = 1080 + (Math.random() * 100);
+                riskBase = 92.8 + (Math.random() * 5);
+                lossBase = 4.8 + (Math.random() * 2);
+            } else if (state.activeAnomalyMode === 'loss') {
+                trafficBase = 280 + (Math.random() * 40);
+                riskBase = 74.2 + (Math.random() * 8);
+                lossBase = 12.5 + (Math.random() * 4);
+            }
+
+            state.ingressMbps = Math.round(trafficBase);
+            state.aiRiskScore = parseFloat(riskBase.toFixed(1));
+            state.packetLossPct = parseFloat(lossBase.toFixed(2));
+
+            trafficHistory.push(state.ingressMbps); trafficHistory.shift();
+            riskHistory.push(state.aiRiskScore); riskHistory.shift();
+
+            document.getElementById('stat-traffic-in').innerText = `${state.ingressMbps} Mbps`;
+            document.getElementById('stat-ai-risk').innerText = `${state.aiRiskScore}%`;
+            document.getElementById('stat-packet-loss').innerText = `${state.packetLossPct}%`;
+
+            // AI 상태 스코어에 따른 문구 변경
+            const aiBadge = document.getElementById('stat-ai-badge');
+            const statusDot = document.getElementById('system-status-dot');
+            const statusText = document.getElementById('system-status-text');
+
+            if (state.aiRiskScore > 80) {
+                if (aiBadge) {
+                    aiBadge.innerText = '심각 (경보)';
+                    aiBadge.className = 'text-[10px] px-2 py-0.5 bg-red-950 border border-red-800 text-red-300 rounded font-semibold animate-pulse';
+                }
+                if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-red-500 animate-ping';
+                if (statusText) {
+                    statusText.innerText = 'AI 경보: 장애 위험 감지!';
+                    statusText.className = 'text-xs font-semibold text-red-400';
+                }
+            } else if (state.aiRiskScore > 50) {
+                if (aiBadge) {
+                    aiBadge.innerText = '주의 (상승)';
+                    aiBadge.className = 'text-[10px] px-2 py-0.5 bg-amber-950 border border-amber-800 text-amber-300 rounded font-semibold';
+                }
+                if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse';
+                if (statusText) {
+                    statusText.innerText = 'AI 경고: 이상 징후 임계치';
+                    statusText.className = 'text-xs font-semibold text-amber-400';
+                }
+            } else {
+                if (aiBadge) {
+                    aiBadge.innerText = '안전 (낮음)';
+                    aiBadge.className = 'text-[10px] px-2 py-0.5 bg-green-950 border border-green-800 text-green-300 rounded font-semibold';
+                }
+                if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse';
+                if (statusText) {
+                    statusText.innerText = 'AI 엔진 정상 작동 중';
+                    statusText.className = 'text-xs font-semibold text-green-400';
+                }
+            }
+
+            drawChart();
+        }
+
+        function selectNode(key) {
+            state.selectedNodeId = key;
+            const d = state.nodes[key];
+            if (!d) return;
+            document.getElementById('inspect-node-id').innerText = d.id;
+            document.getElementById('inspect-cpu-text').innerText = `${d.cpu}%`;
+            document.getElementById('inspect-cpu-bar').style.width = `${d.cpu}%`;
+            document.getElementById('inspect-ram-text').innerText = `${d.ram}%`;
+            document.getElementById('inspect-ram-bar').style.width = `${d.ram}%`;
+            document.getElementById('inspect-ip').innerText = d.ip;
+            document.getElementById('inspect-owner').innerText = d.owner;
+            document.getElementById('inspect-type').innerText = d.type;
+            document.getElementById('inspect-status').innerText = d.status;
+        }
+
+        function injectAnomaly(type) {
+            state.activeAnomalyMode = type;
+            const now = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+            const feed = document.getElementById('alert-feed-container');
+            const alertHtml = type === 'ddos' ? 
+                `<div class="p-2.5 bg-red-950/80 border border-red-700 rounded-lg text-xs space-y-1"><div class="flex justify-between font-bold text-red-300"><span>🚨 DDoS 부하 발생됨</span><span class="text-[10px] text-slate-400 font-mono">${now}</span></div><p class="text-slate-200">수신 대역폭 1Gbps 초과! AI 장애 예측 스코어: <strong class="text-red-400">94.8%</strong></p></div>` :
+                `<div class="p-2.5 bg-amber-950/80 border border-amber-700 rounded-lg text-xs space-y-1"><div class="flex justify-between font-bold text-amber-300"><span>⚠️ 패킷 손실 발생됨</span><span class="text-[10px] text-slate-400 font-mono">${now}</span></div><p class="text-slate-200">패킷 손실률 12.5% 도달.</p></div>`;
+            feed.insertAdjacentHTML('afterbegin', alertHtml);
+        }
+
+        function resetSimulation() {
+            state.activeAnomalyMode = null;
+            const now = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+            document.getElementById('alert-feed-container').insertAdjacentHTML('afterbegin', 
+                `<div class="p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-xs space-y-1"><div class="flex justify-between font-bold text-cyan-400"><span>ℹ️ 데이터 리셋</span><span class="text-[10px] text-slate-400 font-mono">${now}</span></div><p class="text-slate-300">시스템이 기본 모니터링 상태로 복구되었습니다.</p></div>`
+            );
+        }
+
+        setInterval(updateTelemetry, 1000);
+        // 라이트/다크 모드 전체 전환 함수
+        function toggleDarkMode() {
+            const htmlEl = document.documentElement;
+            const isDark = htmlEl.classList.contains('dark');
+            const iconEl = document.getElementById('theme-toggle-icon');
+            const textEl = document.getElementById('theme-toggle-text');
+
+            if (isDark) {
+                // 1. 다크 모드 끄기 (라이트 모드로 변경)
+                htmlEl.classList.remove('dark');
+                document.body.classList.remove('bg-[#070913]', 'text-slate-100');
+                document.body.classList.add('bg-slate-100', 'text-slate-900');
+
+                // 헤더 및 카드 배경 라이트 모드 전환
+                document.querySelectorAll('header, .bg-\\[\\#111827\\], .bg-slate-900, .bg-slate-950').forEach(el => {
+                    el.classList.add('light-card-bg');
+                });
+
+                if (iconEl) iconEl.textContent = '🌙';
+                if (textEl) textEl.textContent = '다크 모드';
+            } else {
+                // 2. 다크 모드 켜기
+                htmlEl.classList.add('dark');
+                document.body.classList.remove('bg-slate-100', 'text-slate-900');
+                document.body.classList.add('bg-[#070913]', 'text-slate-100');
+
+                document.querySelectorAll('.light-card-bg').forEach(el => {
+                    el.classList.remove('light-card-bg');
+                });
+
+                if (iconEl) iconEl.textContent = '☀️';
+                if (textEl) textEl.textContent = '라이트 모드';
+            }
         }
     </script>
 </body>
