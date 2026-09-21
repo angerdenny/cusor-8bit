@@ -46,19 +46,125 @@
         ::-webkit-scrollbar-thumb { background: #1f293d; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #374151; }
 
-        /* 라이트 모드 전용 카드 및 헤더 화이트 배경 적용 */
-        html:not(.dark) .bg-\[\#111827\],
-        html:not(.dark) .bg-slate-900,
-        html:not(.dark) .bg-slate-950,
-        html:not(.dark) header {
-            background-color: #ffffff !important;
+        /* 1. 기본 배경 및 대시보드 카드 테두리 */
+        html:not(.dark) body {
+            background-color: #f8fafc !important;
             color: #0f172a !important;
+        }
+
+        html:not(.dark) #dashboard-screen header,
+        html:not(.dark) #dashboard-screen .bg-\[\#111827\],
+        html:not(.dark) #dashboard-screen .bg-slate-900,
+        html:not(.dark) #dashboard-screen .bg-slate-950 {
+            background-color: #ffffff !important;
             border-color: #e2e8f0 !important;
         }
-        html:not(.dark) .text-slate-200,
-        html:not(.dark) .text-slate-300,
-        html:not(.dark) .text-slate-400 {
-            color: #334155 !important;
+
+        /* 2. 좌측 상단 8bit 로고 타이틀 글씨 선명화 */
+        html:not(.dark) #dashboard-screen header h1,
+        html:not(.dark) #dashboard-screen header .font-black,
+        html:not(.dark) #dashboard-screen header h1 span,
+        html:not(.dark) #dashboard-screen header div span.font-black,
+        html:not(.dark) #dashboard-screen header div span.text-white {
+            color: #0284c7 !important; /* 굵고 선명한 로고 컬러 */
+            font-weight: 900 !important;
+        }
+
+        /* 3. 대시보드 기본 타이틀 및 서브텍스트 가독성 */
+        html:not(.dark) #dashboard-screen h2,
+        html:not(.dark) #dashboard-screen h3,
+        html:not(.dark) #dashboard-screen p:not([class*="text-blue"]):not([class*="text-green"]):not([class*="text-red"]) {
+            color: #1e293b !important;
+        }
+        html:not(.dark) #dashboard-screen .text-slate-400,
+        html:not(.dark) #dashboard-screen .text-slate-500 {
+            color: #475569 !important;
+        }
+
+        /* 4. 상단 버튼 (DDoS / 패킷 손실) */
+        html:not(.dark) #dashboard-screen button[onclick*="DDoS"],
+        html:not(.dark) #dashboard-screen button[onclick*="ddos"],
+        html:not(.dark) #dashboard-screen .bg-red-500\/20 {
+            background-color: #fef2f2 !important;
+            border: 1px solid #f87171 !important;
+            color: #dc2626 !important;
+            font-weight: 700 !important;
+        }
+        html:not(.dark) #dashboard-screen button[onclick*="DDoS"] *,
+        html:not(.dark) #dashboard-screen .bg-red-500\/20 * {
+            color: #dc2626 !important;
+        }
+
+        html:not(.dark) #dashboard-screen button[onclick*="Packet"],
+        html:not(.dark) #dashboard-screen button[onclick*="packet"],
+        html:not(.dark) #dashboard-screen .bg-amber-500\/20 {
+            background-color: #fffbeb !important;
+            border: 1px solid #f59e0b !important;
+            color: #b45309 !important;
+            font-weight: 700 !important;
+        }
+        html:not(.dark) #dashboard-screen button[onclick*="Packet"] *,
+        html:not(.dark) #dashboard-screen .bg-amber-500\/20 * {
+            color: #b45309 !important;
+        }
+
+        /* 5. 헤더 우측 다크 모드 버튼 & 관리자 뱃지 보정 복구 */
+        html:not(.dark) #dashboard-screen #user-role-badge,
+        html:not(.dark) #dashboard-screen header button.bg-slate-800,
+        html:not(.dark) #dashboard-screen header button[onclick*="DarkMode"],
+        html:not(.dark) #dashboard-screen header button[onclick*="dark"] {
+            background-color: #1e293b !important;
+            border: 1px solid #334155 !important;
+            color: #ffffff !important;
+        }
+        html:not(.dark) #dashboard-screen #user-role-badge *,
+        html:not(.dark) #dashboard-screen header button.bg-slate-800 *,
+        html:not(.dark) #dashboard-screen header button[onclick*="DarkMode"] *,
+        html:not(.dark) #dashboard-screen header button[onclick*="dark"] * {
+            color: #ffffff !important;
+        }
+
+        /* 6. 토폴로지 맵 노드 마우스 호버(Hover) 및 선택 색상 완벽 복구 */
+        html:not(.dark) #dashboard-screen button[onclick*="selectNode"] {
+            background-color: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            transition: all 0.2s ease !important;
+        }
+        html:not(.dark) #dashboard-screen button[onclick*="selectNode"] * {
+            color: #0f172a !important;
+        }
+        html:not(.dark) #dashboard-screen button[onclick*="selectNode"]:hover {
+            background-color: #eff6ff !important;
+            border-color: #3b82f6 !important;
+            box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25) !important;
+        }
+        html:not(.dark) #dashboard-screen button[onclick*="selectNode"]:hover * {
+            color: #1d4ed8 !important;
+        }
+        html:not(.dark) #dashboard-screen button[onclick*="selectNode"].border-blue-500,
+        html:not(.dark) #dashboard-screen button[onclick*="selectNode"].bg-blue-950\/30 {
+            background-color: #dbeafe !important;
+            border: 2px solid #2563eb !important;
+        }
+
+        /* 7. 우측 장비 텔레메트리 진단표 IP 및 명세 선명화 */
+        html:not(.dark) #dashboard-screen #inspector-ip,
+        html:not(.dark) #dashboard-screen #inspector-owner,
+        html:not(.dark) #dashboard-screen #inspector-type,
+        html:not(.dark) #dashboard-screen .font-mono {
+            color: #0f172a !important;
+            font-weight: 700 !important;
+        }
+
+        /* 8. 실시간 AI 예측 & 보안 로그 박스 보정 */
+        html:not(.dark) #dashboard-screen .bg-red-950\/30,
+        html:not(.dark) #dashboard-screen .bg-red-900\/20 {
+            background-color: #fef2f2 !important;
+            border: 1px solid #fca5a5 !important;
+        }
+        html:not(.dark) #dashboard-screen .bg-red-950\/30 *,
+        html:not(.dark) #dashboard-screen .bg-red-900\/20 * {
+            color: #991b1b !important;
         }
     </style>
 </head>
@@ -200,7 +306,7 @@
                 <!-- 1. 실시간 수신 트래픽 -->
                 <div class="bg-[#111827] border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-lg">
                     <div>
-                        <p class="text-xs font-medium text-slate-400">실시간 수신 트래픽</p>
+                        <p class="text-xs font-medium text-slate-400">실시간 수신 트래픽-장우진</p>
                         <h3 id="stat-traffic-in" class="text-2xl font-bold font-mono text-cyan-400 mt-1">452 Mbps</h3>
                         <p class="text-[11px] text-slate-500 mt-1 flex items-center">
                             <i data-lucide="trending-up" class="w-3 h-3 text-cyan-400 mr-1"></i> 정상 대역폭 유지 중
@@ -212,7 +318,7 @@
                 </div>
 
                 <!-- 2. 모니터링 기기 현황 -->
-                <div class="bg-[#111827] border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-lg">
+                <div id="monitored-devices-card" class="bg-[#111827] border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-lg">
                     <div>
                         <p class="text-xs font-medium text-slate-400">Monitored Devices</p>
                         <h3 class="text-2xl font-bold font-mono text-white mt-1">7 / 7 Online</h3>
@@ -228,7 +334,7 @@
                 <!-- 3. AI 장애 위험 스코어 -->
                 <div id="ai-score-card" class="bg-[#111827] border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-lg">
                     <div>
-                        <p class="text-xs font-medium text-slate-400">AI 장애 위험 스코어</p>
+                        <p class="text-xs font-medium text-slate-400">AI 장애 위험 스코어-최민규,김태현</p>
                         <div class="flex items-baseline space-x-2 mt-1">
                             <h3 id="stat-ai-risk" class="text-2xl font-bold font-mono text-green-400">12.4%</h3>
                             <span id="stat-ai-badge" class="text-[10px] px-2 py-0.5 bg-green-950 border border-green-800 text-green-300 rounded font-semibold">안전 (낮음)</span>
@@ -243,7 +349,7 @@
                 <!-- 4. 평균 패킷 손실률 -->
                 <div class="bg-[#111827] border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-lg">
                     <div>
-                        <p class="text-xs font-medium text-slate-400">평균 패킷 손실률</p>
+                        <p class="text-xs font-medium text-slate-400">평균 패킷 손실률-김민석</p>
                         <h3 id="stat-packet-loss" class="text-2xl font-bold font-mono text-emerald-400 mt-1">0.02%</h3>
                         <p class="text-[11px] text-slate-500 mt-1">기준 임계치: 1.5% 미만</p>
                     </div>
@@ -260,7 +366,7 @@
                     <div class="flex items-center justify-between mb-4">
                         <h2 class="font-bold text-slate-200 text-sm flex items-center gap-2">
                             <i data-lucide="network" class="w-4 h-4 text-cyan-400"></i>
-                            네트워크 인프라 토폴로지 맵
+                            네트워크 인프라 토폴로지 맵-양이수
                         </h2>
                         <span class="text-xs text-slate-400">노드 클릭 시 상세 진단 조회</span>
                     </div>
@@ -323,7 +429,7 @@
                     <div class="flex items-center justify-between mb-3">
                         <h2 class="font-bold text-slate-200 text-sm flex items-center gap-2">
                             <i data-lucide="line-chart" class="w-4 h-4 text-blue-400"></i>
-                            실시간 트래픽 & AI 위협 스코어 그래프
+                            실시간 트래픽 & AI 위협 스코어 그래프-장우진
                         </h2>
                         <div class="flex items-center space-x-3 text-xs">
                             <span class="flex items-center gap-1"><span class="w-3 h-0.5 bg-cyan-400 inline-block"></span> 수신 트래픽</span>
@@ -343,7 +449,7 @@
                     <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
                         <h2 class="font-bold text-slate-200 text-xs flex items-center gap-1.5">
                             <i data-lucide="sliders" class="w-4 h-4 text-indigo-400"></i>
-                            장비 텔레메트리 진단
+                            장비 텔레메트리 진단-김범수
                         </h2>
                         <span id="inspect-node-id" class="text-xs font-mono px-2 py-0.5 bg-slate-800 text-slate-300 rounded">Core Router</span>
                     </div>
@@ -383,7 +489,7 @@
                     <div class="flex items-center justify-between mb-3 border-b border-slate-800 pb-2">
                         <h2 class="font-bold text-slate-200 text-xs flex items-center gap-1.5">
                             <i data-lucide="bell-ring" class="w-4 h-4 text-red-400"></i>
-                            실시간 AI 예측 & 보안 로그
+                            실시간 AI 예측 & 보안 로그-구본학
                         </h2>
                     </div>
                     <div id="alert-feed-container" class="space-y-2.5 overflow-y-auto flex-1 pr-1 max-h-[320px]">
@@ -506,14 +612,19 @@
             const passwordInput = document.getElementById('password-input').value;
             const adminBtn = document.getElementById('admin-manage-btn');
             const roleBadge = document.getElementById('user-role-badge');
+            const deviceCard = document.getElementById('monitored-devices-card'); // 카드 요소 가져오기
 
             if (passwordInput === 'admin' || passwordInput === '8bit') {
                 failCount = 0;
                 if (passwordInput === 'admin') {
+                    // 관리자(admin) 로그인 시
                     adminBtn.classList.remove('hidden');
+                    if (deviceCard) deviceCard.classList.remove('hidden'); // 모니터링 카드 표시
                     roleBadge.textContent = `👑 관리자 (${usernameInput || '이지환'})`;
                 } else {
+                    // 일반 사용자(8bit) 로그인 시
                     adminBtn.classList.add('hidden');
+                    if (deviceCard) deviceCard.classList.add('hidden'); // 모니터링 카드 숨기기
                     roleBadge.textContent = `👤 일반 사용자 (${usernameInput || '8bit'})`;
                 }
                 showDashboard();
@@ -755,7 +866,7 @@
                 });
 
                 if (iconEl) iconEl.textContent = '🌙';
-                if (textEl) textEl.textContent = '다크 모드';
+                if (textEl) textEl.textContent = '다크 모드-장우진';
             } else {
                 // 2. 다크 모드 켜기
                 htmlEl.classList.add('dark');
@@ -767,7 +878,7 @@
                 });
 
                 if (iconEl) iconEl.textContent = '☀️';
-                if (textEl) textEl.textContent = '라이트 모드';
+                if (textEl) textEl.textContent = '라이트 모드-장우진';
             }
         }
     </script>
