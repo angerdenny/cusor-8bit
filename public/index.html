@@ -104,6 +104,23 @@
         .topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 22px; }
         .topbar h1 { font-size: 26px; font-weight: 800; letter-spacing: -.02em; line-height: 1.2; }
         .topbar p { font-size: 13px; color: var(--muted); margin-top: 4px; }
+        .wave {
+            display: inline-block; font-size: 28px; line-height: 1; transform-origin: 70% 75%;
+            font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+        }
+        .wave.waving { animation: wave 1.8s ease-in-out 2; }
+        @keyframes wave {
+            0%, 60%, 100% { transform: rotate(0deg); }
+            10% { transform: rotate(16deg); } 20% { transform: rotate(-10deg); }
+            30% { transform: rotate(16deg); } 40% { transform: rotate(-6deg); } 50% { transform: rotate(10deg); }
+        }
+        .clock-pill {
+            display: inline-flex; align-items: center; gap: 10px; padding: 6px 14px; border-radius: 999px;
+            font-size: 13px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums;
+            background: var(--glass-strong); border: 1px solid var(--border);
+        }
+        .clock-pill .clock-sep { width: 1px; height: 12px; background: var(--border); }
+        .clock-pill #clock-time { font-weight: 700; min-width: 78px; }
 
         .view { display: none; }
         .view.active { display: block; animation: viewIn .28s ease; }
@@ -265,12 +282,12 @@
             <form id="login-form" class="space-y-4" onsubmit="handleLogin(event)">
                 <div class="text-left">
                     <label class="block text-[11px] font-semibold text-slate-400 mb-1">이름</label>
-                    <input type="text" id="username-input" placeholder="이름 입력 (예: 이지환)" required
-                        class="w-full px-3.5 py-2.5 bg-[#1a2035]/80 border border-slate-700/70 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition text-sm">
+                    <input type="text" id="username-input" placeholder="이름 입력" required
+                        class="w-full px-3.5 py-2.5 bg-[#1a2035]/80 border border-slate-700/70 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition text-sm disabled:opacity-50">
                 </div>
                 <div class="text-left">
                     <label class="block text-[11px] font-semibold text-slate-400 mb-1">비밀번호</label>
-                    <input type="password" id="password-input" placeholder="비밀번호 (8bit / admin)" required
+                    <input type="password" id="password-input" placeholder="비밀번호 입력" required
                         class="w-full px-3.5 py-2.5 bg-[#1a2035]/80 border border-slate-700/70 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition text-sm disabled:opacity-50">
                 </div>
                 <div class="space-y-1 text-left">
@@ -313,7 +330,17 @@
             <!-- 상단 바 -->
             <header class="topbar">
                 <div>
-                    <h1 id="page-title">안녕하세요</h1>
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <h1 class="flex items-center gap-2">
+                            <span id="page-title">안녕하세요</span>
+                            <span id="wave" class="wave" aria-hidden="true">👋</span>
+                        </h1>
+                        <div class="clock-pill">
+                            <span id="clock-date"></span>
+                            <span class="clock-sep"></span>
+                            <span id="clock-time" class="c-cyan"></span>
+                        </div>
+                    </div>
                     <p id="page-sub"></p>
                 </div>
                 <div class="flex items-center gap-3 flex-wrap">
@@ -589,6 +616,10 @@
         let failCount = 0;
         const lockDurations = { 5: 30, 6: 60, 7: 180, 8: 600, 9: 1200 };
 
+        // 관리자 계정: 이름 '이지환' + 비밀번호 '8bit' 조합만 로그인 가능
+        const ADMIN_NAME = '이지환';
+        const ADMIN_PW = '8bit';
+
         function handleLogin(e) {
             e.preventDefault();
             const pwd = $('password-input');
@@ -596,29 +627,36 @@
             const name = $('username-input').value.trim();
             const pw = pwd.value;
 
-            if (pw === 'admin' || pw === '8bit') {
+            if (name === ADMIN_NAME && pw === ADMIN_PW) {
                 failCount = 0;
+                $('fail-count').textContent = 0;
                 $('error-msg').classList.add('hide'); $('fail-count-msg').classList.add('hide');
-                state.isAdmin = pw === 'admin';
-                state.username = name || (state.isAdmin ? '이지환' : '8bit');
+                state.isAdmin = true;
+                state.username = name;
                 showDashboard();
-            } else {
-                failCount++;
-                $('fail-count').textContent = failCount;
-                $('fail-count-msg').classList.remove('hide');
-                $('error-msg').classList.remove('hide');
-                if (failCount >= 10) {
-                    $('login-form').classList.add('hide');
-                    $('banned-screen').classList.remove('hide');
-                } else if (failCount >= 5) {
-                    startLockout(lockDurations[failCount] || 1200);
-                }
+                return;
+            }
+
+            // 이름 또는 비밀번호가 틀리면 같은 실패 횟수로 합산
+            failCount++;
+            $('fail-count').textContent = failCount;
+            $('fail-count-msg').classList.remove('hide');
+            $('error-msg').textContent = name !== ADMIN_NAME
+                ? '⚠️ 관리자가 아닙니다. 이름을 확인해 주세요.'
+                : '⚠️ 비밀번호가 올바르지 않습니다.';
+            $('error-msg').classList.remove('hide');
+
+            if (failCount >= 10) {
+                $('login-form').classList.add('hide');
+                $('banned-screen').classList.remove('hide');
+            } else if (failCount >= 5) {
+                startLockout(lockDurations[failCount] || 1200);
             }
         }
 
         function startLockout(seconds) {
-            const pwd = $('password-input'), btn = $('login-btn');
-            pwd.disabled = true; btn.disabled = true;
+            const usr = $('username-input'), pwd = $('password-input'), btn = $('login-btn');
+            usr.disabled = true; pwd.disabled = true; btn.disabled = true;
             $('lockout-msg').classList.remove('hide');
             let remaining = seconds;
             $('timer-text').textContent = `${pad(Math.floor(remaining / 60))}:${pad(remaining % 60)}`;
@@ -627,7 +665,7 @@
                 $('timer-text').textContent = `${pad(Math.floor(remaining / 60))}:${pad(remaining % 60)}`;
                 if (remaining <= 0) {
                     clearInterval(timer);
-                    pwd.disabled = false; btn.disabled = false;
+                    usr.disabled = false; pwd.disabled = false; btn.disabled = false;
                     $('lockout-msg').classList.add('hide');
                 }
             }, 1000);
@@ -708,7 +746,11 @@
             document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.dataset.view === name));
             document.querySelectorAll('.nav-btn[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === name));
             const t = VIEWS[name];
-            $('page-title').textContent = name === 'overview' ? `안녕하세요, ${state.username} 님 👋` : t[0];
+            $('page-title').textContent = name === 'overview' ? `안녕하세요, ${state.username} 님` : t[0];
+            const wave = $('wave');
+            wave.classList.toggle('hide', name !== 'overview');
+            wave.classList.remove('waving');
+            if (name === 'overview') { void wave.offsetWidth; wave.classList.add('waving'); }
             $('page-sub').textContent = t[1];
             if (name === 'logs') { state.unread = 0; updateBadge(); }
             if (name === 'devices') renderDevices();
@@ -1032,7 +1074,16 @@
             toast('기기 소유자 할당 정보가 저장되었어요.');
         }
 
+        /* ═════════ 실시간 날짜 · 시계 ═════════ */
+        function updateClock() {
+            const d = new Date();
+            $('clock-date').textContent = d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+            $('clock-time').textContent = d.toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+        }
+
         /* ═════════ 초기화 ═════════ */
+        updateClock();
+        setInterval(updateClock, 1000);
         buildNodeUI();
         renderAlerts();
         selectNode('core-router');
