@@ -612,13 +612,9 @@
         }
         animate3DOrb();
 
-        /* ═════════ 2. 로그인 · 잠금 로직 (기존 유지) ═════════ */
+        /* ═════════ 2. 로그인 · 잠금 로직 ═════════ */
         let failCount = 0;
         const lockDurations = { 5: 30, 6: 60, 7: 180, 8: 600, 9: 1200 };
-
-        // 관리자 계정: 이름 '이지환' + 비밀번호 '8bit' 조합만 로그인 가능
-        const ADMIN_NAME = '이지환';
-        const ADMIN_PW = '8bit';
 
         function handleLogin(e) {
             e.preventDefault();
@@ -627,23 +623,41 @@
             const name = $('username-input').value.trim();
             const pw = pwd.value;
 
-            if (name === ADMIN_NAME && pw === ADMIN_PW) {
+            // 관리자 권한 허용 이름: '이지환' 또는 '8bit'
+            const isAdminName = (name === '이지환' || name === '8bit');
+
+            // 1. 관리자 로그인 (이지환/8bit + 비밀번호 'admin')
+            if (isAdminName && pw === 'admin') {
                 failCount = 0;
                 $('fail-count').textContent = 0;
-                $('error-msg').classList.add('hide'); $('fail-count-msg').classList.add('hide');
+                $('error-msg').classList.add('hide'); 
+                $('fail-count-msg').classList.add('hide');
+                
                 state.isAdmin = true;
                 state.username = name;
                 showDashboard();
                 return;
             }
 
-            // 이름 또는 비밀번호가 틀리면 같은 실패 횟수로 합산
+            // 2. 일반 사용자 로그인 (관리자 외 다른 이름 + 비밀번호 '8bit')
+            if (!isAdminName && pw === '8bit') {
+                failCount = 0;
+                $('fail-count').textContent = 0;
+                $('error-msg').classList.add('hide'); 
+                $('fail-count-msg').classList.add('hide');
+                
+                state.isAdmin = false;
+                state.username = name;
+                showDashboard();
+                return;
+            }
+
+            // 3. 비밀번호/이름 실패 처리
             failCount++;
             $('fail-count').textContent = failCount;
             $('fail-count-msg').classList.remove('hide');
-            $('error-msg').textContent = name !== ADMIN_NAME
-                ? '⚠️ 관리자가 아닙니다. 이름을 확인해 주세요.'
-                : '⚠️ 비밀번호가 올바르지 않습니다.';
+            
+            $('error-msg').textContent = '⚠️ 로그인 정보가 올바르지 않습니다.';
             $('error-msg').classList.remove('hide');
 
             if (failCount >= 10) {
@@ -652,23 +666,6 @@
             } else if (failCount >= 5) {
                 startLockout(lockDurations[failCount] || 1200);
             }
-        }
-
-        function startLockout(seconds) {
-            const usr = $('username-input'), pwd = $('password-input'), btn = $('login-btn');
-            usr.disabled = true; pwd.disabled = true; btn.disabled = true;
-            $('lockout-msg').classList.remove('hide');
-            let remaining = seconds;
-            $('timer-text').textContent = `${pad(Math.floor(remaining / 60))}:${pad(remaining % 60)}`;
-            const timer = setInterval(() => {
-                remaining--;
-                $('timer-text').textContent = `${pad(Math.floor(remaining / 60))}:${pad(remaining % 60)}`;
-                if (remaining <= 0) {
-                    clearInterval(timer);
-                    usr.disabled = false; pwd.disabled = false; btn.disabled = false;
-                    $('lockout-msg').classList.add('hide');
-                }
-            }, 1000);
         }
 
         function showDashboard() {
