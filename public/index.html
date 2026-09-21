@@ -1,693 +1,615 @@
 <!DOCTYPE html>
-<html lang="ko" class="dark">
+<html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI 기반 네트워크 장애 예측 및 통합관제 시스템</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons CDN -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        cyber: {
-                            dark: '#0b0f19',
-                            card: '#111827',
-                            border: '#1f293d',
-                            accent: '#06b6d4'
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
     <style>
+        /* ───────── 테마 토큰 (기본 = 다크, html.light = 라이트) ───────── */
+        :root {
+            --bg: #070913; --glow1: rgba(99,102,241,.20); --glow2: rgba(6,182,212,.13);
+            --glass: rgba(255,255,255,.045); --glass-strong: rgba(255,255,255,.08); --border: rgba(255,255,255,.09);
+            --text: #f1f5f9; --muted: #9aa8bd; --dim: #66768d;
+            --cyan: #22d3ee; --green: #34d399; --red: #f87171; --amber: #fbbf24; --indigo: #818cf8; --blue: #60a5fa;
+            --shadow: 0 12px 40px rgba(0,0,0,.35); --sidebar: rgba(10,14,28,.72); --node-bg: #0e1424;
+            --input: rgba(15,23,42,.6); --grid: rgba(148,163,184,.14); --track: rgba(148,163,184,.16); --tip-bg: rgba(12,17,34,.94);
+        }
+        html.light {
+            --bg: #eef2f8; --glow1: rgba(99,102,241,.14); --glow2: rgba(6,182,212,.12);
+            --glass: rgba(255,255,255,.72); --glass-strong: #ffffff; --border: rgba(15,23,42,.09);
+            --text: #0f172a; --muted: #475569; --dim: #64748b;
+            --cyan: #0891b2; --green: #059669; --red: #dc2626; --amber: #d97706; --indigo: #4f46e5; --blue: #2563eb;
+            --shadow: 0 10px 30px rgba(15,23,42,.08); --sidebar: rgba(255,255,255,.78); --node-bg: #ffffff;
+            --input: #ffffff; --grid: rgba(15,23,42,.09); --track: rgba(15,23,42,.10); --tip-bg: rgba(255,255,255,.97);
+        }
+        html { color-scheme: dark; }
+        html.light { color-scheme: light; }
+
         body {
-            background-color: #070913;
-            color: #f3f4f6;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            overflow-x: hidden;
+            margin: 0; color: var(--text); overflow-x: hidden;
+            font-family: 'Pretendard', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background:
+                radial-gradient(900px 520px at 88% -8%, var(--glow1), transparent 62%),
+                radial-gradient(760px 520px at -8% 108%, var(--glow2), transparent 62%),
+                var(--bg);
+            background-attachment: fixed;
         }
-        /* 로그인 카드 Glassmorphism 효과 */
-        .login-card {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-        }
-        /* 커스텀 스크롤바 */
+        .hide { display: none !important; }
+        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #0b0f19; }
-        ::-webkit-scrollbar-thumb { background: #1f293d; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #374151; }
+        ::-webkit-scrollbar-thumb { background: var(--track); border-radius: 4px; }
+        :focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
 
-        /* 1. 기본 배경 및 대시보드 카드 테두리 */
-        html:not(.dark) body {
-            background-color: #f8fafc !important;
-            color: #0f172a !important;
-        }
+        /* 상태 색상 헬퍼: 요소에 lv-ok / lv-warn / lv-crit / lv-info 를 붙이면 --lv 가 정해짐 */
+        .lv-ok { --lv: var(--green); } .lv-warn { --lv: var(--amber); } .lv-crit { --lv: var(--red); } .lv-info { --lv: var(--cyan); }
+        .c-lv { color: var(--lv); }
+        .c-cyan { color: var(--cyan); } .c-amber { color: var(--amber); } .c-indigo { color: var(--indigo); } .c-green { color: var(--green); }
+        .t-muted { color: var(--muted); } .t-dim { color: var(--dim); }
 
-        html:not(.dark) #dashboard-screen header,
-        html:not(.dark) #dashboard-screen .bg-\[\#111827\],
-        html:not(.dark) #dashboard-screen .bg-slate-900,
-        html:not(.dark) #dashboard-screen .bg-slate-950 {
-            background-color: #ffffff !important;
-            border-color: #e2e8f0 !important;
+        /* ───────── 로그인 (기존 유지) ───────── */
+        .login-card {
+            background: rgba(255,255,255,.05); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255,255,255,.1); box-shadow: 0 20px 50px rgba(0,0,0,.5);
         }
 
-        /* 2. 좌측 상단 8bit 로고 타이틀 글씨 선명화 */
-        html:not(.dark) #dashboard-screen header h1,
-        html:not(.dark) #dashboard-screen header .font-black,
-        html:not(.dark) #dashboard-screen header h1 span,
-        html:not(.dark) #dashboard-screen header div span.font-black,
-        html:not(.dark) #dashboard-screen header div span.text-white {
-            color: #0284c7 !important; /* 굵고 선명한 로고 컬러 */
-            font-weight: 900 !important;
+        /* ───────── 앱 레이아웃 ───────── */
+        .app { display: none; min-height: 100vh; }
+        .app.show { display: flex; }
+        .sidebar {
+            position: sticky; top: 0; height: 100vh; width: 84px; flex: none; z-index: 30;
+            display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 0;
+            background: var(--sidebar); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border-right: 1px solid var(--border);
+        }
+        .logo {
+            width: 46px; height: 46px; border-radius: 16px; margin-bottom: 14px; display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #6366f1, #06b6d4); color: #fff; box-shadow: 0 8px 24px rgba(99,102,241,.4);
+            font-weight: 900; font-size: 13px; letter-spacing: .02em;
+        }
+        .nav { display: flex; flex-direction: column; gap: 8px; }
+        .spacer { flex: 1; }
+        .nav-btn {
+            position: relative; width: 46px; height: 46px; border-radius: 15px; display: flex; align-items: center; justify-content: center;
+            color: var(--muted); background: transparent; border: 0; cursor: pointer; transition: background .2s, color .2s, transform .2s;
+        }
+        .nav-btn:hover { background: var(--glass-strong); color: var(--text); }
+        .nav-btn.active { color: #fff; background: linear-gradient(135deg, #6366f1, #06b6d4); box-shadow: 0 8px 22px rgba(99,102,241,.35); }
+        .nav-btn::after {
+            content: attr(data-label); position: absolute; left: calc(100% + 12px); top: 50%; transform: translateY(-50%) translateX(-4px);
+            padding: 6px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; white-space: nowrap; pointer-events: none;
+            background: var(--tip-bg); color: var(--text); border: 1px solid var(--border); opacity: 0; transition: .15s;
+        }
+        .nav-btn:hover::after { opacity: 1; transform: translateY(-50%); }
+        .nbadge {
+            position: absolute; top: 1px; right: 1px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 99px;
+            background: var(--red); color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+        }
+        .content { flex: 1; min-width: 0; padding: 24px 28px 48px; }
+        @media (max-width: 767px) {
+            .app.show { flex-direction: column; }
+            .sidebar {
+                position: fixed; top: auto; bottom: 0; left: 0; right: 0; width: 100%; height: 64px; flex-direction: row;
+                justify-content: space-around; padding: 0 6px; border-right: 0; border-top: 1px solid var(--border);
+            }
+            .logo, .spacer { display: none; }
+            .nav { flex-direction: row; gap: 2px; }
+            .nav-btn { width: 40px; height: 40px; }
+            .nav-btn::after { display: none; }
+            .content { padding: 16px 14px 92px; }
         }
 
-        /* 3. 대시보드 기본 타이틀 및 서브텍스트 가독성 */
-        html:not(.dark) #dashboard-screen h2,
-        html:not(.dark) #dashboard-screen h3,
-        html:not(.dark) #dashboard-screen p:not([class*="text-blue"]):not([class*="text-green"]):not([class*="text-red"]) {
-            color: #1e293b !important;
+        .topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 22px; }
+        .topbar h1 { font-size: 26px; font-weight: 800; letter-spacing: -.02em; line-height: 1.2; }
+        .topbar p { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+        .view { display: none; }
+        .view.active { display: block; animation: viewIn .28s ease; }
+        @keyframes viewIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+        /* ───────── 글래스 카드 ───────── */
+        .card {
+            background: var(--glass); border: 1px solid var(--border); border-radius: 24px; padding: 20px;
+            backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: var(--shadow);
+            transition: transform .25s ease, border-color .25s ease;
         }
-        html:not(.dark) #dashboard-screen .text-slate-400,
-        html:not(.dark) #dashboard-screen .text-slate-500 {
-            color: #475569 !important;
+        .lift:hover { transform: translateY(-4px); border-color: color-mix(in srgb, var(--indigo) 45%, transparent); }
+        .ctitle { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .credit {
+            font-size: 10px; padding: 3px 9px; border-radius: 999px; color: var(--muted);
+            background: var(--glass-strong); border: 1px solid var(--border); white-space: nowrap;
         }
 
-        /* 4. 상단 버튼 (DDoS / 패킷 손실) */
-        html:not(.dark) #dashboard-screen button[onclick*="DDoS"],
-        html:not(.dark) #dashboard-screen button[onclick*="ddos"],
-        html:not(.dark) #dashboard-screen .bg-red-500\/20 {
-            background-color: #fef2f2 !important;
-            border: 1px solid #f87171 !important;
-            color: #dc2626 !important;
-            font-weight: 700 !important;
-        }
-        html:not(.dark) #dashboard-screen button[onclick*="DDoS"] *,
-        html:not(.dark) #dashboard-screen .bg-red-500\/20 * {
-            color: #dc2626 !important;
-        }
+        /* 요약 스탯 카드 */
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+        .stat { position: relative; overflow: hidden; }
+        .stat .label { font-size: 12px; color: var(--muted); margin-top: 16px; }
+        .stat .value { font-size: 27px; font-weight: 800; letter-spacing: -.02em; margin-top: 2px; }
+        .stat .sub { font-size: 11.5px; color: var(--dim); margin-top: 4px; }
+        .stat.accent { background: linear-gradient(135deg, #4f46e5 0%, #0891b2 100%); border-color: transparent; color: #fff; transition: background .4s, transform .25s; }
+        .stat.accent.danger { background: linear-gradient(135deg, #dc2626 0%, #f97316 100%); }
+        .stat.accent::after { content: ''; position: absolute; right: -34px; top: -34px; width: 140px; height: 140px; border-radius: 50%; background: rgba(255,255,255,.12); pointer-events: none; }
+        .stat.accent .label, .stat.accent .sub { color: rgba(255,255,255,.82); }
+        .stat.accent .credit { background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.22); color: #fff; }
+        .ibadge { width: 40px; height: 40px; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #fff; }
+        .g-cyan { background: linear-gradient(135deg, #06b6d4, #3b82f6); }
+        .g-indigo { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+        .g-green { background: linear-gradient(135deg, #10b981, #06b6d4); }
+        .g-orange { background: linear-gradient(135deg, #f97316, #f43f5e); }
+        .g-glass { background: rgba(255,255,255,.2); }
 
-        html:not(.dark) #dashboard-screen button[onclick*="Packet"],
-        html:not(.dark) #dashboard-screen button[onclick*="packet"],
-        html:not(.dark) #dashboard-screen .bg-amber-500\/20 {
-            background-color: #fffbeb !important;
-            border: 1px solid #f59e0b !important;
-            color: #b45309 !important;
-            font-weight: 700 !important;
+        .pill {
+            display: inline-flex; align-items: center; gap: 8px; padding: 7px 13px; border-radius: 999px; font-size: 12px; font-weight: 600;
+            color: var(--lv, var(--muted)); background: color-mix(in srgb, var(--lv, var(--muted)) 13%, transparent);
+            border: 1px solid color-mix(in srgb, var(--lv, var(--muted)) 32%, transparent);
         }
-        html:not(.dark) #dashboard-screen button[onclick*="Packet"] *,
-        html:not(.dark) #dashboard-screen .bg-amber-500\/20 * {
-            color: #b45309 !important;
-        }
+        .pill.sm { padding: 2px 9px; font-size: 10.5px; }
+        .pdot { width: 8px; height: 8px; border-radius: 50%; background: var(--lv); animation: pulse 2s infinite; }
+        @keyframes pulse { 50% { opacity: .35; } }
 
-        /* 5. 헤더 우측 다크 모드 버튼 & 관리자 뱃지 보정 복구 */
-        html:not(.dark) #dashboard-screen #user-role-badge,
-        html:not(.dark) #dashboard-screen header button.bg-slate-800,
-        html:not(.dark) #dashboard-screen header button[onclick*="DarkMode"],
-        html:not(.dark) #dashboard-screen header button[onclick*="dark"] {
-            background-color: #1e293b !important;
-            border: 1px solid #334155 !important;
-            color: #ffffff !important;
-        }
-        html:not(.dark) #dashboard-screen #user-role-badge *,
-        html:not(.dark) #dashboard-screen header button.bg-slate-800 *,
-        html:not(.dark) #dashboard-screen header button[onclick*="DarkMode"] *,
-        html:not(.dark) #dashboard-screen header button[onclick*="dark"] * {
-            color: #ffffff !important;
-        }
+        .bar { height: 8px; border-radius: 99px; background: var(--track); overflow: hidden; }
+        .bar > i { display: block; height: 100%; border-radius: 99px; transition: width .5s ease; background: var(--lv, var(--cyan)); }
+        .bar > i.cy { background: linear-gradient(90deg, #06b6d4, #22d3ee); }
+        .bar > i.bl { background: linear-gradient(90deg, #6366f1, #60a5fa); }
 
-        /* 6. 토폴로지 맵 노드 마우스 호버(Hover) 및 선택 색상 완벽 복구 */
-        html:not(.dark) #dashboard-screen button[onclick*="selectNode"] {
-            background-color: #ffffff !important;
-            border-color: #cbd5e1 !important;
-            transition: all 0.2s ease !important;
+        /* 버튼 */
+        .btn {
+            display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 14px; border-radius: 15px; cursor: pointer; text-align: left;
+            font-size: 13px; font-weight: 600; color: var(--text); background: var(--glass-strong); border: 1px solid var(--border); transition: transform .2s, box-shadow .2s;
         }
-        html:not(.dark) #dashboard-screen button[onclick*="selectNode"] * {
-            color: #0f172a !important;
-        }
-        html:not(.dark) #dashboard-screen button[onclick*="selectNode"]:hover {
-            background-color: #eff6ff !important;
-            border-color: #3b82f6 !important;
-            box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25) !important;
-        }
-        html:not(.dark) #dashboard-screen button[onclick*="selectNode"]:hover * {
-            color: #1d4ed8 !important;
-        }
-        html:not(.dark) #dashboard-screen button[onclick*="selectNode"].border-blue-500,
-        html:not(.dark) #dashboard-screen button[onclick*="selectNode"].bg-blue-950\/30 {
-            background-color: #dbeafe !important;
-            border: 2px solid #2563eb !important;
-        }
+        .btn:hover { transform: translateY(-2px); }
+        .btn.red { color: var(--red); background: color-mix(in srgb, var(--red) 12%, transparent); border-color: color-mix(in srgb, var(--red) 35%, transparent); }
+        .btn.amber { color: var(--amber); background: color-mix(in srgb, var(--amber) 12%, transparent); border-color: color-mix(in srgb, var(--amber) 35%, transparent); }
+        .btn.on { box-shadow: 0 0 0 2px currentColor; }
+        .btn.primary { justify-content: center; color: #fff; border: 0; background: linear-gradient(135deg, #6366f1, #06b6d4); width: auto; padding: 10px 20px; }
+        .fchip { padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--muted); border: 1px solid var(--border); background: transparent; cursor: pointer; transition: .2s; }
+        .fchip:hover { color: var(--text); }
+        .fchip.on { color: #fff; border-color: transparent; background: linear-gradient(135deg, #6366f1, #06b6d4); }
 
-        /* 7. 우측 장비 텔레메트리 진단표 IP 및 명세 선명화 */
-        html:not(.dark) #dashboard-screen #inspector-ip,
-        html:not(.dark) #dashboard-screen #inspector-owner,
-        html:not(.dark) #dashboard-screen #inspector-type,
-        html:not(.dark) #dashboard-screen .font-mono {
-            color: #0f172a !important;
-            font-weight: 700 !important;
-        }
+        /* 차트 */
+        canvas.chart { width: 100%; height: 100%; display: block; }
+        .h-chart { height: 310px; } .h-chart-lg { height: 400px; }
+        .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); }
+        .legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
 
-        /* 8. 실시간 AI 예측 & 보안 로그 박스 보정 */
-        html:not(.dark) #dashboard-screen .bg-red-950\/30,
-        html:not(.dark) #dashboard-screen .bg-red-900\/20 {
-            background-color: #fef2f2 !important;
-            border: 1px solid #fca5a5 !important;
+        /* 알림 */
+        .alert {
+            padding: 10px 13px; border-radius: 14px; font-size: 12px; border-left: 3px solid var(--lv);
+            border: 1px solid color-mix(in srgb, var(--lv) 28%, transparent); border-left: 3px solid var(--lv);
+            background: color-mix(in srgb, var(--lv) 9%, transparent);
         }
-        html:not(.dark) #dashboard-screen .bg-red-950\/30 *,
-        html:not(.dark) #dashboard-screen .bg-red-900\/20 * {
-            color: #991b1b !important;
-        }
+        .alert .a-h { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; color: var(--lv); }
+        .alert .a-t { font-weight: 500; font-size: 10px; color: var(--dim); font-family: ui-monospace, Menlo, monospace; }
+        .alert p { margin-top: 4px; color: var(--text); opacity: .86; }
 
-        /* 9. Quick QA 헬프 보조 모듈 라이트 모드 보정 */
-        html:not(.dark) #ai-help-box {
-            background-color: #f1f5f9 !important;
-            border-color: #cbd5e1 !important;
-            color: #0f172a !important;
+        /* 노드 칩 / 테이블 */
+        .nchip {
+            display: flex; align-items: center; gap: 9px; padding: 10px 13px; border-radius: 15px; font-size: 12px; cursor: pointer; color: var(--text);
+            background: var(--glass-strong); border: 1px solid var(--border); transition: transform .2s, border-color .2s;
         }
-        html:not(.dark) #dashboard-screen button[onclick*="showHelpAnswer"] {
-            background-color: #ffffff !important;
-            border-color: #cbd5e1 !important;
-            color: #334155 !important;
+        .nchip:hover { transform: translateY(-3px); border-color: var(--indigo); }
+        .ldot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--lv); flex: none; }
+        .tbl { width: 100%; font-size: 12.5px; border-collapse: collapse; }
+        .tbl th { text-align: left; font-weight: 600; color: var(--dim); padding: 10px 12px; font-size: 11.5px; border-bottom: 1px solid var(--border); }
+        .tbl td { padding: 12px; border-bottom: 1px solid var(--border); }
+        .tbl tbody tr.click { cursor: pointer; }
+        .tbl tbody tr:hover { background: var(--glass-strong); }
+        .tag { padding: 2px 8px; border-radius: 8px; font-size: 11px; background: var(--glass-strong); border: 1px solid var(--border); color: var(--muted); }
+        .sel-input { background: var(--input); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 6px 10px; font-size: 12px; }
+
+        /* 토폴로지 */
+        .topo-wrap { overflow-x: auto; border-radius: 18px; background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid var(--border); }
+        .topo { position: relative; height: 410px; min-width: 540px; }
+        .topo svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+        .topo line { stroke-width: 2; stroke-dasharray: 5 6; opacity: .75; animation: flow 1s linear infinite; }
+        @keyframes flow { to { stroke-dashoffset: -11; } }
+        .tnode {
+            position: absolute; z-index: 2; transform: translate(-50%, -50%); min-width: 106px; padding: 11px 13px; border-radius: 16px;
+            display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; text-align: center; color: var(--text);
+            background: var(--node-bg); border: 1.5px solid var(--lv); transition: transform .2s, box-shadow .2s;
         }
-        html:not(.dark) #dashboard-screen button[onclick*="showHelpAnswer"]:hover {
-            background-color: #eff6ff !important;
-            border-color: #3b82f6 !important;
-            color: #1d4ed8 !important;
+        .tnode:hover { transform: translate(-50%, calc(-50% - 3px)); }
+        .tnode.sel { box-shadow: 0 0 0 3px color-mix(in srgb, var(--lv) 28%, transparent), 0 10px 28px color-mix(in srgb, var(--lv) 24%, transparent); }
+        .tnode b { font-size: 12px; } .tnode small { font-size: 10px; color: var(--muted); }
+        .tnode .tdot { position: absolute; top: 8px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--lv); }
+
+        /* 가이드 */
+        .qa-btn { padding: 10px 12px; border-radius: 14px; font-size: 12.5px; text-align: left; cursor: pointer; color: var(--text); background: var(--glass-strong); border: 1px solid var(--border); transition: .2s; }
+        .qa-btn:hover, .qa-btn.on { border-color: var(--indigo); background: color-mix(in srgb, var(--indigo) 12%, transparent); }
+        .helpbox { padding: 16px; border-radius: 16px; font-size: 13px; line-height: 1.75; color: var(--muted); background: var(--input); border: 1px solid var(--border); min-height: 120px; }
+        .helpbox strong { color: var(--text); }
+        .role { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: var(--glass-strong); border: 1px solid var(--border); }
+        .avatar { width: 36px; height: 36px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #fff; background: linear-gradient(135deg, #6366f1, #06b6d4); flex: none; }
+
+        .toast {
+            position: fixed; left: 50%; bottom: 84px; z-index: 80; transform: translate(-50%, 16px); opacity: 0; pointer-events: none;
+            padding: 11px 18px; border-radius: 14px; font-size: 13px; font-weight: 600; color: var(--text);
+            background: var(--tip-bg); border: 1px solid var(--border); box-shadow: var(--shadow); transition: .25s;
+        }
+        .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation: none !important; transition: none !important; }
         }
     </style>
 </head>
-<body class="min-h-screen bg-[#070913] text-slate-100 antialiased selection:bg-indigo-500 selection:text-white">
+<body class="antialiased selection:bg-indigo-500 selection:text-white">
 
-    <!-- 1. 로그인 화면 (3D 네트워크 Orb & Glassmorphism) -->
-    <div id="login-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#070913] p-4 overflow-y-auto">
-        
-        <!-- 상단 3D 네트워크 노드 회전 AI Orb Canvas -->
+    <!-- ═════════ 1. 로그인 화면 (기존 유지) ═════════ -->
+    <div id="login-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#070913] p-4 overflow-y-auto text-slate-100">
         <div class="mb-3 relative flex items-center justify-center">
             <canvas id="networkOrbCanvas" width="180" height="180" class="drop-shadow-[0_0_40px_rgba(99,102,241,0.5)]"></canvas>
             <span class="absolute text-2xl font-black text-white tracking-widest pointer-events-none drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] z-10">8bit</span>
         </div>
 
-        <!-- 헤드라인 타이틀 -->
         <div class="text-center mb-6 px-4">
-            <h1 class="text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-snug">
-                AI 기반 네트워크 관제 시스템에 오신 것을 환영합니다
-            </h1>
-            <p class="text-xs md:text-sm text-slate-400 mt-1">
-                AI 기반 네트워크 장애 예측 및 통합관제 시스템
-            </p>
+            <h1 class="text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-snug">AI 기반 네트워크 관제 시스템에 오신 것을 환영합니다</h1>
+            <p class="text-xs md:text-sm text-slate-400 mt-1">AI 기반 네트워크 장애 예측 및 통합관제 시스템</p>
         </div>
 
-        <!-- 로그인 모달 카드 -->
         <div class="login-card rounded-2xl p-7 max-w-sm w-full relative">
             <div class="mb-5 text-left">
                 <h2 class="text-lg font-bold text-slate-100">로그인</h2>
                 <p class="text-xs text-slate-400 mt-0.5">시스템 이용을 위해 계정정보를 입력해주세요</p>
             </div>
 
-            <!-- IP 차단 경고 화면 -->
-            <div id="banned-screen" class="hidden py-3 space-y-2">
+            <div id="banned-screen" class="hide py-3 space-y-2">
                 <div class="p-3.5 bg-rose-950/80 border border-rose-800/80 rounded-xl text-rose-300 text-xs leading-relaxed text-left">
                     <span class="font-bold text-rose-400 block mb-1">🚨 접속 차단됨 (IP Banned)</span>
                     비밀번호 연속 오류(10회)로 인해 보안 정책상 IP가 차단되었습니다. 관리자에게 문의하세요.
                 </div>
             </div>
 
-            <!-- 로그인 폼 -->
             <form id="login-form" class="space-y-4" onsubmit="handleLogin(event)">
                 <div class="text-left">
-                    <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Name</label>
+                    <label class="block text-[11px] font-semibold text-slate-400 mb-1">이름</label>
                     <input type="text" id="username-input" placeholder="이름 입력 (예: 이지환)" required
                         class="w-full px-3.5 py-2.5 bg-[#1a2035]/80 border border-slate-700/70 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition text-sm">
                 </div>
-
                 <div class="text-left">
-                    <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Password</label>
+                    <label class="block text-[11px] font-semibold text-slate-400 mb-1">비밀번호</label>
                     <input type="password" id="password-input" placeholder="비밀번호 (8bit / admin)" required
                         class="w-full px-3.5 py-2.5 bg-[#1a2035]/80 border border-slate-700/70 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition text-sm disabled:opacity-50">
                 </div>
-
                 <div class="space-y-1 text-left">
-                    <p id="error-msg" class="text-xs text-rose-400 font-medium hidden">⚠️ 비밀번호가 올바르지 않습니다.</p>
-                    <p id="fail-count-msg" class="text-xs text-slate-400 hidden">
-                        실패 횟수: <span id="fail-count" class="text-amber-400 font-bold">0</span> / 10회
-                    </p>
-                    <p id="lockout-msg" class="text-xs text-amber-400 font-semibold hidden leading-normal">
-                        🔒 오류 초과로 로그인 잠금 중입니다.<br>
-                        남은 시간: <span id="timer-text" class="text-white font-bold">00:00</span>
+                    <p id="error-msg" class="text-xs text-rose-400 font-medium hide">⚠️ 비밀번호가 올바르지 않습니다.</p>
+                    <p id="fail-count-msg" class="text-xs text-slate-400 hide">실패 횟수: <span id="fail-count" class="text-amber-400 font-bold">0</span> / 10회</p>
+                    <p id="lockout-msg" class="text-xs text-amber-400 font-semibold hide leading-normal">
+                        🔒 오류 초과로 로그인 잠금 중입니다.<br>남은 시간: <span id="timer-text" class="text-white font-bold">00:00</span>
                     </p>
                 </div>
-
                 <button type="submit" id="login-btn"
                     class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow-lg shadow-indigo-600/30 transition duration-200 disabled:opacity-50 text-sm flex items-center justify-center gap-1 mt-2">
-                    <span>로그인하기</span>
-                    <span>→</span>
+                    <span>로그인</span><span>→</span>
                 </button>
             </form>
         </div>
     </div>
 
-    <!-- 2. 메인 통합관제 대시보드 (로그인 후 표시) -->
-    <div id="dashboard-screen" class="hidden min-h-screen flex-col">
-        <!-- 상단 헤더 -->
-        <header class="border-b border-slate-800 bg-[#111827]/90 backdrop-blur sticky top-0 z-40 px-4 py-3">
-            <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
-                <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-500 to-cyan-400 p-0.5 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                        <div class="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-                            <i data-lucide="activity" class="w-5 h-5 text-cyan-400"></i>
+    <!-- ═════════ 2. 통합관제 앱 (사이드바 + 콘텐츠) ═════════ -->
+    <div id="dashboard-screen" class="app">
+
+        <!-- 좌측 슬림 사이드바 -->
+        <aside class="sidebar">
+            <div class="logo" title="8bit AI Pulse">8bit</div>
+            <nav class="nav">
+                <button class="nav-btn active" data-nav="overview" data-label="대시보드" onclick="switchView('overview')"><i data-lucide="layout-dashboard" class="w-5 h-5"></i></button>
+                <button class="nav-btn" data-nav="topology" data-label="네트워크 토폴로지" onclick="switchView('topology')"><i data-lucide="network" class="w-5 h-5"></i></button>
+                <button class="nav-btn" data-nav="analytics" data-label="트래픽 · AI 분석" onclick="switchView('analytics')"><i data-lucide="activity" class="w-5 h-5"></i></button>
+                <button class="nav-btn" data-nav="logs" data-label="보안 로그" onclick="switchView('logs')">
+                    <i data-lucide="bell" class="w-5 h-5"></i><span id="log-badge" class="nbadge hide">0</span>
+                </button>
+                <button class="nav-btn" data-nav="guide" data-label="AI 가이드" onclick="switchView('guide')"><i data-lucide="bot" class="w-5 h-5"></i></button>
+                <button id="nav-devices" class="nav-btn hide" data-nav="devices" data-label="기기 관리 (관리자)" onclick="switchView('devices')"><i data-lucide="server" class="w-5 h-5"></i></button>
+            </nav>
+            <div class="spacer"></div>
+            <button id="theme-btn" class="nav-btn" data-label="라이트 모드 · 장우진" onclick="toggleTheme()"><span id="theme-icon" class="text-lg">☀️</span></button>
+            <button class="nav-btn" data-label="로그아웃" onclick="logout()"><i data-lucide="log-out" class="w-5 h-5"></i></button>
+        </aside>
+
+        <div class="content">
+            <!-- 상단 바 -->
+            <header class="topbar">
+                <div>
+                    <h1 id="page-title">안녕하세요</h1>
+                    <p id="page-sub"></p>
+                </div>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <span class="pill sm mono" style="--lv: var(--cyan)">8bit AI Pulse · v2.4 Live</span>
+                    <div id="sys-pill" class="pill lv-ok"><span class="pdot"></span><span id="system-status-text">AI 엔진 정상 작동 중</span></div>
+                    <div id="user-role-badge" class="pill" style="--lv: var(--indigo)">👑 관리자 (이지환)</div>
+                </div>
+            </header>
+
+            <!-- ───── VIEW: 대시보드 ───── -->
+            <section class="view active" data-view="overview">
+                <div class="stats">
+                    <div id="traffic-card" class="card lift stat accent">
+                        <div class="flex items-start justify-between">
+                            <div class="ibadge g-glass"><i data-lucide="arrow-down-left" class="w-5 h-5"></i></div>
+                            <span class="credit">장우진</span>
                         </div>
+                        <p class="label">실시간 수신 트래픽</p>
+                        <h3 id="stat-traffic-in" class="value mono">452 Mbps</h3>
+                        <p id="stat-traffic-trend" class="sub">정상 대역폭 유지 중</p>
                     </div>
-                    <div>
-                        <div class="flex items-center space-x-2">
-                            <span class="font-extrabold text-lg tracking-wider text-white">
-                                <span class="text-sky-400 font-black">8bit</span> AI Pulse
-                            </span>
-                            <span class="bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[10px] font-mono px-2 py-0.5 rounded-full">v2.4 Live</span>
+
+                    <div id="monitored-devices-card" class="card lift stat">
+                        <div class="flex items-start justify-between">
+                            <div class="ibadge g-indigo"><i data-lucide="server" class="w-5 h-5"></i></div>
+                            <span class="credit">이지환</span>
                         </div>
-                        <p class="text-xs text-slate-400 hidden sm:block">AI 기반 네트워크 장애 예측 및 통합관제 시스템</p>
+                        <p class="label">모니터링 기기 현황</p>
+                        <h3 id="stat-devices" class="value mono">7 / 7 Online</h3>
+                        <p class="sub c-green">● 100% Reachable</p>
+                    </div>
+
+                    <div id="ai-score-card" class="card lift stat lv-ok">
+                        <div class="flex items-start justify-between">
+                            <div class="ibadge g-green"><i data-lucide="brain-circuit" class="w-5 h-5"></i></div>
+                            <span class="credit">최민규 · 김태현</span>
+                        </div>
+                        <p class="label">AI 장애 위험 스코어</p>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h3 id="stat-ai-risk" class="value mono c-lv">12.4%</h3>
+                            <span id="stat-ai-badge" class="pill sm">안전 (낮음)</span>
+                        </div>
+                        <div class="bar" style="margin-top:10px"><i id="stat-ai-bar" style="width:12%"></i></div>
+                    </div>
+
+                    <div id="loss-card" class="card lift stat lv-ok">
+                        <div class="flex items-start justify-between">
+                            <div class="ibadge g-orange"><i data-lucide="wifi-off" class="w-5 h-5"></i></div>
+                            <span class="credit">김민석</span>
+                        </div>
+                        <p class="label">평균 패킷 손실률</p>
+                        <h3 id="stat-packet-loss" class="value mono c-lv">0.02%</h3>
+                        <p class="sub">기준 임계치: 1.5% 미만</p>
                     </div>
                 </div>
 
-                <div class="flex items-center space-x-3 flex-wrap">
-                    <div class="flex items-center space-x-2 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-lg">
-                        <span id="system-status-dot" class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
-                        <span id="system-status-text" class="text-xs font-semibold text-green-400">AI 엔진 정상 작동 중</span>
-                    </div>
-
-                    <!-- 장애 시뮬레이션 버튼 -->
-                    <div class="flex items-center space-x-1.5">
-                        <button onclick="injectAnomaly('ddos')" class="px-2.5 py-1.5 bg-red-900/30 hover:bg-red-800/50 border border-red-700/50 text-red-300 text-xs font-medium rounded-lg transition flex items-center space-x-1">
-                            <i data-lucide="zap" class="w-3.5 h-3.5 text-red-400"></i>
-                            <span class="hidden sm:inline">DDoS 부하 발생</span>
-                        </button>
-                        <button onclick="injectAnomaly('loss')" class="px-2.5 py-1.5 bg-amber-900/30 hover:bg-amber-800/50 border border-amber-700/50 text-amber-300 text-xs font-medium rounded-lg transition flex items-center space-x-1">
-                            <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-amber-400"></i>
-                            <span class="hidden sm:inline">패킷 손실 유발</span>
-                        </button>
-                        <button onclick="resetSimulation()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-medium rounded-lg transition flex items-center space-x-1">
-                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-                        </button>
-                    </div>
-
-                    <button id="admin-manage-btn" onclick="toggleAdminModal(true)" class="hidden text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow-sm transition border border-indigo-400/30">
-                        ⚙️ 기기 관리
-                    </button>
-
-                    <div id="user-role-badge" class="flex items-center space-x-1.5 bg-blue-950/40 border border-blue-800/40 px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-200">
-                        👑 관리자 (이지환)
-                    </div>
-                    <!-- 다크/라이트 모드 전환 버튼 -->
-                    <button onclick="toggleDarkMode()" id="theme-toggle-btn" class="text-xs px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-lg border border-slate-700 transition flex items-center gap-1.5">
-                        <span id="theme-toggle-icon">☀️</span>
-                        <span id="theme-toggle-text">라이트 모드</span>
-                    </button>
-
-                    <button onclick="logout()" class="text-xs px-3 py-1.5 bg-slate-800 hover:bg-rose-950/50 hover:text-rose-300 text-slate-300 font-medium rounded-lg border border-slate-700 transition">
-                        로그아웃
-                    </button>
-                </div>
-            </div>
-        </header>
-
-        <!-- 메인 대시보드 본문 -->
-        <main class="max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
-            <!-- 요약 스탯 카드 4종 -->
-            <section class="lg:col-span-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <!-- 1. 실시간 수신 트래픽 -->
-                <div class="bg-[#111827] border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-lg">
-                    <div>
-                        <p class="text-xs font-medium text-slate-400">실시간 수신 트래픽 - 장우진</p>
-                        <h3 id="stat-traffic-in" class="text-2xl font-bold font-mono text-cyan-400 mt-1">452 Mbps</h3>
-                        <p class="text-[11px] text-slate-500 mt-1 flex items-center">
-                            <i data-lucide="trending-up" class="w-3 h-3 text-cyan-400 mr-1"></i> 정상 대역폭 유지 중
-                        </p>
-                    </div>
-                    <div class="w-10 h-10 bg-cyan-950/50 border border-cyan-800/40 rounded-xl flex items-center justify-center">
-                        <i data-lucide="arrow-down-left" class="w-5 h-5 text-cyan-400"></i>
-                    </div>
-                </div>
-
-                <!-- 2. 모니터링 기기 현황 -->
-                <div id="monitored-devices-card" class="bg-[#111827] border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-lg">
-                    <div>
-                        <p class="text-xs font-medium text-slate-400">Monitored Devices - 이지환</p>
-                        <h3 class="text-2xl font-bold font-mono text-white mt-1">7 / 7 Online</h3>
-                        <p class="text-[11px] text-slate-500 mt-1 flex items-center">
-                            <i data-lucide="check-circle-2" class="w-3 h-3 text-green-400 mr-1"></i> 100% Reachable
-                        </p>
-                    </div>
-                    <div class="w-10 h-10 bg-blue-950/50 border border-blue-800/40 rounded-xl flex items-center justify-center">
-                        <i data-lucide="server" class="w-5 h-5 text-blue-400"></i>
-                    </div>
-                </div>
-
-                <!-- 3. AI 장애 위험 스코어 -->
-                <div id="ai-score-card" class="bg-[#111827] border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-lg">
-                    <div>
-                        <p class="text-xs font-medium text-slate-400">AI 장애 위험 스코어 - 최민규, 김태현</p>
-                        <div class="flex items-baseline space-x-2 mt-1">
-                            <h3 id="stat-ai-risk" class="text-2xl font-bold font-mono text-green-400">12.4%</h3>
-                            <span id="stat-ai-badge" class="text-[10px] px-2 py-0.5 bg-green-950 border border-green-800 text-green-300 rounded font-semibold">안전 (낮음)</span>
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 mt-5">
+                    <div class="card lg:col-span-8">
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                            <h2 class="ctitle"><i data-lucide="activity" class="w-4 h-4 c-cyan"></i>실시간 트래픽 · AI 위협 스코어</h2>
+                            <div class="flex items-center gap-3">
+                                <div class="legend"><span><i style="background:var(--cyan)"></i>수신 트래픽</span><span><i style="background:var(--red)"></i>AI 위험도</span></div>
+                                <span class="credit">장우진</span>
+                            </div>
                         </div>
-                        <p class="text-[11px] text-slate-500 mt-1">이상 감지 모델 작동 중</p>
-                    </div>
-                    <div class="w-10 h-10 bg-emerald-950/50 border border-emerald-800/40 rounded-xl flex items-center justify-center">
-                        <i data-lucide="brain-circuit" class="w-5 h-5 text-emerald-400"></i>
-                    </div>
-                </div>
-
-                <!-- 4. 평균 패킷 손실률 -->
-                <div class="bg-[#111827] border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-lg">
-                    <div>
-                        <p class="text-xs font-medium text-slate-400">평균 패킷 손실률 - 김민석</p>
-                        <h3 id="stat-packet-loss" class="text-2xl font-bold font-mono text-emerald-400 mt-1">0.02%</h3>
-                        <p class="text-[11px] text-slate-500 mt-1">기준 임계치: 1.5% 미만</p>
-                    </div>
-                    <div class="w-10 h-10 bg-indigo-950/50 border border-indigo-800/40 rounded-xl flex items-center justify-center">
-                        <i data-lucide="wifi-off" class="w-5 h-5 text-indigo-400"></i>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 좌측: 네트워크 토폴로지 & 실시간 Canvas 트래픽 차트 -->
-            <section class="lg:col-span-8 flex flex-col space-y-6">
-                <!-- 토폴로지 맵 -->
-                <div class="bg-[#111827] border border-slate-800 rounded-xl p-5 shadow-lg">
-                    <div class="flex items-center justify-between mb-4">
-                        <h2 class="font-bold text-slate-200 text-sm flex items-center gap-2">
-                            <i data-lucide="network" class="w-4 h-4 text-cyan-400"></i>
-                            네트워크 인프라 토폴로지 맵 - 양이수
-                        </h2>
-                        <span class="text-xs text-slate-400">노드 클릭 시 상세 진단 조회</span>
+                        <div class="h-chart"><canvas id="trafficCanvas" class="chart"></canvas></div>
                     </div>
 
-                    <div class="bg-slate-950 border border-slate-800 rounded-lg p-5 flex flex-col justify-between overflow-x-auto">
-                        <!-- Top: Core Router -->
-                        <div class="flex justify-center my-1">
-                            <button onclick="selectNode('core-router')" class="bg-slate-900 border-2 border-green-500 hover:border-cyan-400 px-5 py-2.5 rounded-xl text-center shadow-lg transition">
-                                <div class="flex items-center space-x-2">
-                                    <i data-lucide="router" class="w-4 h-4 text-green-400"></i>
-                                    <span class="font-bold text-xs text-slate-100">Core Router 01</span>
-                                </div>
-                                <p class="text-[10px] font-mono text-green-400 mt-0.5">192.168.1.1</p>
-                            </button>
+                    <div class="lg:col-span-4 flex flex-col gap-5">
+                        <div class="card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h2 class="ctitle"><i data-lucide="zap" class="w-4 h-4 c-amber"></i>장애 시뮬레이션</h2>
+                                <span id="sim-state" class="pill sm lv-ok">정상</span>
+                            </div>
+                            <div class="grid gap-2">
+                                <button id="btn-ddos" class="btn red" onclick="injectAnomaly('ddos')"><i data-lucide="zap" class="w-4 h-4"></i>DDoS 부하 발생</button>
+                                <button id="btn-loss" class="btn amber" onclick="injectAnomaly('loss')"><i data-lucide="alert-triangle" class="w-4 h-4"></i>패킷 손실 유발</button>
+                                <button class="btn" onclick="resetSimulation()"><i data-lucide="refresh-cw" class="w-4 h-4"></i>정상 상태로 되돌리기</button>
+                            </div>
                         </div>
-
-                        <div class="text-center text-slate-700 font-bold my-1 text-xs">│ ───────────────────┼─────────────────── │</div>
-
-                        <!-- Mid: Switches -->
-                        <div class="grid grid-cols-2 gap-4 max-w-md mx-auto w-full my-1">
-                            <button onclick="selectNode('dist-sw-1')" class="bg-slate-900 border-2 border-green-500 hover:border-cyan-400 p-2.5 rounded-xl text-center transition">
-                                <span class="font-bold text-xs text-slate-200">Dist-SW-01</span>
-                                <p class="text-[10px] font-mono text-slate-400">192.168.1.10</p>
-                            </button>
-                            <button onclick="selectNode('dist-sw-2')" class="bg-slate-900 border-2 border-green-500 hover:border-cyan-400 p-2.5 rounded-xl text-center transition">
-                                <span class="font-bold text-xs text-slate-200">Dist-SW-02</span>
-                                <p class="text-[10px] font-mono text-slate-400">192.168.1.11</p>
-                            </button>
-                        </div>
-
-                        <div class="flex justify-around text-slate-700 font-bold my-1 text-xs max-w-md mx-auto w-full">
-                            <span>│ ────── │</span>
-                            <span>│ ────── │</span>
-                        </div>
-
-                        <!-- Bottom: Endpoints -->
-                        <div class="grid grid-cols-4 gap-2 my-1">
-                            <button onclick="selectNode('server-db')" class="bg-slate-900 border border-slate-700 hover:border-blue-500 p-2 rounded-lg text-center transition">
-                                <i data-lucide="database" class="w-3.5 h-3.5 text-cyan-400 mx-auto"></i>
-                                <span class="block text-[10px] font-semibold text-slate-300 truncate">DB Cluster</span>
-                            </button>
-                            <button onclick="selectNode('server-api')" class="bg-slate-900 border border-slate-700 hover:border-blue-500 p-2 rounded-lg text-center transition">
-                                <i data-lucide="cpu" class="w-3.5 h-3.5 text-purple-400 mx-auto"></i>
-                                <span class="block text-[10px] font-semibold text-slate-300 truncate">FastAPI</span>
-                            </button>
-                            <button onclick="selectNode('workstation-pc')" class="bg-slate-900 border border-slate-700 hover:border-blue-500 p-2 rounded-lg text-center transition">
-                                <i data-lucide="monitor" class="w-3.5 h-3.5 text-emerald-400 mx-auto"></i>
-                                <span class="block text-[10px] font-semibold text-slate-300 truncate">Dev-PC</span>
-                            </button>
-                            <button onclick="selectNode('mobile-gateway')" class="bg-slate-900 border border-slate-700 hover:border-blue-500 p-2 rounded-lg text-center transition">
-                                <i data-lucide="smartphone" class="w-3.5 h-3.5 text-amber-400 mx-auto"></i>
-                                <span class="block text-[10px] font-semibold text-slate-300 truncate">Mobile GW</span>
-                            </button>
+                        <div class="card flex-1">
+                            <div class="flex items-center justify-between mb-3">
+                                <h2 class="ctitle"><i data-lucide="bell" class="w-4 h-4" style="color:var(--red)"></i>최근 알림</h2>
+                                <button class="text-xs c-indigo font-semibold" onclick="switchView('logs')">전체 보기</button>
+                            </div>
+                            <div id="alert-mini" class="grid gap-2"></div>
                         </div>
                     </div>
                 </div>
 
-                <!-- 실시간 Canvas 트래픽 차트 -->
-                <div class="bg-[#111827] border border-slate-800 rounded-xl p-5 shadow-lg">
+                <div class="card mt-5">
                     <div class="flex items-center justify-between mb-3">
-                        <h2 class="font-bold text-slate-200 text-sm flex items-center gap-2">
-                            <i data-lucide="line-chart" class="w-4 h-4 text-blue-400"></i>
-                            실시간 트래픽 & AI 위협 스코어 그래프 - 장우진
-                        </h2>
-                        <div class="flex items-center space-x-3 text-xs">
-                            <span class="flex items-center gap-1"><span class="w-3 h-0.5 bg-cyan-400 inline-block"></span> 수신 트래픽</span>
-                            <span class="flex items-center gap-1"><span class="w-3 h-0.5 bg-red-500 inline-block"></span> AI 위험도</span>
-                        </div>
+                        <h2 class="ctitle"><i data-lucide="server" class="w-4 h-4 c-indigo"></i>장비 상태 요약</h2>
+                        <span class="text-xs t-dim">장비를 누르면 토폴로지에서 상세 진단을 볼 수 있어요</span>
                     </div>
-                    <div class="relative h-56 w-full bg-slate-950 border border-slate-800 rounded-lg p-2">
-                        <canvas id="trafficCanvas" class="w-full h-full block"></canvas>
+                    <div id="node-chips" class="grid gap-3" style="grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));"></div>
+                </div>
+            </section>
+
+            <!-- ───── VIEW: 토폴로지 ───── -->
+            <section class="view" data-view="topology">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                    <div class="card lg:col-span-8">
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                            <h2 class="ctitle"><i data-lucide="network" class="w-4 h-4 c-cyan"></i>네트워크 인프라 토폴로지 맵</h2>
+                            <div class="flex items-center gap-2"><span class="text-xs t-dim">노드를 누르면 상세 진단이 열려요</span><span class="credit">양이수</span></div>
+                        </div>
+                        <div class="topo-wrap"><div id="topo" class="topo"></div></div>
+                    </div>
+
+                    <div class="card lg:col-span-4 self-start">
+                        <div class="flex items-center justify-between pb-3 mb-4" style="border-bottom:1px solid var(--border)">
+                            <h2 class="ctitle"><i data-lucide="activity" class="w-4 h-4 c-indigo"></i>장비 텔레메트리 진단</h2>
+                            <span class="credit">김범수</span>
+                        </div>
+                        <p id="inspect-node-id" class="text-lg font-extrabold mb-4">Core Router 01</p>
+                        <div class="grid gap-4">
+                            <div>
+                                <div class="flex justify-between text-xs mb-1.5"><span class="t-muted">CPU 사용률</span><span id="inspect-cpu-text" class="mono font-bold c-cyan">24%</span></div>
+                                <div class="bar"><i id="inspect-cpu-bar" class="cy" style="width:24%"></i></div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-xs mb-1.5"><span class="t-muted">메모리</span><span id="inspect-ram-text" class="mono font-bold" style="color:var(--blue)">42%</span></div>
+                                <div class="bar"><i id="inspect-ram-bar" class="bl" style="width:42%"></i></div>
+                            </div>
+                            <div class="grid gap-2.5 text-xs rounded-2xl p-4" style="background:var(--input);border:1px solid var(--border)">
+                                <div class="flex justify-between gap-3"><span class="t-dim">IP</span><span id="inspect-ip" class="mono font-semibold">192.168.1.1</span></div>
+                                <div class="flex justify-between gap-3"><span class="t-dim">담당자</span><span id="inspect-owner" class="c-indigo">admin (이지환)</span></div>
+                                <div class="flex justify-between gap-3"><span class="t-dim">종류</span><span id="inspect-type" class="t-muted">Core Network Router</span></div>
+                                <div class="flex justify-between gap-3"><span class="t-dim">상태</span><span id="inspect-status" class="font-semibold c-lv lv-ok">● 10 Gbps Link Normal</span></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
 
-            <!-- 우측: 노드 인스펙터 & 실시간 알림 로그 -->
-            <section class="lg:col-span-4 flex flex-col space-y-6">
-                <!-- 노드 진단 인스펙터 -->
-                <div class="bg-[#111827] border border-slate-800 rounded-xl p-5 shadow-lg">
-                    <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-                        <h2 class="font-bold text-slate-200 text-xs flex items-center gap-1.5">
-                            <i data-lucide="sliders" class="w-4 h-4 text-indigo-400"></i>
-                            장비 텔레메트리 진단 - 김범수
-                        </h2>
-                        <span id="inspect-node-id" class="text-xs font-mono px-2 py-0.5 bg-slate-800 text-slate-300 rounded">Core Router</span>
-                    </div>
-
-                    <div class="space-y-3">
-                        <div>
-                            <div class="flex justify-between text-xs mb-1">
-                                <span class="text-slate-400">CPU Usage</span>
-                                <span id="inspect-cpu-text" class="font-mono text-cyan-400 font-bold">24%</span>
-                            </div>
-                            <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
-                                <div id="inspect-cpu-bar" class="h-full bg-cyan-500 transition-all duration-500" style="width: 24%"></div>
-                            </div>
-                        </div>
-
-                        <div>
-                            <div class="flex justify-between text-xs mb-1">
-                                <span class="text-slate-400">Memory</span>
-                                <span id="inspect-ram-text" class="font-mono text-blue-400 font-bold">42%</span>
-                            </div>
-                            <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
-                                <div id="inspect-ram-bar" class="h-full bg-blue-500 transition-all duration-500" style="width: 42%"></div>
-                            </div>
-                        </div>
-
-                        <div class="bg-slate-950 rounded-lg p-3 border border-slate-800 space-y-2 text-xs">
-                            <div class="flex justify-between"><span class="text-slate-500">IP:</span><span id="inspect-ip" class="font-mono text-slate-200">192.168.1.1</span></div>
-                            <div class="flex justify-between"><span class="text-slate-500">Owner:</span><span id="inspect-owner" class="text-indigo-300">admin (이지환)</span></div>
-                            <div class="flex justify-between"><span class="text-slate-500">Type:</span><span id="inspect-type" class="text-slate-300">Core Network Router</span></div>
-                            <div class="flex justify-between"><span class="text-slate-500">Status:</span><span id="inspect-status" class="text-green-400 font-medium">● 10 Gbps Link Normal</span></div>
-                        </div>
-                    </div>
+            <!-- ───── VIEW: 트래픽 · AI 분석 ───── -->
+            <section class="view" data-view="analytics">
+                <div class="stats" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+                    <div class="card"><p class="text-xs t-muted">최근 40초 최고 트래픽</p><p id="an-peak" class="text-2xl font-extrabold mono mt-1 c-cyan">0 Mbps</p></div>
+                    <div class="card"><p class="text-xs t-muted">평균 AI 위험도</p><p id="an-risk" class="text-2xl font-extrabold mono mt-1" style="color:var(--red)">0%</p></div>
+                    <div class="card"><p class="text-xs t-muted">최대 패킷 손실률</p><p id="an-loss" class="text-2xl font-extrabold mono mt-1 c-amber">0%</p></div>
                 </div>
 
-                <!-- 실시간 AI 알림 스트림 -->
-                <div class="bg-[#111827] border border-slate-800 rounded-xl p-5 shadow-lg flex-1 flex flex-col min-h-[280px]">
-                    <div class="flex items-center justify-between mb-3 border-b border-slate-800 pb-2">
-                        <h2 class="font-bold text-slate-200 text-xs flex items-center gap-1.5">
-                            <i data-lucide="bell-ring" class="w-4 h-4 text-red-400"></i>
-                            실시간 AI 예측 & 보안 로그 - 구본학
-                        </h2>
-                    </div>
-                    <div id="alert-feed-container" class="space-y-2.5 overflow-y-auto flex-1 pr-1 max-h-[320px]">
-                        <div class="p-2.5 bg-red-950/40 border border-red-800/60 rounded-lg text-xs space-y-1">
-                            <div class="flex justify-between font-bold text-red-400">
-                                <span>🚨 [CRITICAL] 장애 위험 감지</span>
-                                <span class="text-[10px] text-slate-400 font-mono">14:02</span>
-                              </div>
-                            <p class="text-slate-300">Distribution SW 트래픽 급증 (AI 예측 확률 87.4%)</p>
+                <div class="card mt-5">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <h2 class="ctitle"><i data-lucide="activity" class="w-4 h-4 c-cyan"></i>트래픽 & AI 위협 스코어 (확대)</h2>
+                        <div class="flex items-center gap-3">
+                            <div class="legend"><span><i style="background:var(--cyan)"></i>수신 트래픽</span><span><i style="background:var(--red)"></i>AI 위험도</span></div>
+                            <span class="credit">장우진</span>
                         </div>
                     </div>
+                    <div class="h-chart-lg"><canvas id="analyticsCanvas" class="chart"></canvas></div>
                 </div>
 
-                <!-- AI 관제 보조 가이드 (고정 질문 응답 모듈) -->
-                <div class="bg-[#111827] border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
-                    <div>
-                        <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
-                            <div class="flex items-center space-x-2">
-                                <i data-lucide="bot" class="w-5 h-5 text-blue-400"></i>
-                                <h3 class="text-sm font-bold text-slate-200">AI 시스템 가이드 & 질문-김태현&최민규</h3>
-                            </div>
-                            <span class="text-[10px] px-2 py-0.5 bg-blue-950/60 text-blue-400 border border-blue-800/40 rounded-full font-mono">Quick QA</span>
-                        </div>
+                <div class="card mt-5">
+                    <div class="flex items-center justify-between mb-2">
+                        <h2 class="ctitle"><i data-lucide="server" class="w-4 h-4 c-indigo"></i>장비별 부하 현황</h2>
+                        <span class="text-xs t-dim">행을 누르면 토폴로지로 이동해요</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="tbl">
+                            <thead><tr><th>장비</th><th>IP</th><th>CPU</th><th>메모리</th><th>상태</th></tr></thead>
+                            <tbody id="node-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
 
-                        <!-- 고정 질문 버튼 리스트 -->
+            <!-- ───── VIEW: 보안 로그 ───── -->
+            <section class="view" data-view="logs">
+                <div class="card">
+                    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                        <h2 class="ctitle"><i data-lucide="bell" class="w-4 h-4" style="color:var(--red)"></i>실시간 AI 예측 & 보안 로그<span class="credit">구본학</span></h2>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <button class="fchip on" data-f="all" onclick="setLogFilter('all')">전체</button>
+                            <button class="fchip" data-f="crit" onclick="setLogFilter('crit')">위험</button>
+                            <button class="fchip" data-f="warn" onclick="setLogFilter('warn')">경고</button>
+                            <button class="fchip" data-f="info" onclick="setLogFilter('info')">정보</button>
+                        </div>
+                    </div>
+                    <div id="alert-full" class="grid gap-2.5"></div>
+                </div>
+            </section>
+
+            <!-- ───── VIEW: AI 가이드 ───── -->
+            <section class="view" data-view="guide">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                    <div class="card lg:col-span-6 self-start">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="ctitle"><i data-lucide="bot" class="w-4 h-4 c-indigo"></i>AI 시스템 가이드 & 질문</h2>
+                            <span class="credit">김태현 · 최민규</span>
+                        </div>
                         <div class="grid grid-cols-2 gap-2 mb-3">
-                            <button onclick="showHelpAnswer('overview')" class="px-2.5 py-1.5 text-xs bg-slate-900 hover:bg-blue-900/30 border border-slate-700 hover:border-blue-500/50 text-slate-300 rounded-lg text-left transition-all">
-                                💡 시스템 개요
-                            </button>
-                            <button onclick="showHelpAnswer('ddos')" class="px-2.5 py-1.5 text-xs bg-slate-900 hover:bg-blue-900/30 border border-slate-700 hover:border-blue-500/50 text-slate-300 rounded-lg text-left transition-all">
-                                ⚡ DDoS 시뮬레이션
-                            </button>
-                            <button onclick="showHelpAnswer('topology')" class="px-2.5 py-1.5 text-xs bg-slate-900 hover:bg-blue-900/30 border border-slate-700 hover:border-blue-500/50 text-slate-300 rounded-lg text-left transition-all">
-                                🌐 토폴로지 진단법
-                            </button>
-                            <button onclick="showHelpAnswer('roles')" class="px-2.5 py-1.5 text-xs bg-slate-900 hover:bg-blue-900/30 border border-slate-700 hover:border-blue-500/50 text-slate-300 rounded-lg text-left transition-all">
-                                👥 팀원 담당 역할
-                            </button>
+                            <button class="qa-btn" data-q="overview" onclick="showHelpAnswer('overview')">💡 시스템 개요</button>
+                            <button class="qa-btn" data-q="menu" onclick="showHelpAnswer('menu')">🧭 메뉴 안내</button>
+                            <button class="qa-btn" data-q="ddos" onclick="showHelpAnswer('ddos')">⚡ DDoS 시뮬레이션</button>
+                            <button class="qa-btn" data-q="topology" onclick="showHelpAnswer('topology')">🌐 토폴로지 진단법</button>
+                            <button class="qa-btn" data-q="roles" onclick="showHelpAnswer('roles')">👥 팀원 담당 역할</button>
                         </div>
+                        <div id="ai-help-box" class="helpbox">위의 항목 중 하나를 누르면 시스템 세부 설명이 이곳에 표시돼요.</div>
+                    </div>
 
-                        <!-- 설명 출력 박스 -->
-                        <div id="ai-help-box" class="p-3 bg-slate-950/80 border border-slate-800 rounded-lg text-xs leading-relaxed text-slate-300">
-                            위의 항목 중 하나를 클릭하면 시스템 세부 설명이 이곳에 표시됩니다.
-                        </div>
+                    <div class="card lg:col-span-6 self-start">
+                        <h2 class="ctitle mb-4"><i data-lucide="bot" class="w-4 h-4 c-cyan"></i>팀원 담당 역할</h2>
+                        <div id="roles-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
                     </div>
                 </div>
             </section>
-        </main>
-    </div>
 
-    <!-- 3. [관리자 전용] 모달 -->
-    <div id="admin-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col">
-            <div class="bg-slate-800/80 px-6 py-4 border-b border-slate-700/80 flex justify-between items-center">
-                <h3 class="text-sm font-bold text-indigo-300 flex items-center gap-2">⚙️ 접속 기기 할당 및 권한 관리</h3>
-                <button onclick="toggleAdminModal(false)" class="text-slate-400 hover:text-white text-lg font-bold px-2">✕</button>
-            </div>
-            <div class="p-6 space-y-4">
-                <div class="overflow-x-auto rounded-xl border border-slate-800">
-                    <table class="w-full text-xs text-left text-slate-300">
-                        <thead class="text-[11px] text-slate-400 uppercase bg-slate-950 border-b border-slate-800 font-mono">
-                            <tr>
-                                <th class="px-4 py-3">IP 주소</th>
-                                <th class="px-4 py-3">기기명</th>
-                                <th class="px-4 py-3">종류</th>
-                                <th class="px-4 py-3">상태</th>
-                                <th class="px-4 py-3">소유자 할당</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-800/80 bg-slate-900/50">
-                            <tr>
-                                <td class="px-4 py-3 font-mono">172.28.8.34</td>
-                                <td class="px-4 py-3 font-medium">지환 님 스마트폰</td>
-                                <td class="px-4 py-3"><span class="px-2 py-0.5 text-[10px] bg-slate-800 rounded text-slate-300">Mobile</span></td>
-                                <td class="px-4 py-3 text-emerald-400 font-medium">● Online</td>
-                                <td class="px-4 py-3">
-                                    <select class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white">
-                                        <option value="1" selected>지환 (admin)</option>
-                                        <option value="2">user1</option>
-                                    </select>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+            <!-- ───── VIEW: 기기 관리 (관리자) ───── -->
+            <section class="view" data-view="devices">
+                <div class="card">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="ctitle"><i data-lucide="server" class="w-4 h-4 c-indigo"></i>접속 기기 할당 및 권한 관리</h2>
+                        <button class="btn primary" onclick="saveAssignments()">변경사항 저장</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="tbl">
+                            <thead><tr><th>IP 주소</th><th>기기명</th><th>종류</th><th>상태</th><th>소유자 할당</th></tr></thead>
+                            <tbody id="device-body"></tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
-            <div class="bg-slate-950 px-6 py-3.5 border-t border-slate-800 flex justify-end gap-2">
-                <button onclick="toggleAdminModal(false)" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-semibold text-slate-300">닫기</button>
-                <button onclick="saveAssignments()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-semibold text-white">저장</button>
-            </div>
+            </section>
         </div>
     </div>
 
-    <!-- 스크립트 -->
+    <div id="toast" class="toast"></div>
+
     <script>
-        lucide.createIcons();
+        const $ = id => document.getElementById(id);
+        const pad = n => String(n).padStart(2, '0');
+        const clock = (d = new Date()) => `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+        const setLv = (el, lv) => { if (!el) return; el.classList.remove('lv-ok', 'lv-warn', 'lv-crit', 'lv-info'); el.classList.add('lv-' + lv); };
+        function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200); }
 
-        // 1. 3D 네트워크 Orb 애니메이션
-        const orbCanvas = document.getElementById('networkOrbCanvas');
+        /* ═════════ 1. 로그인 화면 3D Orb (기존 유지) ═════════ */
+        const orbCanvas = $('networkOrbCanvas');
         const orbCtx = orbCanvas.getContext('2d');
-        const numNodes = 24;
         const orbNodes = [];
-        const radius = 55;
-        let angleX = 0, angleY = 0;
-        let orbAnimationId = null;
-
+        const orbRadius = 55;
+        let angleX = 0, angleY = 0, orbAnimationId = null;
         const phi = Math.PI * (3 - Math.sqrt(5));
-        for (let i = 0; i < numNodes; i++) {
-            const y = 1 - (i / (numNodes - 1)) * 2;
-            const radiusAtY = Math.sqrt(1 - y * y);
-            const theta = phi * i;
-            orbNodes.push({ x: Math.cos(theta) * radiusAtY * radius, y: y * radius, z: Math.sin(theta) * radiusAtY * radius });
+        for (let i = 0; i < 24; i++) {
+            const y = 1 - (i / 23) * 2, r = Math.sqrt(1 - y * y), th = phi * i;
+            orbNodes.push({ x: Math.cos(th) * r * orbRadius, y: y * orbRadius, z: Math.sin(th) * r * orbRadius });
         }
-
         function animate3DOrb() {
             orbCtx.clearRect(0, 0, orbCanvas.width, orbCanvas.height);
             const cx = orbCanvas.width / 2, cy = orbCanvas.height / 2;
             angleX += 0.008; angleY += 0.012;
-
-            const rotated = orbNodes.map(node => {
-                let x1 = node.x * Math.cos(angleY) - node.z * Math.sin(angleY);
-                let z1 = node.z * Math.cos(angleY) + node.x * Math.sin(angleY);
-                let y2 = node.y * Math.cos(angleX) - z1 * Math.sin(angleX);
-                let z2 = z1 * Math.cos(angleX) + node.y * Math.sin(angleX);
-                return { x: x1 + cx, y: y2 + cy, z: z2 };
+            const rot = orbNodes.map(n => {
+                const x1 = n.x * Math.cos(angleY) - n.z * Math.sin(angleY);
+                const z1 = n.z * Math.cos(angleY) + n.x * Math.sin(angleY);
+                const y2 = n.y * Math.cos(angleX) - z1 * Math.sin(angleX);
+                return { x: x1 + cx, y: y2 + cy };
             });
-
-            for (let i = 0; i < rotated.length; i++) {
-                for (let j = i + 1; j < rotated.length; j++) {
-                    const dx = rotated[i].x - rotated[j].x, dy = rotated[i].y - rotated[j].y;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < 48) {
-                        orbCtx.strokeStyle = `rgba(165, 180, 252, ${(1 - dist / 48) * 0.4})`;
-                        orbCtx.lineWidth = 1;
-                        orbCtx.beginPath(); orbCtx.moveTo(rotated[i].x, rotated[i].y); orbCtx.lineTo(rotated[j].x, rotated[j].y); orbCtx.stroke();
-                    }
+            for (let i = 0; i < rot.length; i++) for (let j = i + 1; j < rot.length; j++) {
+                const d = Math.hypot(rot[i].x - rot[j].x, rot[i].y - rot[j].y);
+                if (d < 48) {
+                    orbCtx.strokeStyle = `rgba(165,180,252,${(1 - d / 48) * 0.4})`; orbCtx.lineWidth = 1;
+                    orbCtx.beginPath(); orbCtx.moveTo(rot[i].x, rot[i].y); orbCtx.lineTo(rot[j].x, rot[j].y); orbCtx.stroke();
                 }
             }
-            rotated.forEach(node => {
-                orbCtx.fillStyle = 'rgba(199, 210, 254, 0.8)';
-                orbCtx.beginPath(); orbCtx.arc(node.x, node.y, 2.5, 0, Math.PI * 2); orbCtx.fill();
-            });
+            rot.forEach(n => { orbCtx.fillStyle = 'rgba(199,210,254,.8)'; orbCtx.beginPath(); orbCtx.arc(n.x, n.y, 2.5, 0, Math.PI * 2); orbCtx.fill(); });
             orbAnimationId = requestAnimationFrame(animate3DOrb);
         }
         animate3DOrb();
 
-        // 2. 로그인 및 잠금 로직
+        /* ═════════ 2. 로그인 · 잠금 로직 (기존 유지) ═════════ */
         let failCount = 0;
         const lockDurations = { 5: 30, 6: 60, 7: 180, 8: 600, 9: 1200 };
 
-        function handleLogin(event) {
-            event.preventDefault();
-            const usernameInput = document.getElementById('username-input').value.trim();
-            const passwordInput = document.getElementById('password-input').value;
-            const adminBtn = document.getElementById('admin-manage-btn');
-            const roleBadge = document.getElementById('user-role-badge');
-            const deviceCard = document.getElementById('monitored-devices-card');
+        function handleLogin(e) {
+            e.preventDefault();
+            const pwd = $('password-input');
+            if (pwd.disabled) return;
+            const name = $('username-input').value.trim();
+            const pw = pwd.value;
 
-            if (passwordInput === 'admin' || passwordInput === '8bit') {
+            if (pw === 'admin' || pw === '8bit') {
                 failCount = 0;
-                if (passwordInput === 'admin') {
-                    adminBtn.classList.remove('hidden');
-                    if (deviceCard) deviceCard.classList.remove('hidden');
-                    roleBadge.textContent = `👑 관리자 (${usernameInput || '이지환'})`;
-                } else {
-                    adminBtn.classList.add('hidden');
-                    if (deviceCard) deviceCard.classList.add('hidden');
-                    roleBadge.textContent = `👤 일반 사용자 (${usernameInput || '8bit'})`;
-                }
+                $('error-msg').classList.add('hide'); $('fail-count-msg').classList.add('hide');
+                state.isAdmin = pw === 'admin';
+                state.username = name || (state.isAdmin ? '이지환' : '8bit');
                 showDashboard();
             } else {
                 failCount++;
-                document.getElementById('fail-count').textContent = failCount;
-                document.getElementById('fail-count-msg').classList.remove('hidden');
-                document.getElementById('error-msg').classList.remove('hidden');
-
+                $('fail-count').textContent = failCount;
+                $('fail-count-msg').classList.remove('hide');
+                $('error-msg').classList.remove('hide');
                 if (failCount >= 10) {
-                    document.getElementById('login-form').classList.add('hidden');
-                    document.getElementById('banned-screen').classList.remove('hidden');
+                    $('login-form').classList.add('hide');
+                    $('banned-screen').classList.remove('hide');
                 } else if (failCount >= 5) {
                     startLockout(lockDurations[failCount] || 1200);
                 }
@@ -695,269 +617,428 @@
         }
 
         function startLockout(seconds) {
-            const pwd = document.getElementById('password-input');
-            const btn = document.getElementById('login-btn');
+            const pwd = $('password-input'), btn = $('login-btn');
             pwd.disabled = true; btn.disabled = true;
-            document.getElementById('lockout-msg').classList.remove('hidden');
+            $('lockout-msg').classList.remove('hide');
             let remaining = seconds;
+            $('timer-text').textContent = `${pad(Math.floor(remaining / 60))}:${pad(remaining % 60)}`;
             const timer = setInterval(() => {
                 remaining--;
-                document.getElementById('timer-text').textContent = `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`;
+                $('timer-text').textContent = `${pad(Math.floor(remaining / 60))}:${pad(remaining % 60)}`;
                 if (remaining <= 0) {
                     clearInterval(timer);
                     pwd.disabled = false; btn.disabled = false;
-                    document.getElementById('lockout-msg').classList.add('hidden');
+                    $('lockout-msg').classList.add('hide');
                 }
             }, 1000);
         }
 
         function showDashboard() {
-            if (orbAnimationId) cancelAnimationFrame(orbAnimationId);
-
-            document.getElementById('login-screen').classList.add('hidden');
-            document.getElementById('dashboard-screen').classList.remove('hidden');
-            document.getElementById('dashboard-screen').classList.add('flex');
-            resizeCanvas();
-            selectNode('core-router');
+            if (orbAnimationId) { cancelAnimationFrame(orbAnimationId); orbAnimationId = null; }
+            $('login-screen').classList.add('hide');
+            $('dashboard-screen').classList.add('show');
+            $('nav-devices').classList.toggle('hide', !state.isAdmin);
+            $('monitored-devices-card').classList.toggle('hide', !state.isAdmin);
+            $('user-role-badge').textContent = state.isAdmin ? `👑 관리자 (${state.username})` : `👤 일반 사용자 (${state.username})`;
+            switchView('overview');
         }
 
         function logout() {
-            document.getElementById('dashboard-screen').classList.add('hidden');
-            document.getElementById('dashboard-screen').classList.remove('flex');
-            document.getElementById('login-screen').classList.remove('hidden');
-            document.getElementById('password-input').value = '';
-            
-            animate3DOrb();
+            $('dashboard-screen').classList.remove('show');
+            $('login-screen').classList.remove('hide');
+            $('password-input').value = '';
+            if (!orbAnimationId) animate3DOrb();
         }
 
-        function toggleAdminModal(show) {
-            document.getElementById('admin-modal').classList.toggle('hidden', !show);
-        }
-
-        function saveAssignments() {
-            alert('기기 소유자 할당 정보가 저장되었습니다.');
-            toggleAdminModal(false);
-        }
-
-        // 3. 대시보드 데이터 & Canvas 차트 애니메이션
+        /* ═════════ 3. 데이터 모델 ═════════ */
         const state = {
-            ingressMbps: 450,
-            aiRiskScore: 12.4,
-            packetLossPct: 0.02,
-            activeAnomalyMode: null,
-            selectedNodeId: 'core-router',
-            nodes: {
-                'core-router': { id: 'Core Router 01', ip: '192.168.1.1', type: 'Core Router', owner: 'admin (이지환)', cpu: 24, ram: 42, status: '● 10 Gbps Link Normal' },
-                'dist-sw-1': { id: 'Dist-SW-01', ip: '192.168.1.10', type: 'Distribution Switch', owner: 'admin (이지환)', cpu: 82, ram: 68, status: '▲ High Load Warning' },
-                'dist-sw-2': { id: 'Dist-SW-02', ip: '192.168.1.11', type: 'Distribution Switch', owner: 'user1 (8bit)', cpu: 31, ram: 45, status: '● Normal' },
-                'server-db': { id: 'DB Cluster Node', ip: '10.0.0.5', type: 'Database Server', owner: 'admin (이지환)', cpu: 45, ram: 78, status: '● Normal' },
-                'server-api': { id: 'FastAPI Backend', ip: '10.0.0.12', type: 'Application Server', owner: 'admin (이지환)', cpu: 38, ram: 52, status: '● Normal' },
-                'workstation-pc': { id: 'Dev-PC-01', ip: '192.168.1.15', type: 'Workstation', owner: 'user1 (8bit)', cpu: 18, ram: 30, status: '● Online' },
-                'mobile-gateway': { id: 'Mobile Gateway', ip: '172.28.8.34', type: 'Mobile Endpoint', owner: 'admin (이지환)', cpu: 12, ram: 25, status: '● Online' }
-            }
+            isAdmin: true, username: '이지환', view: 'overview',
+            ingress: 450, risk: 12.4, loss: 0.02, mode: null,
+            selected: 'core-router', logFilter: 'all', unread: 0
         };
 
-        const trafficCanvas = document.getElementById('trafficCanvas');
-        const trafficCtx = trafficCanvas.getContext('2d');
-        const maxPoints = 35;
-        const trafficHistory = Array(maxPoints).fill(450);
-        const riskHistory = Array(maxPoints).fill(12);
+        const NODES = {
+            'core-router':    { name: 'Core Router 01',  short: 'Core Router', ip: '192.168.1.1',  type: 'Core Network Router', owner: 'admin (이지환)', cpu: 24, ram: 42, status: '● 10 Gbps Link Normal', icon: 'router',     x: 50, y: 12 },
+            'dist-sw-1':      { name: 'Dist-SW-01',      short: 'Dist-SW-01',  ip: '192.168.1.10', type: 'Distribution Switch', owner: 'admin (이지환)', cpu: 82, ram: 68, status: '● Normal',              icon: 'network',    x: 30, y: 44 },
+            'dist-sw-2':      { name: 'Dist-SW-02',      short: 'Dist-SW-02',  ip: '192.168.1.11', type: 'Distribution Switch', owner: 'user1 (8bit)',   cpu: 31, ram: 45, status: '● Normal',              icon: 'network',    x: 70, y: 44 },
+            'server-db':      { name: 'DB Cluster Node', short: 'DB Cluster',  ip: '10.0.0.5',     type: 'Database Server',     owner: 'admin (이지환)', cpu: 45, ram: 78, status: '● Normal',              icon: 'database',   x: 14, y: 82 },
+            'server-api':     { name: 'FastAPI Backend', short: 'FastAPI',     ip: '10.0.0.12',    type: 'Application Server',  owner: 'admin (이지환)', cpu: 38, ram: 52, status: '● Normal',              icon: 'cpu',        x: 38, y: 82 },
+            'workstation-pc': { name: 'Dev-PC-01',       short: 'Dev-PC',      ip: '192.168.1.15', type: 'Workstation',         owner: 'user1 (8bit)',   cpu: 18, ram: 30, status: '● Online',              icon: 'monitor',    x: 62, y: 82 },
+            'mobile-gateway': { name: 'Mobile Gateway',  short: 'Mobile GW',   ip: '172.28.8.34',  type: 'Mobile Endpoint',     owner: 'admin (이지환)', cpu: 12, ram: 25, status: '● Online',              icon: 'smartphone', x: 86, y: 82 }
+        };
+        const NODE_KEYS = Object.keys(NODES);
+        NODE_KEYS.forEach(k => { const n = NODES[k]; n.lc = n.cpu; n.lr = n.ram; n.lv = n.cpu >= 70 ? 'warn' : 'ok'; });
+        const EDGES = [['core-router', 'dist-sw-1'], ['core-router', 'dist-sw-2'], ['dist-sw-1', 'server-db'], ['dist-sw-1', 'server-api'], ['dist-sw-2', 'workstation-pc'], ['dist-sw-2', 'mobile-gateway']];
+        const LVC = { ok: 'var(--green)', warn: 'var(--amber)', crit: 'var(--red)' };
+        const OWNERS = ['admin (이지환)', 'user1 (8bit)'];
 
-        function resizeCanvas() {
-            if (!trafficCanvas || !trafficCanvas.parentElement) return;
-            trafficCanvas.width = trafficCanvas.parentElement.clientWidth;
-            trafficCanvas.height = trafficCanvas.parentElement.clientHeight;
+        // 장애 모드별 장비 부하 증가량 [CPU, RAM]
+        const BOOST = {
+            ddos: { 'core-router': [55, 25], 'dist-sw-1': [16, 22], 'dist-sw-2': [45, 25], 'server-api': [40, 20] },
+            loss: { 'dist-sw-2': [40, 20], 'mobile-gateway': [62, 30] }
+        };
+        function nodeStatus(n) { return n.lv === 'crit' ? '✖ Overload — 즉시 조치 필요' : n.lv === 'warn' ? '▲ High Load Warning' : n.status; }
+
+        const ROLES = [
+            { name: '이지환', role: '총괄 · 권한 관리' }, { name: '장우진', role: 'UI · 대시보드' },
+            { name: '양이수', role: '네트워크 토폴로지' }, { name: '김범수', role: '로그 수집' },
+            { name: '구본학', role: '백엔드 · 경보' }, { name: '김민석', role: '관제 DB · ETL' },
+            { name: '최민규', role: 'AI 예측 · 분석' }, { name: '김태현', role: 'AI 예측 · 분석' }
+        ];
+
+        const alerts = [
+            { lv: 'crit', title: '[CRITICAL] 장애 위험 감지', msg: 'Distribution SW 트래픽 급증 (AI 예측 확률 87.4%)', time: '14:02:11' },
+            { lv: 'warn', title: 'Dist-SW-01 CPU 고부하', msg: 'CPU 82% — 임계치(70%)를 넘었어요.', time: '13:47:05' },
+            { lv: 'info', title: 'AI 엔진 정상 기동', msg: '이상 감지 모델이 로드되어 실시간 분석을 시작했어요.', time: '13:41:30' }
+        ];
+
+        /* ═════════ 4. 화면 전환 ═════════ */
+        const VIEWS = {
+            overview:  ['안녕하세요', '지금 네트워크 상태를 한눈에 확인하세요'],
+            topology:  ['네트워크 토폴로지', '장비 연결 구조와 상태를 확인하고, 노드를 눌러 진단하세요'],
+            analytics: ['트래픽 · AI 분석', '최근 트래픽 흐름과 AI 위험도, 장비별 부하를 비교하세요'],
+            logs:      ['보안 로그', 'AI가 예측한 장애 위험과 보안 경보 기록이에요'],
+            guide:     ['AI 가이드', '시스템 사용법과 팀원 담당 역할을 확인하세요'],
+            devices:   ['기기 관리', '기기별 소유자를 할당하고 권한을 관리하세요']
+        };
+
+        function switchView(name) {
+            if (name === 'devices' && !state.isAdmin) name = 'overview';
+            state.view = name;
+            document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.dataset.view === name));
+            document.querySelectorAll('.nav-btn[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === name));
+            const t = VIEWS[name];
+            $('page-title').textContent = name === 'overview' ? `안녕하세요, ${state.username} 님 👋` : t[0];
+            $('page-sub').textContent = t[1];
+            if (name === 'logs') { state.unread = 0; updateBadge(); }
+            if (name === 'devices') renderDevices();
+            window.scrollTo({ top: 0 });
+            requestAnimationFrame(drawAll);
         }
-        window.addEventListener('resize', resizeCanvas);
+        function openNode(key) { selectNode(key); switchView('topology'); }
 
-        function drawChart() {
-            if (!trafficCtx) return;
-            const w = trafficCanvas.width, h = trafficCanvas.height;
-            trafficCtx.clearRect(0, 0, w, h);
+        /* ═════════ 5. 토폴로지 · 장비 UI 생성 ═════════ */
+        function buildNodeUI() {
+            // 토폴로지
+            const lines = EDGES.map(([a, b]) => `<line id="ln-${b}" x1="${NODES[a].x}%" y1="${NODES[a].y}%" x2="${NODES[b].x}%" y2="${NODES[b].y}%"/>`).join('');
+            const btns = NODE_KEYS.map(k => {
+                const n = NODES[k];
+                return `<button class="tnode lv-ok" id="tn-${k}" style="left:${n.x}%;top:${n.y}%" onclick="selectNode('${k}')">
+                    <span class="tdot"></span><i data-lucide="${n.icon}" class="w-4 h-4 c-lv"></i><b>${n.name}</b><small class="mono">${n.ip}</small></button>`;
+            }).join('');
+            $('topo').innerHTML = `<svg>${lines}</svg>${btns}`;
 
-            trafficCtx.strokeStyle = '#1e293b'; trafficCtx.lineWidth = 1;
-            for (let i = 1; i < 4; i++) {
-                trafficCtx.beginPath(); trafficCtx.moveTo(0, (h / 4) * i); trafficCtx.lineTo(w, (h / 4) * i); trafficCtx.stroke();
-            }
+            // 대시보드 장비 칩
+            $('node-chips').innerHTML = NODE_KEYS.map(k => `
+                <button class="nchip lv-ok" id="nc-${k}" onclick="openNode('${k}')">
+                    <span class="ldot"></span><span class="font-semibold">${NODES[k].short}</span><span class="mono t-muted ml-auto" id="ncc-${k}">0%</span>
+                </button>`).join('');
 
-            const stepX = w / (maxPoints - 1);
-            trafficCtx.beginPath(); trafficCtx.strokeStyle = '#22d3ee'; trafficCtx.lineWidth = 2;
-            trafficHistory.forEach((val, i) => {
-                const y = h - (val / 1200) * (h - 20) - 10;
-                if (i === 0) trafficCtx.moveTo(0, y); else trafficCtx.lineTo(i * stepX, y);
-            });
-            trafficCtx.stroke();
+            // 분석 화면 장비 테이블
+            $('node-body').innerHTML = NODE_KEYS.map(k => `
+                <tr class="click lv-ok" id="tr-${k}" onclick="openNode('${k}')">
+                    <td><div class="flex items-center gap-2"><span class="ldot"></span><b>${NODES[k].name}</b></div></td>
+                    <td class="mono t-muted">${NODES[k].ip}</td>
+                    <td style="min-width:140px"><div class="flex items-center gap-2"><div class="bar flex-1"><i id="tc-${k}" style="width:0%"></i></div><span class="mono w-10 text-right" id="tct-${k}">0%</span></div></td>
+                    <td style="min-width:140px"><div class="flex items-center gap-2"><div class="bar flex-1"><i class="bl" id="tr2-${k}" style="width:0%"></i></div><span class="mono w-10 text-right" id="trt-${k}">0%</span></div></td>
+                    <td class="c-lv font-semibold" id="ts-${k}"></td>
+                </tr>`).join('');
 
-            trafficCtx.beginPath(); trafficCtx.strokeStyle = '#ef4444'; trafficCtx.lineWidth = 2;
-            riskHistory.forEach((val, i) => {
-                const y = h - (val / 100) * (h - 20) - 10;
-                if (i === 0) trafficCtx.moveTo(0, y); else trafficCtx.lineTo(i * stepX, y);
-            });
-            trafficCtx.stroke();
-        }
-
-        function updateTelemetry() {
-            let trafficBase = 450 + (Math.random() * 60 - 30);
-            let riskBase = 10 + (Math.random() * 5);
-            let lossBase = 0.02 + (Math.random() * 0.03);
-
-            if (state.activeAnomalyMode === 'ddos') {
-                trafficBase = 1080 + (Math.random() * 100);
-                riskBase = 92.8 + (Math.random() * 5);
-                lossBase = 4.8 + (Math.random() * 2);
-            } else if (state.activeAnomalyMode === 'loss') {
-                trafficBase = 280 + (Math.random() * 40);
-                riskBase = 74.2 + (Math.random() * 8);
-                lossBase = 12.5 + (Math.random() * 4);
-            }
-
-            state.ingressMbps = Math.round(trafficBase);
-            state.aiRiskScore = parseFloat(riskBase.toFixed(1));
-            state.packetLossPct = parseFloat(lossBase.toFixed(2));
-
-            trafficHistory.push(state.ingressMbps); trafficHistory.shift();
-            riskHistory.push(state.aiRiskScore); riskHistory.shift();
-
-            document.getElementById('stat-traffic-in').innerText = `${state.ingressMbps} Mbps`;
-            document.getElementById('stat-ai-risk').innerText = `${state.aiRiskScore}%`;
-            document.getElementById('stat-packet-loss').innerText = `${state.packetLossPct}%`;
-
-            const aiBadge = document.getElementById('stat-ai-badge');
-            const statusDot = document.getElementById('system-status-dot');
-            const statusText = document.getElementById('system-status-text');
-
-            if (state.aiRiskScore > 80) {
-                if (aiBadge) {
-                    aiBadge.innerText = '심각 (경보)';
-                    aiBadge.className = 'text-[10px] px-2 py-0.5 bg-red-950 border border-red-800 text-red-300 rounded font-semibold animate-pulse';
-                }
-                if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-red-500 animate-ping';
-                if (statusText) {
-                    statusText.innerText = 'AI 경보: 장애 위험 감지!';
-                    statusText.className = 'text-xs font-semibold text-red-400';
-                }
-            } else if (state.aiRiskScore > 50) {
-                if (aiBadge) {
-                    aiBadge.innerText = '주의 (상승)';
-                    aiBadge.className = 'text-[10px] px-2 py-0.5 bg-amber-950 border border-amber-800 text-amber-300 rounded font-semibold';
-                }
-                if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse';
-                if (statusText) {
-                    statusText.innerText = 'AI 경고: 이상 징후 임계치';
-                    statusText.className = 'text-xs font-semibold text-amber-400';
-                }
-            } else {
-                if (aiBadge) {
-                    aiBadge.innerText = '안전 (낮음)';
-                    aiBadge.className = 'text-[10px] px-2 py-0.5 bg-green-950 border border-green-800 text-green-300 rounded font-semibold';
-                }
-                if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse';
-                if (statusText) {
-                    statusText.innerText = 'AI 엔진 정상 작동 중';
-                    statusText.className = 'text-xs font-semibold text-green-400';
-                }
-            }
-
-            drawChart();
+            // 팀 역할
+            $('roles-grid').innerHTML = ROLES.map(r => `<div class="role"><div class="avatar">${r.name[0]}</div><div><p class="text-sm font-bold">${r.name}</p><p class="text-xs t-muted">${r.role}</p></div></div>`).join('');
         }
 
         function selectNode(key) {
-            state.selectedNodeId = key;
-            const d = state.nodes[key];
-            if (!d) return;
-            document.getElementById('inspect-node-id').innerText = d.id;
-            document.getElementById('inspect-cpu-text').innerText = `${d.cpu}%`;
-            document.getElementById('inspect-cpu-bar').style.width = `${d.cpu}%`;
-            document.getElementById('inspect-ram-text').innerText = `${d.ram}%`;
-            document.getElementById('inspect-ram-bar').style.width = `${d.ram}%`;
-            document.getElementById('inspect-ip').innerText = d.ip;
-            document.getElementById('inspect-owner').innerText = d.owner;
-            document.getElementById('inspect-type').innerText = d.type;
-            document.getElementById('inspect-status').innerText = d.status;
+            state.selected = key;
+            NODE_KEYS.forEach(k => $('tn-' + k).classList.toggle('sel', k === key));
+            updateInspector();
         }
 
+        function updateInspector() {
+            const n = NODES[state.selected];
+            $('inspect-node-id').textContent = n.name;
+            $('inspect-cpu-text').textContent = `${Math.round(n.lc)}%`;
+            $('inspect-cpu-bar').style.width = `${n.lc}%`;
+            $('inspect-ram-text').textContent = `${Math.round(n.lr)}%`;
+            $('inspect-ram-bar').style.width = `${n.lr}%`;
+            $('inspect-ip').textContent = n.ip;
+            $('inspect-owner').textContent = n.owner;
+            $('inspect-type').textContent = n.type;
+            $('inspect-status').textContent = nodeStatus(n);
+            setLv($('inspect-status'), n.lv);
+        }
+
+        function updateNodeUI() {
+            NODE_KEYS.forEach(k => {
+                const n = NODES[k];
+                setLv($('tn-' + k), n.lv);
+                const ln = $('ln-' + k); if (ln) ln.style.stroke = LVC[n.lv];
+                setLv($('nc-' + k), n.lv); $('ncc-' + k).textContent = Math.round(n.lc) + '%';
+                setLv($('tr-' + k), n.lv);
+                $('tc-' + k).style.width = n.lc + '%'; $('tct-' + k).textContent = Math.round(n.lc) + '%';
+                $('tr2-' + k).style.width = n.lr + '%'; $('trt-' + k).textContent = Math.round(n.lr) + '%';
+                $('ts-' + k).textContent = nodeStatus(n);
+            });
+            updateInspector();
+        }
+
+        function tickNodes() {
+            const boost = BOOST[state.mode] || {};
+            NODE_KEYS.forEach(k => {
+                const n = NODES[k], [bc, br] = boost[k] || [0, 0];
+                n.lc = clamp(n.lc + (Math.min(99, n.cpu + bc) - n.lc) * 0.3 + (Math.random() * 2 - 1) * 1.2, 2, 99);
+                n.lr = clamp(n.lr + (Math.min(99, n.ram + br) - n.lr) * 0.3 + (Math.random() * 2 - 1) * 0.6, 2, 99);
+                n.lv = n.lc >= 90 ? 'crit' : n.lc >= 70 ? 'warn' : 'ok';
+            });
+        }
+
+        /* ═════════ 6. 알림 로그 ═════════ */
+        const ALERT_ICON = { crit: '🚨', warn: '⚠️', info: 'ℹ️' };
+        const alertHtml = a => `<div class="alert lv-${a.lv}"><div class="a-h"><span>${ALERT_ICON[a.lv]} ${a.title}</span><span class="a-t">${a.time}</span></div><p>${a.msg}</p></div>`;
+
+        function pushAlert(lv, title, msg) {
+            alerts.unshift({ lv, title, msg, time: clock() });
+            if (alerts.length > 100) alerts.pop();
+            if (state.view !== 'logs') { state.unread++; updateBadge(); }
+            renderAlerts();
+        }
+        function renderAlerts() {
+            $('alert-mini').innerHTML = alerts.slice(0, 4).map(alertHtml).join('');
+            const list = alerts.filter(a => state.logFilter === 'all' || a.lv === state.logFilter);
+            $('alert-full').innerHTML = list.length ? list.map(alertHtml).join('') : '<p class="text-sm t-dim py-6 text-center">해당하는 로그가 없어요.</p>';
+        }
+        function setLogFilter(f) {
+            state.logFilter = f;
+            document.querySelectorAll('.fchip').forEach(c => c.classList.toggle('on', c.dataset.f === f));
+            renderAlerts();
+        }
+        function updateBadge() {
+            const b = $('log-badge');
+            b.textContent = state.unread > 9 ? '9+' : state.unread;
+            b.classList.toggle('hide', state.unread === 0);
+        }
+
+        /* ═════════ 7. 장애 시뮬레이션 ═════════ */
+        function paintSim() {
+            const m = state.mode;
+            const pill = $('sim-state');
+            pill.textContent = m === 'ddos' ? 'DDoS 진행 중' : m === 'loss' ? '패킷 손실 진행 중' : '정상';
+            setLv(pill, m === 'ddos' ? 'crit' : m === 'loss' ? 'warn' : 'ok');
+            $('btn-ddos').classList.toggle('on', m === 'ddos');
+            $('btn-loss').classList.toggle('on', m === 'loss');
+        }
         function injectAnomaly(type) {
-            state.activeAnomalyMode = type;
-            const now = new Date().toLocaleTimeString('ko-KR', { hour12: false });
-            const feed = document.getElementById('alert-feed-container');
-            const alertHtml = type === 'ddos' ? 
-                `<div class="p-2.5 bg-red-950/80 border border-red-700 rounded-lg text-xs space-y-1"><div class="flex justify-between font-bold text-red-300"><span>🚨 DDoS 부하 발생됨</span><span class="text-[10px] text-slate-400 font-mono">${now}</span></div><p class="text-slate-200">수신 대역폭 1Gbps 초과! AI 장애 예측 스코어: <strong class="text-red-400">94.8%</strong></p></div>` :
-                `<div class="p-2.5 bg-amber-950/80 border border-amber-700 rounded-lg text-xs space-y-1"><div class="flex justify-between font-bold text-amber-300"><span>⚠️ 패킷 손실 발생됨</span><span class="text-[10px] text-slate-400 font-mono">${now}</span></div><p class="text-slate-200">패킷 손실률 12.5% 도달.</p></div>`;
-            feed.insertAdjacentHTML('afterbegin', alertHtml);
+            state.mode = type;
+            if (type === 'ddos') pushAlert('crit', 'DDoS 부하 발생됨', '수신 대역폭 1Gbps 초과! AI 장애 예측 스코어: <strong style="color:var(--red)">94.8%</strong>');
+            else pushAlert('warn', '패킷 손실 발생됨', '패킷 손실률 12.5% 도달.');
+            paintSim();
         }
-
         function resetSimulation() {
-            state.activeAnomalyMode = null;
-            const now = new Date().toLocaleTimeString('ko-KR', { hour12: false });
-            document.getElementById('alert-feed-container').insertAdjacentHTML('afterbegin', 
-                `<div class="p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-xs space-y-1"><div class="flex justify-between font-bold text-cyan-400"><span>ℹ️ 데이터 리셋</span><span class="text-[10px] text-slate-400 font-mono">${now}</span></div><p class="text-slate-300">시스템이 기본 모니터링 상태로 복구되었습니다.</p></div>`
-            );
+            state.mode = null;
+            pushAlert('info', '데이터 리셋', '시스템이 기본 모니터링 상태로 복구되었어요.');
+            paintSim();
         }
 
-        setInterval(updateTelemetry, 1000);
+        /* ═════════ 8. 곡선 차트 (Canvas) ═════════ */
+        const maxPoints = 40, YMAX = 1200;
+        const CH = { L: 46, R: 42, T: 14, B: 26 };
+        const trafficHistory = Array(maxPoints).fill(450);
+        const riskHistory = Array(maxPoints).fill(11);
+        const lossHistory = Array(maxPoints).fill(0.03);
+        const timeHistory = Array.from({ length: maxPoints }, (_, i) => clock(new Date(Date.now() - (maxPoints - 1 - i) * 1000)));
+        const hoverIdx = {};
 
-        // 라이트/다크 모드 전체 전환 함수
-        function toggleDarkMode() {
-            const htmlEl = document.documentElement;
-            const isDark = htmlEl.classList.contains('dark');
-            const iconEl = document.getElementById('theme-toggle-icon');
-            const textEl = document.getElementById('theme-toggle-text');
-
-            if (isDark) {
-                htmlEl.classList.remove('dark');
-                document.body.classList.remove('bg-[#070913]', 'text-slate-100');
-                document.body.classList.add('bg-slate-100', 'text-slate-900');
-
-                document.querySelectorAll('header, .bg-\\[\\#111827\\], .bg-slate-900, .bg-slate-950').forEach(el => {
-                    el.classList.add('light-card-bg');
-                });
-
-                if (iconEl) iconEl.textContent = '🌙';
-                if (textEl) textEl.textContent = '다크 모드 - 장우진';
-            } else {
-                htmlEl.classList.add('dark');
-                document.body.classList.remove('bg-slate-100', 'text-slate-900');
-                document.body.classList.add('bg-[#070913]', 'text-slate-100');
-
-                document.querySelectorAll('.light-card-bg').forEach(el => {
-                    el.classList.remove('light-card-bg');
-                });
-
-                if (iconEl) iconEl.textContent = '☀️';
-                if (textEl) textEl.textContent = '라이트 모드 - 장우진';
+        function hexA(hex, a) {
+            hex = hex.replace('#', '');
+            if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+            const n = parseInt(hex, 16);
+            return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+        }
+        // Catmull-Rom → Bezier 곡선
+        function curve(ctx, p, minY, maxY) {
+            ctx.moveTo(p[0].x, p[0].y);
+            for (let i = 0; i < p.length - 1; i++) {
+                const p0 = p[i - 1] || p[i], p1 = p[i], p2 = p[i + 1], p3 = p[i + 2] || p2;
+                ctx.bezierCurveTo(
+                    p1.x + (p2.x - p0.x) / 6, clamp(p1.y + (p2.y - p0.y) / 6, minY, maxY),
+                    p2.x - (p3.x - p1.x) / 6, clamp(p2.y - (p3.y - p1.y) / 6, minY, maxY),
+                    p2.x, p2.y);
             }
         }
 
-        // 고정 질문 클릭 시 답변 출력 로직
+        function drawChart(cv) {
+            if (!cv) return;
+            const w = cv.clientWidth, h = cv.clientHeight;
+            if (!w || !h) return;
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+            const ctx = cv.getContext('2d');
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, w, h);
+
+            const cs = getComputedStyle(document.documentElement);
+            const C = n => cs.getPropertyValue(n).trim();
+            const cyan = C('--cyan'), red = C('--red'), grid = C('--grid'), dim = C('--dim');
+            const { L, R, T, B } = CH, pw = w - L - R, ph = h - T - B, step = pw / (maxPoints - 1), bottom = T + ph;
+
+            // 격자 + 축 라벨
+            ctx.font = '10px ui-monospace, Menlo, monospace'; ctx.textBaseline = 'middle';
+            for (let i = 0; i <= 4; i++) {
+                const y = T + (ph * i) / 4;
+                ctx.strokeStyle = grid; ctx.lineWidth = 1; ctx.setLineDash([4, 5]);
+                ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(w - R, y); ctx.stroke(); ctx.setLineDash([]);
+                ctx.fillStyle = dim;
+                ctx.textAlign = 'right'; ctx.fillText(Math.round(YMAX * (1 - i / 4)), L - 8, y);
+                ctx.textAlign = 'left'; ctx.fillText(Math.round(100 * (1 - i / 4)) + '%', w - R + 8, y);
+            }
+            ctx.textBaseline = 'alphabetic';
+            [0, 10, 20, 30, maxPoints - 1].forEach((i, idx, arr) => {
+                ctx.textAlign = idx === 0 ? 'left' : idx === arr.length - 1 ? 'right' : 'center';
+                ctx.fillStyle = dim; ctx.fillText(timeHistory[i], L + i * step, h - 6);
+            });
+
+            const toPts = (arr, max) => arr.map((v, i) => ({ x: L + i * step, y: bottom - (Math.min(v, max) / max) * ph }));
+            const tp = toPts(trafficHistory, YMAX), rp = toPts(riskHistory, 100);
+
+            const drawLine = (pts, color, areaAlpha, width) => {
+                ctx.beginPath(); curve(ctx, pts, T, bottom);
+                ctx.lineTo(pts[pts.length - 1].x, bottom); ctx.lineTo(pts[0].x, bottom); ctx.closePath();
+                const g = ctx.createLinearGradient(0, T, 0, bottom);
+                g.addColorStop(0, hexA(color, areaAlpha)); g.addColorStop(1, hexA(color, 0));
+                ctx.fillStyle = g; ctx.fill();
+                ctx.beginPath(); curve(ctx, pts, T, bottom);
+                ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke();
+            };
+            drawLine(tp, cyan, 0.32, 2.6);
+            drawLine(rp, red, 0.16, 2.2);
+
+            // 마우스 오버 툴팁
+            const idx = hoverIdx[cv.id];
+            if (idx != null && tp[idx]) {
+                const x = tp[idx].x;
+                ctx.strokeStyle = dim; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
+                ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, bottom); ctx.stroke(); ctx.setLineDash([]);
+                [[tp[idx], cyan], [rp[idx], red]].forEach(([p, col]) => {
+                    ctx.fillStyle = C('--node-bg'); ctx.strokeStyle = col; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                });
+                const rows = [timeHistory[idx], `수신 ${trafficHistory[idx]} Mbps`, `AI 위험도 ${riskHistory[idx]}%`];
+                const bw = 132, bh = 62;
+                let bx = x + 12; if (bx + bw > w - R + 4) bx = x - bw - 12;
+                const by = T + 6;
+                ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx, by, bw, bh, 10) : ctx.rect(bx, by, bw, bh);
+                ctx.fillStyle = C('--tip-bg'); ctx.fill(); ctx.strokeStyle = C('--border'); ctx.lineWidth = 1; ctx.stroke();
+                ctx.textAlign = 'left'; ctx.font = '11px Pretendard, system-ui, sans-serif';
+                ctx.fillStyle = dim; ctx.fillText(rows[0], bx + 10, by + 17);
+                ctx.fillStyle = cyan; ctx.fillText(rows[1], bx + 10, by + 34);
+                ctx.fillStyle = red; ctx.fillText(rows[2], bx + 10, by + 50);
+            }
+        }
+        function drawAll() { drawChart($('trafficCanvas')); drawChart($('analyticsCanvas')); }
+        window.addEventListener('resize', drawAll);
+
+        ['trafficCanvas', 'analyticsCanvas'].forEach(id => {
+            const cv = $(id);
+            cv.addEventListener('mousemove', e => {
+                const r = cv.getBoundingClientRect();
+                const step = (r.width - CH.L - CH.R) / (maxPoints - 1);
+                const i = Math.round((e.clientX - r.left - CH.L) / step);
+                hoverIdx[id] = i < 0 || i >= maxPoints ? null : i;
+                drawChart(cv);
+            });
+            cv.addEventListener('mouseleave', () => { hoverIdx[id] = null; drawChart(cv); });
+        });
+
+        /* ═════════ 9. 실시간 텔레메트리 ═════════ */
+        const ease = (cur, target, noise) => cur + (target - cur) * 0.35 + (Math.random() * 2 - 1) * noise;
+
+        function tick() {
+            const m = state.mode;
+            const tgt = m === 'ddos' ? [1100, 94, 5.6] : m === 'loss' ? [290, 78, 12.8] : [450, 11, 0.03];
+            const nz  = m ? [70, 4, 1.2] : [30, 2.5, 0.02];
+
+            const prev = state.ingress;
+            state.ingress = Math.round(clamp(ease(state.ingress, tgt[0], nz[0]), 0, YMAX));
+            state.risk = +clamp(ease(state.risk, tgt[1], nz[1]), 1, 99.9).toFixed(1);
+            state.loss = +clamp(ease(state.loss, tgt[2], nz[2]), 0.01, 30).toFixed(2);
+
+            trafficHistory.push(state.ingress); trafficHistory.shift();
+            riskHistory.push(state.risk); riskHistory.shift();
+            lossHistory.push(state.loss); lossHistory.shift();
+            timeHistory.push(clock()); timeHistory.shift();
+
+            // 스탯 카드
+            $('stat-traffic-in').textContent = `${state.ingress} Mbps`;
+            const d = state.ingress - prev;
+            $('stat-traffic-trend').textContent =
+                m === 'ddos' ? '▲ 임계치 초과 — DDoS 의심' :
+                m === 'loss' ? '▼ 트래픽 저하 — 패킷 손실 의심' :
+                `${d >= 0 ? '▲' : '▼'} ${Math.abs(d)} Mbps · 정상 대역폭 유지 중`;
+            $('stat-packet-loss').textContent = `${state.loss}%`;
+            $('stat-ai-risk').textContent = `${state.risk}%`;
+            $('stat-ai-bar').style.width = `${state.risk}%`;
+            $('stat-devices').textContent = `${NODE_KEYS.length} / ${NODE_KEYS.length} Online`;
+
+            const aiLv = state.risk > 80 ? 'crit' : state.risk > 50 ? 'warn' : 'ok';
+            const lossLv = state.loss >= 5 ? 'crit' : state.loss >= 1.5 ? 'warn' : 'ok';
+            setLv($('ai-score-card'), aiLv); setLv($('loss-card'), lossLv); setLv($('sys-pill'), aiLv);
+            $('stat-ai-badge').textContent = aiLv === 'crit' ? '심각 (경보)' : aiLv === 'warn' ? '주의 (상승)' : '안전 (낮음)';
+            $('system-status-text').textContent = aiLv === 'crit' ? 'AI 경보: 장애 위험 감지!' : aiLv === 'warn' ? 'AI 경고: 이상 징후 임계치' : 'AI 엔진 정상 작동 중';
+            $('traffic-card').classList.toggle('danger', aiLv === 'crit');
+
+            // 분석 요약
+            $('an-peak').textContent = `${Math.max(...trafficHistory)} Mbps`;
+            $('an-risk').textContent = `${(riskHistory.reduce((a, b) => a + b, 0) / maxPoints).toFixed(1)}%`;
+            $('an-loss').textContent = `${Math.max(...lossHistory).toFixed(2)}%`;
+
+            tickNodes(); updateNodeUI(); drawAll();
+        }
+
+        /* ═════════ 10. 테마 · 가이드 · 기기 관리 ═════════ */
+        function toggleTheme() {
+            const light = document.documentElement.classList.toggle('light');
+            $('theme-icon').textContent = light ? '🌙' : '☀️';
+            $('theme-btn').dataset.label = light ? '다크 모드 · 장우진' : '라이트 모드 · 장우진';
+            drawAll();
+        }
+
+        const HELP = {
+            overview: `<strong>[8bit AI 관제 시스템]</strong><br>실시간 네트워크 트래픽과 텔레메트리 데이터를 분석해 AI 위험 스코어를 계산하고, 장애를 미리 막도록 돕는 관제 대시보드예요.`,
+            menu: `<strong>[메뉴 구성]</strong><br>• 대시보드: 핵심 지표, 실시간 차트, 장애 시뮬레이션<br>• 토폴로지: 노드를 눌러 장비 진단<br>• 트래픽 · AI 분석: 확대 차트와 장비별 부하<br>• 보안 로그: 경보 기록과 필터<br>• AI 가이드: 사용법과 팀 역할<br>• 기기 관리: 관리자 전용, 소유자 할당`,
+            ddos: `<strong>[DDoS & 패킷 손실 시뮬레이션]</strong><br>대시보드의 시뮬레이션 버튼을 누르면 가상 장애 트래픽이 발생해요. AI 스코어가 올라가고, 보안 로그에 경보가 기록되며, 관련 장비의 부하도 함께 올라가요.`,
+            topology: `<strong>[토폴로지 맵 & 텔레메트리]</strong><br>토폴로지 메뉴에서 노드(Core Router, Dist-SW 등)를 누르면 오른쪽 진단창에 IP, CPU·메모리 사용률, 상태가 바로 표시돼요. 노드 색은 부하에 따라 초록 · 노랑 · 빨강으로 바뀌어요.`,
+            roles: `<strong>[8비트 프로젝트 팀 역할 분담]</strong><br>• 총괄/권한: 이지환 &nbsp;• UI/대시보드: 장우진<br>• 토폴로지: 양이수 &nbsp;• 로그 수집: 김범수<br>• 백엔드/경보: 구본학 &nbsp;• 관제 DB/ETL: 김민석<br>• AI 예측/분석: 최민규, 김태현`
+        };
         function showHelpAnswer(type) {
-            const helpBox = document.getElementById('ai-help-box');
-            if (!helpBox) return;
-
-            let content = "";
-
-            switch(type) {
-                case 'overview':
-                    content = `<strong>[8bit AI 관제 시스템]</strong><br>실시간 네트워크 트래픽 및 텔레메트리 데이터를 분석하여 AI 위험 스코어를 산출하고 장애를 미리 예방하는 관제 대시보드입니다.`;
-                    break;
-                case 'ddos':
-                    content = `<strong>[DDoS & 패킷 손실 시뮬레이션]</strong><br>상단 버튼을 누르면 가상 장애 트래픽이 유발되며, AI 스코어가 급상승하고 보안 로그피드에 CRITICAL 경보가 기록됩니다.`;
-                    break;
-                case 'topology':
-                    content = `<strong>[토폴로지 맵 & 텔레메트리]</strong><br>토폴로지 노드(Core Router, Dist-SW 등)를 클릭하면 우측 텔레메트리 진단창에서 IP, CPU/Memory 점유율, 라우팅 상태가 즉시 연동됩니다.`;
-                    break;
-                case 'roles':
-                    content = `<strong>[8비트 프로젝트 팀 역할 분담]</strong><br>
-                    • 총괄/권한: 이지환 | • UI/대시보드: 장우진<br>
-                    • 토폴로지: 양이수 | • 로그수집: 김범수<br>
-                    • 백엔드/경보: 구본학 | • 관제DB/ETL: 김민석<br>
-                    • AI예측/분석: 최민규, 김태현`;
-                    break;
-                default:
-                    content = "안내 사항을 선택해 주세요.";
-            }
-
-            helpBox.innerHTML = content;
+            $('ai-help-box').innerHTML = HELP[type] || '안내 사항을 선택해 주세요.';
+            document.querySelectorAll('.qa-btn').forEach(b => b.classList.toggle('on', b.dataset.q === type));
         }
+
+        function renderDevices() {
+            $('device-body').innerHTML = NODE_KEYS.map(k => {
+                const n = NODES[k];
+                return `<tr>
+                    <td class="mono">${n.ip}</td>
+                    <td class="font-semibold">${n.name}</td>
+                    <td><span class="tag">${n.type}</span></td>
+                    <td class="c-lv lv-${n.lv} font-semibold">● ${n.lv === 'ok' ? 'Online' : n.lv === 'warn' ? 'Warning' : 'Critical'}</td>
+                    <td><select class="sel-input" id="own-${k}">${OWNERS.map(o => `<option ${o === n.owner ? 'selected' : ''}>${o}</option>`).join('')}</select></td>
+                </tr>`;
+            }).join('');
+        }
+        function saveAssignments() {
+            NODE_KEYS.forEach(k => { const s = $('own-' + k); if (s) NODES[k].owner = s.value; });
+            updateInspector();
+            toast('기기 소유자 할당 정보가 저장되었어요.');
+        }
+
+        /* ═════════ 초기화 ═════════ */
+        buildNodeUI();
+        renderAlerts();
+        selectNode('core-router');
+        updateNodeUI();
+        lucide.createIcons();
+        setInterval(tick, 1000);
     </script>
 </body>
 </html>
