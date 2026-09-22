@@ -14,6 +14,7 @@
             --glass: rgba(255,255,255,.045); --glass-strong: rgba(255,255,255,.08); --border: rgba(255,255,255,.09);
             --text: #f1f5f9; --muted: #9aa8bd; --dim: #66768d;
             --cyan: #22d3ee; --green: #34d399; --red: #f87171; --amber: #fbbf24; --indigo: #818cf8; --blue: #60a5fa;
+            --orange: #fb923c; --purple: #c084fc;
             --shadow: 0 12px 40px rgba(0,0,0,.35); --sidebar: rgba(10,14,28,.72); --node-bg: #0e1424;
             --input: rgba(15,23,42,.6); --grid: rgba(148,163,184,.14); --track: rgba(148,163,184,.16); --tip-bg: rgba(12,17,34,.94);
         }
@@ -22,6 +23,7 @@
             --glass: rgba(255,255,255,.72); --glass-strong: #ffffff; --border: rgba(15,23,42,.09);
             --text: #0f172a; --muted: #475569; --dim: #64748b;
             --cyan: #0891b2; --green: #059669; --red: #dc2626; --amber: #d97706; --indigo: #4f46e5; --blue: #2563eb;
+            --orange: #ea580c; --purple: #9333ea;
             --shadow: 0 10px 30px rgba(15,23,42,.08); --sidebar: rgba(255,255,255,.78); --node-bg: #ffffff;
             --input: #ffffff; --grid: rgba(15,23,42,.09); --track: rgba(15,23,42,.10); --tip-bg: rgba(255,255,255,.97);
         }
@@ -179,7 +181,15 @@
         .btn:hover { transform: translateY(-2px); }
         .btn.red { color: var(--red); background: color-mix(in srgb, var(--red) 12%, transparent); border-color: color-mix(in srgb, var(--red) 35%, transparent); }
         .btn.amber { color: var(--amber); background: color-mix(in srgb, var(--amber) 12%, transparent); border-color: color-mix(in srgb, var(--amber) 35%, transparent); }
+        .btn.orange { color: var(--orange); background: color-mix(in srgb, var(--orange) 12%, transparent); border-color: color-mix(in srgb, var(--orange) 35%, transparent); }
+        .btn.purple { color: var(--purple); background: color-mix(in srgb, var(--purple) 12%, transparent); border-color: color-mix(in srgb, var(--purple) 35%, transparent); }
         .btn.on { box-shadow: 0 0 0 2px currentColor; }
+        .sim-desc {
+            margin-top: 10px; padding: 12px 14px; border-radius: 14px; font-size: 12.5px; line-height: 1.65;
+            background: var(--input); border: 1px solid var(--border); color: var(--muted); transition: border-color .2s;
+        }
+        .sim-desc-title { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+        .sim-desc-affected { margin-top: 6px; font-size: 11.5px; color: var(--dim); }
         .btn.primary { justify-content: center; color: #fff; border: 0; background: linear-gradient(135deg, #6366f1, #06b6d4); width: auto; padding: 10px 20px; }
         .fchip { padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--muted); border: 1px solid var(--border); background: transparent; cursor: pointer; transition: .2s; }
         .fchip:hover { color: var(--text); }
@@ -195,11 +205,35 @@
         .alert {
             padding: 10px 13px; border-radius: 14px; font-size: 12px; border-left: 3px solid var(--lv);
             border: 1px solid color-mix(in srgb, var(--lv) 28%, transparent); border-left: 3px solid var(--lv);
-            background: color-mix(in srgb, var(--lv) 9%, transparent);
+            background: color-mix(in srgb, var(--lv) 9%, transparent); transition: transform .15s ease, box-shadow .15s ease;
         }
         .alert .a-h { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; color: var(--lv); }
         .alert .a-t { font-weight: 500; font-size: 10px; color: var(--dim); font-family: ui-monospace, Menlo, monospace; }
         .alert p { margin-top: 4px; color: var(--text); opacity: .86; }
+        .alert.click { cursor: pointer; }
+        .alert.click:hover { transform: translateY(-2px); box-shadow: 0 8px 20px color-mix(in srgb, var(--lv) 22%, transparent); }
+        .alert.click .a-h::after { content: '자세히 →'; font-weight: 600; color: var(--dim); font-size: 10.5px; }
+
+        /* 알림 상세 팝업 */
+        .modal-overlay {
+            position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center;
+            padding: 20px; background: rgba(3,6,16,.6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+            opacity: 0; pointer-events: none; transition: opacity .2s ease;
+        }
+        .modal-overlay.show { opacity: 1; pointer-events: auto; }
+        .modal-card {
+            position: relative; width: 100%; max-width: 460px; max-height: 82vh; overflow-y: auto;
+            transform: translateY(10px) scale(.98); transition: transform .2s ease;
+        }
+        .modal-overlay.show .modal-card { transform: translateY(0) scale(1); }
+        .modal-close {
+            position: absolute; top: 14px; right: 14px; width: 30px; height: 30px; border-radius: 10px; border: 1px solid var(--border);
+            background: var(--glass-strong); color: var(--muted); font-size: 14px; line-height: 1; cursor: pointer; transition: .15s;
+        }
+        .modal-close:hover { color: var(--text); border-color: var(--indigo); }
+        .modal-block { margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: var(--input); border: 1px solid var(--border); }
+        .modal-block-title { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
+        .modal-block p { font-size: 13px; line-height: 1.65; color: var(--text); }
 
         /* 노드 칩 / 테이블 */
         .nchip {
@@ -237,6 +271,29 @@
         .qa-btn:hover, .qa-btn.on { border-color: var(--indigo); background: color-mix(in srgb, var(--indigo) 12%, transparent); }
         .helpbox { padding: 16px; border-radius: 16px; font-size: 13px; line-height: 1.75; color: var(--muted); background: var(--input); border: 1px solid var(--border); min-height: 120px; }
         .helpbox strong { color: var(--text); }
+
+        /* AI 가이드 & 질문: 실시간 타이핑 챗 */
+        .chat-box { border-radius: 16px; background: var(--input); border: 1px solid var(--border); padding: 12px; transition: border-color .2s; }
+        .chat-log { display: flex; flex-direction: column; gap: 10px; max-height: 280px; overflow-y: auto; padding: 2px 2px 10px; }
+        .chat-empty { font-size: 12.5px; color: var(--dim); text-align: center; padding: 18px 6px; }
+        .chat-bubble { max-width: 88%; padding: 10px 13px; border-radius: 14px; font-size: 13px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+        .chat-bubble.user { align-self: flex-end; background: linear-gradient(135deg, #6366f1, #06b6d4); color: #fff; border-bottom-right-radius: 4px; }
+        .chat-bubble.ai { align-self: flex-start; background: var(--glass-strong); border: 1px solid var(--border); color: var(--text); border-bottom-left-radius: 4px; transition: border-color .2s; }
+        .chat-bubble.ai strong { color: var(--text); }
+        .chat-bubble.ai.typing { border-color: color-mix(in srgb, var(--indigo) 45%, transparent); }
+        .caret { display: inline-block; width: 2px; height: 1em; margin-left: 2px; background: var(--indigo); vertical-align: -0.15em; animation: caretBlink .9s steps(1) infinite; }
+        @keyframes caretBlink { 50% { opacity: 0; } }
+        .chat-form { display: flex; gap: 8px; }
+        .chat-input { flex: 1; min-width: 0; padding: 10px 13px; border-radius: 12px; background: var(--glass-strong); border: 1px solid var(--border); color: var(--text); font-size: 13px; }
+        .chat-input::placeholder { color: var(--dim); }
+        .chat-input:focus { outline: none; border-color: var(--indigo); }
+        .chat-send {
+            width: 42px; height: 42px; flex: none; border-radius: 12px; border: 0; cursor: pointer; transition: transform .15s, opacity .15s;
+            color: #fff; background: linear-gradient(135deg, #6366f1, #06b6d4); display: flex; align-items: center; justify-content: center;
+        }
+        .chat-send:hover { transform: translateY(-2px); }
+        .qa-btn:disabled, .chat-send:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
         .role { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: var(--glass-strong); border: 1px solid var(--border); }
         .avatar { width: 36px; height: 36px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #fff; background: linear-gradient(135deg, #6366f1, #06b6d4); flex: none; }
 
@@ -418,10 +475,13 @@
                             <div class="grid gap-2">
                                 <button id="btn-ddos" class="btn red" onclick="injectAnomaly('ddos')"><i data-lucide="zap" class="w-4 h-4"></i>DDoS 부하 발생</button>
                                 <button id="btn-loss" class="btn amber" onclick="injectAnomaly('loss')"><i data-lucide="alert-triangle" class="w-4 h-4"></i>패킷 손실 유발</button>
-                                <!-- ✨ 새 시뮬레이션 버튼 2개 추가 -->
-                                <button id="btn-cpu" class="btn red" onclick="injectAnomaly('cpu')"><i data-lucide="cpu" class="w-4 h-4"></i>코어 장비 CPU 고부하</button>
-                                <button id="btn-down" class="btn red" onclick="injectAnomaly('down')"><i data-lucide="wifi-off" class="w-4 h-4"></i>라인 회선 링다운 (Down)</button>
+                                <button id="btn-cpu" class="btn orange" onclick="injectAnomaly('cpu')"><i data-lucide="cpu" class="w-4 h-4"></i>코어 장비 CPU 고부하</button>
+                                <button id="btn-down" class="btn purple" onclick="injectAnomaly('down')"><i data-lucide="wifi-off" class="w-4 h-4"></i>라인 회선 링다운 (Down)</button>
                                 <button class="btn" onclick="resetSimulation()"><i data-lucide="refresh-cw" class="w-4 h-4"></i>정상 상태로 되돌리기</button>
+                            </div>
+                            <div id="sim-desc" class="sim-desc">
+                                <p class="sim-desc-title">💡 왜 발생하나요?</p>
+                                <p id="sim-desc-text">위 버튼을 누르면 어떤 원인으로 장애가 발생하는지, 어떤 장비가 영향을 받는지 여기에 표시돼요.</p>
                             </div>
                         </div>
                         <div class="card flex-1">
@@ -538,13 +598,19 @@
                             <span class="credit">김태현 · 최민규</span>
                         </div>
                         <div class="grid grid-cols-2 gap-2 mb-3">
-                            <button class="qa-btn" data-q="overview" onclick="showHelpAnswer('overview')">💡 시스템 개요</button>
-                            <button class="qa-btn" data-q="menu" onclick="showHelpAnswer('menu')">🧭 메뉴 안내</button>
-                            <button class="qa-btn" data-q="ddos" onclick="showHelpAnswer('ddos')">⚡ DDoS 시뮬레이션</button>
-                            <button class="qa-btn" data-q="topology" onclick="showHelpAnswer('topology')">🌐 토폴로지 진단법</button>
-                            <button class="qa-btn" data-q="roles" onclick="showHelpAnswer('roles')">👥 팀원 담당 역할</button>
+                            <button class="qa-btn" data-q="overview" onclick="showHelpAnswer('overview', this)">💡 시스템 개요</button>
+                            <button class="qa-btn" data-q="menu" onclick="showHelpAnswer('menu', this)">🧭 메뉴 안내</button>
+                            <button class="qa-btn" data-q="ddos" onclick="showHelpAnswer('ddos', this)">⚡ DDoS 시뮬레이션</button>
+                            <button class="qa-btn" data-q="topology" onclick="showHelpAnswer('topology', this)">🌐 토폴로지 진단법</button>
+                            <button class="qa-btn" data-q="roles" onclick="showHelpAnswer('roles', this)">👥 팀원 담당 역할</button>
                         </div>
-                        <div id="ai-help-box" class="helpbox">위의 항목 중 하나를 누르면 시스템 세부 설명이 이곳에 표시돼요.</div>
+                        <div id="chat-box" class="chat-box">
+                            <div id="chat-log" class="chat-log"></div>
+                            <form id="chat-form" class="chat-form" onsubmit="handleChatSubmit(event)">
+                                <input id="chat-input" type="text" class="chat-input" autocomplete="off" placeholder="궁금한 점을 입력해 보세요 (예: DDoS는 왜 발생해요?)">
+                                <button type="submit" id="chat-send" class="chat-send" aria-label="질문 보내기"><i data-lucide="send" class="w-4 h-4"></i></button>
+                            </form>
+                        </div>
                     </div>
 
                     <div class="card lg:col-span-6 self-start">
@@ -573,6 +639,14 @@
     </div>
 
     <div id="toast" class="toast"></div>
+
+    <!-- 알림 상세 팝업 -->
+    <div id="alert-modal" class="modal-overlay" onclick="if (event.target === this) closeAlertModal()">
+        <div class="card modal-card">
+            <button class="modal-close" onclick="closeAlertModal()" aria-label="닫기">✕</button>
+            <div id="modal-body"></div>
+        </div>
+    </div>
 
     <script>
         const $ = id => document.getElementById(id);
@@ -710,13 +784,39 @@
         const LVC = { ok: 'var(--green)', warn: 'var(--amber)', crit: 'var(--red)' };
         const OWNERS = ['admin (이지환)', 'user1 (8bit)'];
 
-        // 장애 모드별 장비 부하 증가량 [CPU, RAM]
-        const BOOST = {
-            ddos: { 'core-router': [55, 25], 'dist-sw-1': [16, 22], 'dist-sw-2': [45, 25], 'server-api': [40, 20] },
-            loss: { 'dist-sw-2': [40, 20], 'mobile-gateway': [62, 30] },
-            cpu:  { 'core-router': [75, 50], 'server-db': [50, 40] },
-            down: { 'dist-sw-1': [95, 80] }
+        // 장애 시뮬레이션 종류별 설정: 장비 부하 증가량 · 색상 · 발생 원인 · 권장 조치를 한 곳에서 관리
+        const SIM_TYPES = {
+            ddos: {
+                tone: 'red', lv: 'crit', title: 'DDoS 부하 발생됨',
+                msg: '수신 대역폭이 1Gbps를 초과했어요. AI 장애 예측 스코어 94.8%.',
+                cause: '외부에서 다량의 위조 트래픽을 짧은 시간에 집중적으로 전송해, 코어 라우터와 스위치의 대역폭·세션 자원을 고갈시키는 공격이에요.',
+                action: '방화벽에서 의심 IP 대역을 즉시 차단하고, 업스트림 ISP에 트래픽 스크러빙(정화)을 요청하세요.',
+                boost: { 'core-router': [55, 25], 'dist-sw-1': [16, 22], 'dist-sw-2': [45, 25], 'server-api': [40, 20] }
+            },
+            loss: {
+                tone: 'amber', lv: 'warn', title: '패킷 손실 발생됨',
+                msg: '패킷 손실률이 12.5%까지 올라갔어요.',
+                cause: '구간 회선 품질 저하나 스위치 큐(대기열) 오버플로우로 일부 패킷이 목적지에 도달하지 못하고 유실되는 상황이에요.',
+                action: '회선 상태와 케이블 연결 상태를 점검하고, QoS 큐 설정을 재조정하세요.',
+                boost: { 'dist-sw-2': [40, 20], 'mobile-gateway': [62, 30] }
+            },
+            cpu: {
+                tone: 'orange', lv: 'crit', title: '[EMERGENCY] Core Router 과부하',
+                msg: 'Core Router 01 CPU 사용률이 98.2%를 돌파했어요. AI 위험도 급상승 중.',
+                cause: '라우팅 테이블 재계산이나 대량 연결 처리로 코어 장비의 CPU 점유율이 임계치를 넘어 과부하 상태가 된 것이에요.',
+                action: '불필요한 프로세스와 세션을 정리하고, 필요하면 코어 장비를 이중화 경로로 즉시 전환하세요.',
+                boost: { 'core-router': [75, 50], 'server-db': [50, 40] }
+            },
+            down: {
+                tone: 'purple', lv: 'crit', title: '[LINK DOWN] Dist-SW-01 회선 절단',
+                msg: '주요 스위치 회선이 불통 상태예요. 대체 경로로 패킷을 우회 중입니다.',
+                cause: '광케이블 단선이나 포트 장애로 스위치 간 물리 회선 연결이 완전히 끊어진 상태예요.',
+                action: '현장 케이블·포트 상태를 확인하고, 예비 회선으로 즉시 절체(전환)하세요.',
+                boost: { 'dist-sw-1': [95, 80] }
+            }
         };
+        // 기존 코드 호환용 별칭 (장비 부하 계산에서 사용)
+        const BOOST = Object.fromEntries(Object.entries(SIM_TYPES).map(([k, v]) => [k, v.boost]));
         function nodeStatus(n) { return n.lv === 'crit' ? '✖ Overload — 즉시 조치 필요' : n.lv === 'warn' ? '▲ High Load Warning' : n.status; }
 
         const ROLES = [
@@ -726,10 +826,17 @@
             { name: '최민규', role: 'AI 예측 · 분석' }, { name: '김태현', role: 'AI 예측 · 분석' }
         ];
 
+        let alertSeq = 0;
         const alerts = [
-            { lv: 'crit', title: '[CRITICAL] 장애 위험 감지', msg: 'Distribution SW 트래픽 급증 (AI 예측 확률 87.4%)', time: '14:02:11' },
-            { lv: 'warn', title: 'Dist-SW-01 CPU 고부하', msg: 'CPU 82% — 임계치(70%)를 넘었어요.', time: '13:47:05' },
-            { lv: 'info', title: 'AI 엔진 정상 기동', msg: '이상 감지 모델이 로드되어 실시간 분석을 시작했어요.', time: '13:41:30' }
+            { id: ++alertSeq, lv: 'crit', title: '[CRITICAL] 장애 위험 감지', msg: 'Distribution SW 트래픽 급증 (AI 예측 확률 87.4%)', time: '14:02:11',
+              cause: '분산 스위치 구간의 트래픽이 짧은 시간 안에 급격히 늘어나면서 AI 모델이 장애 전조 패턴으로 판단했어요.',
+              action: '해당 스위치의 상위 링크 대역폭과 연결 세션 수를 확인하세요.', affected: ['Dist-SW-01'] },
+            { id: ++alertSeq, lv: 'warn', title: 'Dist-SW-01 CPU 고부하', msg: 'CPU 82% — 임계치(70%)를 넘었어요.', time: '13:47:05',
+              cause: '분산 스위치의 패킷 처리량이 늘어나며 CPU 점유율이 설정된 경고 임계치(70%)를 넘었어요.',
+              action: '트래픽이 특정 포트에 몰려 있는지 확인하고, 필요하면 부하를 분산하세요.', affected: ['Dist-SW-01'] },
+            { id: ++alertSeq, lv: 'info', title: 'AI 엔진 정상 기동', msg: '이상 감지 모델이 로드되어 실시간 분석을 시작했어요.', time: '13:41:30',
+              cause: '시스템이 시작되며 AI 이상 감지 모델이 정상적으로 로드되었어요.',
+              action: '별도 조치가 필요하지 않아요. 계속 모니터링을 진행하세요.', affected: [] }
         ];
 
         /* ═════════ 4. 화면 전환 ═════════ */
@@ -838,19 +945,46 @@
 
         /* ═════════ 6. 알림 로그 ═════════ */
         const ALERT_ICON = { crit: '🚨', warn: '⚠️', info: 'ℹ️' };
-        const alertHtml = a => `<div class="alert lv-${a.lv}"><div class="a-h"><span>${ALERT_ICON[a.lv]} ${a.title}</span><span class="a-t">${a.time}</span></div><p>${a.msg}</p></div>`;
+        const LV_LABEL = { crit: '위험', warn: '경고', info: '정보' };
+        const alertHtml = a => `<div class="alert click lv-${a.lv}" onclick="openAlertModal(${a.id})">
+            <div class="a-h"><span>${ALERT_ICON[a.lv]} ${a.title}</span><span class="a-t">${a.time}</span></div>
+            <p>${a.msg}</p>
+        </div>`;
 
-        function pushAlert(lv, title, msg) {
-            alerts.unshift({ lv, title, msg, time: clock() });
+        // lv, title, msg는 필수. cause(발생 원인) · action(권장 조치) · affected(영향받는 장비 배열)는 선택 — 팝업에서 보여줘요.
+        function pushAlert(lv, title, msg, extra = {}) {
+            const a = { id: ++alertSeq, lv, title, msg, time: clock(), cause: extra.cause || '', action: extra.action || '', affected: extra.affected || [] };
+            alerts.unshift(a);
             if (alerts.length > 100) alerts.pop();
             if (state.view !== 'logs') { state.unread++; updateBadge(); }
             renderAlerts();
+            return a;
         }
         function renderAlerts() {
             $('alert-mini').innerHTML = alerts.slice(0, 4).map(alertHtml).join('');
             const list = alerts.filter(a => state.logFilter === 'all' || a.lv === state.logFilter);
             $('alert-full').innerHTML = list.length ? list.map(alertHtml).join('') : '<p class="text-sm t-dim py-6 text-center">해당하는 로그가 없어요.</p>';
         }
+
+        /* ═════════ 6-1. 알림 상세 팝업 ═════════ */
+        function openAlertModal(id) {
+            const a = alerts.find(x => x.id === id);
+            if (!a) return;
+            $('modal-body').innerHTML = `
+                <div class="flex items-center gap-2">
+                    <span class="pill sm lv-${a.lv}"><span class="pdot"></span>${LV_LABEL[a.lv]}</span>
+                    <span class="text-xs t-dim mono ml-auto">${a.time}</span>
+                </div>
+                <h3 class="text-lg font-extrabold mt-3 mb-1">${ALERT_ICON[a.lv]} ${a.title}</h3>
+                <p class="text-sm t-muted leading-relaxed">${a.msg}</p>
+                ${a.cause ? `<div class="modal-block"><p class="modal-block-title">🔍 발생 원인</p><p>${a.cause}</p></div>` : ''}
+                ${a.affected && a.affected.length ? `<div class="modal-block"><p class="modal-block-title">🖧 영향받는 장비</p><p>${a.affected.join(', ')}</p></div>` : ''}
+                ${a.action ? `<div class="modal-block"><p class="modal-block-title">✅ 권장 조치</p><p>${a.action}</p></div>` : ''}
+            `;
+            $('alert-modal').classList.add('show');
+        }
+        function closeAlertModal() { $('alert-modal').classList.remove('show'); }
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAlertModal(); });
         function setLogFilter(f) {
             state.logFilter = f;
             document.querySelectorAll('.fchip').forEach(c => c.classList.toggle('on', c.dataset.f === f));
@@ -863,41 +997,47 @@
         }
 
         /* ═════════ 7. 장애 시뮬레이션 ═════════ */
+        const SIM_LABEL = { ddos: 'DDoS 진행 중', loss: '패킷 손실 진행 중', cpu: 'CPU 고부하 발생', down: '회선 다운 발생' };
+
         function paintSim() {
             const m = state.mode;
             const pill = $('sim-state');
-            
-            let label = '정상';
-            if (m === 'ddos') label = 'DDoS 진행 중';
-            else if (m === 'loss') label = '패킷 손실 진행 중';
-            else if (m === 'cpu') label = 'CPU 고부하 발생';
-            else if (m === 'down') label = '회선 다운 발생';
+            pill.textContent = m ? SIM_LABEL[m] : '정상';
+            setLv(pill, m ? SIM_TYPES[m].lv : 'ok');
 
-            pill.textContent = label;
-            setLv(pill, (m === 'ddos' || m === 'cpu' || m === 'down') ? 'crit' : m === 'loss' ? 'warn' : 'ok');
-            
-            $('btn-ddos').classList.toggle('on', m === 'ddos');
-            $('btn-loss').classList.toggle('on', m === 'loss');
-            if ($('btn-cpu')) $('btn-cpu').classList.toggle('on', m === 'cpu');
-            if ($('btn-down')) $('btn-down').classList.toggle('on', m === 'down');
+            ['ddos', 'loss', 'cpu', 'down'].forEach(t => { const b = $('btn-' + t); if (b) b.classList.toggle('on', m === t); });
         }
 
         function injectAnomaly(type) {
+            const t = SIM_TYPES[type];
+            if (!t) return;
             state.mode = type;
-            if (type === 'ddos') {
-                pushAlert('crit', 'DDoS 부하 발생됨', '수신 대역폭 1Gbps 초과! AI 장애 예측 스코어: <strong style="color:var(--red)">94.8%</strong>');
-            } else if (type === 'loss') {
-                pushAlert('warn', '패킷 손실 발생됨', '패킷 손실률 12.5% 도달.');
-            } else if (type === 'cpu') {
-                pushAlert('crit', '[EMERGENCY] Core Router 과부하', 'Core Router 01 CPU 사용률 <strong style="color:var(--red)">98.2%</strong> 돌파! AI 위험도 급상승.');
-            } else if (type === 'down') {
-                pushAlert('crit', '[LINK DOWN] Dist-SW-01 회선 절단', '주요 스위치 회선 불통. 대체 경로 패킷 우회 중.');
-            }
+
+            const affected = Object.keys(t.boost).map(k => NODES[k] && NODES[k].name).filter(Boolean);
+            pushAlert(t.lv, t.title, t.msg, { cause: t.cause, action: t.action, affected });
+
+            // 시뮬레이션 카드 안의 설명 박스에도 원인을 바로 보여줘요.
+            const desc = $('sim-desc');
+            desc.style.borderColor = `color-mix(in srgb, var(--${t.tone}) 45%, transparent)`;
+            desc.innerHTML = `
+                <p class="sim-desc-title" style="color:var(--${t.tone})">💥 ${SIM_LABEL[type]}</p>
+                <p>${t.cause}</p>
+                ${affected.length ? `<p class="sim-desc-affected">🖧 영향 장비: ${affected.join(', ')}</p>` : ''}
+            `;
             paintSim();
         }
         function resetSimulation() {
             state.mode = null;
-            pushAlert('info', '데이터 리셋', '시스템이 기본 모니터링 상태로 복구되었어요.');
+            pushAlert('info', '데이터 리셋', '시스템이 기본 모니터링 상태로 복구되었어요.', {
+                cause: '관리자가 시뮬레이션을 수동으로 초기화했어요.',
+                action: '정상 트래픽 패턴을 계속 모니터링하세요.'
+            });
+            const desc = $('sim-desc');
+            desc.style.borderColor = 'var(--border)';
+            desc.innerHTML = `
+                <p class="sim-desc-title">💡 왜 발생하나요?</p>
+                <p>위 버튼을 누르면 어떤 원인으로 장애가 발생하는지, 어떤 장비가 영향을 받는지 여기에 표시돼요.</p>
+            `;
             paintSim();
         }
 
@@ -1073,13 +1213,90 @@
         const HELP = {
             overview: `<strong>[8bit AI 관제 시스템]</strong><br>실시간 네트워크 트래픽과 텔레메트리 데이터를 분석해 AI 위험 스코어를 계산하고, 장애를 미리 막도록 돕는 관제 대시보드예요.`,
             menu: `<strong>[메뉴 구성]</strong><br>• 대시보드: 핵심 지표, 실시간 차트, 장애 시뮬레이션<br>• 토폴로지: 노드를 눌러 장비 진단<br>• 트래픽 · AI 분석: 확대 차트와 장비별 부하<br>• 보안 로그: 경보 기록과 필터<br>• AI 가이드: 사용법과 팀 역할<br>• 기기 관리: 관리자 전용, 소유자 할당`,
-            ddos: `<strong>[DDoS & 패킷 손실 시뮬레이션]</strong><br>대시보드의 시뮬레이션 버튼을 누르면 가상 장애 트래픽이 발생해요. AI 스코어가 올라가고, 보안 로그에 경보가 기록되며, 관련 장비의 부하도 함께 올라가요.`,
+            ddos: `<strong>[DDoS & 패킷 손실 시뮬레이션]</strong><br>대시보드의 시뮬레이션 버튼을 누르면 가상 장애 트래픽이 발생해요. AI 스코어가 올라가고, 보안 로그에 경보가 기록되며, 관련 장비의 부하도 함께 올라가요. 버튼마다 색이 달라서 어떤 장애인지 한눈에 구분할 수 있고, 버튼 아래 설명 박스에 발생 원인도 함께 나와요.`,
             topology: `<strong>[토폴로지 맵 & 텔레메트리]</strong><br>토폴로지 메뉴에서 노드(Core Router, Dist-SW 등)를 누르면 오른쪽 진단창에 IP, CPU·메모리 사용률, 상태가 바로 표시돼요. 노드 색은 부하에 따라 초록 · 노랑 · 빨강으로 바뀌어요.`,
             roles: `<strong>[8비트 프로젝트 팀 역할 분담]</strong><br>• 총괄/권한: 이지환 &nbsp;• UI/대시보드: 장우진<br>• 토폴로지: 양이수 &nbsp;• 로그 수집: 김범수<br>• 백엔드/경보: 구본학 &nbsp;• 관제 DB/ETL: 김민석<br>• AI 예측/분석: 최민규, 김태현`
         };
-        function showHelpAnswer(type) {
-            $('ai-help-box').innerHTML = HELP[type] || '안내 사항을 선택해 주세요.';
-            document.querySelectorAll('.qa-btn').forEach(b => b.classList.toggle('on', b.dataset.q === type));
+
+        // 자유 입력 질문에 답할 때 쓰는 키워드 매칭 지식베이스 (HELP 항목 + 추가 FAQ)
+        const QA_KB = [
+            { keys: ['개요', '시스템이 뭐', '시스템 소개', '무슨 시스템', '뭐하는 시스템'], html: HELP.overview },
+            { keys: ['메뉴', '구성', '어디서 봐', '화면 종류'], html: HELP.menu },
+            { keys: ['ddos', '디도스', '패킷', '손실', '시뮬레이션'], html: HELP.ddos },
+            { keys: ['토폴로지', '노드', '진단'], html: HELP.topology },
+            { keys: ['역할', '팀원', '담당'], html: HELP.roles },
+            { keys: ['로그인', '비밀번호', '잠금', '차단', '계정'],
+              html: `<strong>[로그인 안내]</strong><br>관리자 계정은 이름 '이지환' + 비밀번호 'admin'으로 로그인해요. 그 외 이름은 비밀번호 '8bit'로 일반 사용자 로그인이 가능해요. 5회 이상 틀리면 잠시 잠기고, 10회를 넘으면 IP가 차단돼요.` },
+            { keys: ['다크', '라이트', '테마', '모드 전환'],
+              html: `<strong>[테마 전환]</strong><br>사이드바 하단의 해·달 아이콘 버튼을 누르면 다크 모드와 라이트 모드를 바로 전환할 수 있어요.` },
+            { keys: ['기기 관리', '소유자', '할당'],
+              html: `<strong>[기기 관리]</strong><br>관리자 계정으로 로그인하면 왼쪽 사이드바에 '기기 관리' 메뉴가 나타나요. 기기별 소유자를 지정하고 저장할 수 있어요.` },
+            { keys: ['알림', '팝업', '자세히', '원인'],
+              html: `<strong>[알림 상세 보기]</strong><br>대시보드나 보안 로그의 알림 카드를 클릭하면 팝업으로 발생 시각, 발생 원인, 영향받는 장비, 권장 조치가 자세히 나와요.` }
+        ];
+        function matchAnswer(q) {
+            const norm = q.toLowerCase().replace(/\s+/g, '');
+            const hit = QA_KB.find(item => item.keys.some(k => norm.includes(k.replace(/\s+/g, '').toLowerCase())));
+            return hit ? hit.html : `죄송해요, 아직 답을 준비하지 못한 질문이에요 🙏 위 버튼 중 하나를 눌러보시거나, 다른 표현으로 다시 질문해 주세요.`;
+        }
+
+        /* ═════════ 실시간 타이핑 엔진 ═════════ */
+        let typingBusy = false;
+        function setTypingBusy(v) {
+            typingBusy = v;
+            const send = $('chat-send'); if (send) send.disabled = v;
+            document.querySelectorAll('.qa-btn').forEach(b => b.disabled = v);
+        }
+        // html 태그는 통째로, 일반 글자는 한 글자씩 흘려보내며 타이핑 효과를 만들어요.
+        function typeHTML(el, html, speed = 14) {
+            el.innerHTML = '';
+            el.classList.add('typing');
+            setTypingBusy(true);
+            let i = 0;
+            const charsPerTick = Math.max(1, Math.ceil(html.length / 160));
+            clearInterval(el._typer);
+            el._typer = setInterval(() => {
+                for (let c = 0; c < charsPerTick && i < html.length; c++) {
+                    if (html[i] === '<') { const end = html.indexOf('>', i); i = end !== -1 ? end + 1 : i + 1; }
+                    else { i++; }
+                }
+                const done = i >= html.length;
+                el.innerHTML = html.slice(0, i) + (done ? '' : '<span class="caret"></span>');
+                const log = el.closest('.chat-log'); if (log) log.scrollTop = log.scrollHeight;
+                if (done) { clearInterval(el._typer); el.classList.remove('typing'); setTypingBusy(false); }
+            }, speed);
+        }
+
+        function addChatBubble(role, content, { typed = false } = {}) {
+            const log = $('chat-log');
+            const empty = log.querySelector('.chat-empty'); if (empty) empty.remove();
+            const b = document.createElement('div');
+            b.className = 'chat-bubble ' + role;
+            log.appendChild(b);
+            if (role === 'user') b.textContent = content;      // 사용자 입력은 그대로 텍스트로만 표시 (HTML 삽입 방지)
+            else if (typed) typeHTML(b, content);
+            else b.innerHTML = content;
+            log.scrollTop = log.scrollHeight;
+            return b;
+        }
+
+        function showHelpAnswer(type, btnEl) {
+            if (typingBusy) return;
+            document.querySelectorAll('.qa-btn').forEach(b => b.classList.toggle('on', b === btnEl));
+            if (btnEl) addChatBubble('user', btnEl.textContent.trim());
+            addChatBubble('ai', HELP[type] || '안내 사항을 선택해 주세요.', { typed: true });
+        }
+
+        function handleChatSubmit(e) {
+            e.preventDefault();
+            if (typingBusy) return;
+            const input = $('chat-input');
+            const q = input.value.trim();
+            if (!q) return;
+            document.querySelectorAll('.qa-btn').forEach(b => b.classList.remove('on'));
+            addChatBubble('user', q);
+            input.value = '';
+            addChatBubble('ai', matchAnswer(q), { typed: true });
         }
 
         function renderDevices() {
@@ -1114,6 +1331,7 @@
         renderAlerts();
         selectNode('core-router');
         updateNodeUI();
+        addChatBubble('ai', '안녕하세요! 위 버튼을 누르거나, 궁금한 점을 아래에 직접 입력해 보세요 😊', { typed: true });
         lucide.createIcons();
         setInterval(tick, 1000);
     </script>
