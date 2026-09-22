@@ -418,6 +418,9 @@
                             <div class="grid gap-2">
                                 <button id="btn-ddos" class="btn red" onclick="injectAnomaly('ddos')"><i data-lucide="zap" class="w-4 h-4"></i>DDoS 부하 발생</button>
                                 <button id="btn-loss" class="btn amber" onclick="injectAnomaly('loss')"><i data-lucide="alert-triangle" class="w-4 h-4"></i>패킷 손실 유발</button>
+                                <!-- ✨ 새 시뮬레이션 버튼 2개 추가 -->
+                                <button id="btn-cpu" class="btn red" onclick="injectAnomaly('cpu')"><i data-lucide="cpu" class="w-4 h-4"></i>코어 장비 CPU 고부하</button>
+                                <button id="btn-down" class="btn red" onclick="injectAnomaly('down')"><i data-lucide="wifi-off" class="w-4 h-4"></i>라인 회선 링다운 (Down)</button>
                                 <button class="btn" onclick="resetSimulation()"><i data-lucide="refresh-cw" class="w-4 h-4"></i>정상 상태로 되돌리기</button>
                             </div>
                         </div>
@@ -710,7 +713,9 @@
         // 장애 모드별 장비 부하 증가량 [CPU, RAM]
         const BOOST = {
             ddos: { 'core-router': [55, 25], 'dist-sw-1': [16, 22], 'dist-sw-2': [45, 25], 'server-api': [40, 20] },
-            loss: { 'dist-sw-2': [40, 20], 'mobile-gateway': [62, 30] }
+            loss: { 'dist-sw-2': [40, 20], 'mobile-gateway': [62, 30] },
+            cpu:  { 'core-router': [75, 50], 'server-db': [50, 40] },
+            down: { 'dist-sw-1': [95, 80] }
         };
         function nodeStatus(n) { return n.lv === 'crit' ? '✖ Overload — 즉시 조치 필요' : n.lv === 'warn' ? '▲ High Load Warning' : n.status; }
 
@@ -861,15 +866,33 @@
         function paintSim() {
             const m = state.mode;
             const pill = $('sim-state');
-            pill.textContent = m === 'ddos' ? 'DDoS 진행 중' : m === 'loss' ? '패킷 손실 진행 중' : '정상';
-            setLv(pill, m === 'ddos' ? 'crit' : m === 'loss' ? 'warn' : 'ok');
+            
+            let label = '정상';
+            if (m === 'ddos') label = 'DDoS 진행 중';
+            else if (m === 'loss') label = '패킷 손실 진행 중';
+            else if (m === 'cpu') label = 'CPU 고부하 발생';
+            else if (m === 'down') label = '회선 다운 발생';
+
+            pill.textContent = label;
+            setLv(pill, (m === 'ddos' || m === 'cpu' || m === 'down') ? 'crit' : m === 'loss' ? 'warn' : 'ok');
+            
             $('btn-ddos').classList.toggle('on', m === 'ddos');
             $('btn-loss').classList.toggle('on', m === 'loss');
+            if ($('btn-cpu')) $('btn-cpu').classList.toggle('on', m === 'cpu');
+            if ($('btn-down')) $('btn-down').classList.toggle('on', m === 'down');
         }
+
         function injectAnomaly(type) {
             state.mode = type;
-            if (type === 'ddos') pushAlert('crit', 'DDoS 부하 발생됨', '수신 대역폭 1Gbps 초과! AI 장애 예측 스코어: <strong style="color:var(--red)">94.8%</strong>');
-            else pushAlert('warn', '패킷 손실 발생됨', '패킷 손실률 12.5% 도달.');
+            if (type === 'ddos') {
+                pushAlert('crit', 'DDoS 부하 발생됨', '수신 대역폭 1Gbps 초과! AI 장애 예측 스코어: <strong style="color:var(--red)">94.8%</strong>');
+            } else if (type === 'loss') {
+                pushAlert('warn', '패킷 손실 발생됨', '패킷 손실률 12.5% 도달.');
+            } else if (type === 'cpu') {
+                pushAlert('crit', '[EMERGENCY] Core Router 과부하', 'Core Router 01 CPU 사용률 <strong style="color:var(--red)">98.2%</strong> 돌파! AI 위험도 급상승.');
+            } else if (type === 'down') {
+                pushAlert('crit', '[LINK DOWN] Dist-SW-01 회선 절단', '주요 스위치 회선 불통. 대체 경로 패킷 우회 중.');
+            }
             paintSim();
         }
         function resetSimulation() {
@@ -993,10 +1016,16 @@
 
         function tick() {
             const m = state.mode;
-            const tgt = m === 'ddos' ? [1100, 94, 5.6] : m === 'loss' ? [290, 78, 12.8] : [450, 11, 0.03];
-            const nz  = m ? [70, 4, 1.2] : [30, 2.5, 0.02];
+            let tgt = [450, 11, 0.03];
+            let nz  = [30, 2.5, 0.02];
+
+            if (m === 'ddos') { tgt = [1100, 94, 5.6]; nz = [70, 4, 1.2]; }
+            else if (m === 'loss') { tgt = [290, 78, 12.8]; nz = [40, 3, 1.5]; }
+            else if (m === 'cpu') { tgt = [850, 89.5, 3.2]; nz = [50, 2, 0.8]; }
+            else if (m === 'down') { tgt = [120, 96.1, 18.4]; nz = [20, 1, 2.0]; }
 
             const prev = state.ingress;
+
             state.ingress = Math.round(clamp(ease(state.ingress, tgt[0], nz[0]), 0, YMAX));
             state.risk = +clamp(ease(state.risk, tgt[1], nz[1]), 1, 99.9).toFixed(1);
             state.loss = +clamp(ease(state.loss, tgt[2], nz[2]), 0.01, 30).toFixed(2);
