@@ -208,7 +208,7 @@
             background: color-mix(in srgb, var(--lv) 9%, transparent); transition: transform .15s ease, box-shadow .15s ease;
         }
         .alert .a-h { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; color: var(--lv); }
-        .alert .a-t { font-weight: 500; font-size: 10px; color: var(--dim); font-family: ui-monospace, Menlo, monospace; }
+        .alert .a-t { font-weight: 600; font-size: 12px; color: var(--dim); font-family: ui-monospace, Menlo, monospace; }
         .alert p { margin-top: 4px; color: var(--text); opacity: .86; }
         .alert.click { cursor: pointer; }
         .alert.click:hover { transform: translateY(-2px); box-shadow: 0 8px 20px color-mix(in srgb, var(--lv) 22%, transparent); }
@@ -231,6 +231,8 @@
             background: var(--glass-strong); color: var(--muted); font-size: 14px; line-height: 1; cursor: pointer; transition: .15s;
         }
         .modal-close:hover { color: var(--text); border-color: var(--indigo); }
+        .modal-head { display: flex; align-items: center; gap: 8px; padding-right: 38px; }
+        .modal-head .modal-time { font-size: 13px; font-weight: 700; color: var(--muted); font-family: ui-monospace, Menlo, monospace; margin-left: auto; white-space: nowrap; }
         .modal-block { margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: var(--input); border: 1px solid var(--border); }
         .modal-block-title { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
         .modal-block p { font-size: 13px; line-height: 1.65; color: var(--text); }
@@ -971,9 +973,9 @@
             const a = alerts.find(x => x.id === id);
             if (!a) return;
             $('modal-body').innerHTML = `
-                <div class="flex items-center gap-2">
+                <div class="modal-head">
                     <span class="pill sm lv-${a.lv}"><span class="pdot"></span>${LV_LABEL[a.lv]}</span>
-                    <span class="text-xs t-dim mono ml-auto">${a.time}</span>
+                    <span class="modal-time">${a.time}</span>
                 </div>
                 <h3 class="text-lg font-extrabold mt-3 mb-1">${ALERT_ICON[a.lv]} ${a.title}</h3>
                 <p class="text-sm t-muted leading-relaxed">${a.msg}</p>
