@@ -49,6 +49,7 @@
         .lv-ok { --lv: var(--green); } .lv-warn { --lv: var(--amber); } .lv-crit { --lv: var(--red); } .lv-info { --lv: var(--cyan); }
         .c-lv { color: var(--lv); }
         .c-cyan { color: var(--cyan); } .c-amber { color: var(--amber); } .c-indigo { color: var(--indigo); } .c-green { color: var(--green); }
+        .c-purple { color: var(--purple); } .c-orange { color: var(--orange); }
         .t-muted { color: var(--muted); } .t-dim { color: var(--dim); }
 
         /* ───────── 로그인 (기존 유지) ───────── */
@@ -266,7 +267,27 @@
         .tnode:hover { transform: translate(-50%, calc(-50% - 3px)); }
         .tnode.sel { box-shadow: 0 0 0 3px color-mix(in srgb, var(--lv) 28%, transparent), 0 10px 28px color-mix(in srgb, var(--lv) 24%, transparent); }
         .tnode b { font-size: 12px; } .tnode small { font-size: 10px; color: var(--muted); }
+
+        /* VLAN 구역 관리 */
+        .vlan-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+        .color-input { width: 42px; height: 38px; padding: 2px; border-radius: 10px; border: 1px solid var(--border); background: var(--input); cursor: pointer; flex: none; }
+        .vlan-zones { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+        .vlan-zone { border-radius: 16px; padding: 14px; background: var(--input); border: 1px solid var(--border); border-left: 3px solid var(--vzc); }
+        .vlan-zone-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+        .vzdot { width: 10px; height: 10px; border-radius: 50%; background: var(--vzc); flex: none; }
+        .vlan-del { margin-left: 6px; width: 22px; height: 22px; border-radius: 8px; border: 1px solid var(--border); background: var(--glass-strong); color: var(--dim); font-size: 11px; line-height: 1; cursor: pointer; transition: .15s; }
+        .vlan-del:hover { color: var(--red); border-color: var(--red); }
+        .vlan-chip-list { display: flex; flex-direction: column; gap: 8px; }
+        .vlan-chip { display: flex; align-items: center; gap: 8px; }
+        .vlan-chip-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 12px; background: var(--glass-strong); border: 1px solid var(--border); font-size: 12px; cursor: pointer; overflow: hidden; transition: border-color .15s; }
+        .vlan-chip-main span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .vlan-chip-main:hover { border-color: var(--indigo); }
+        .vlan-move { flex: none; width: auto; max-width: 110px; font-size: 11px; padding: 6px 8px; }
+
+        /* 신규 장비 등록 */
+        .device-form { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); align-items: end; }
         .tnode .tdot { position: absolute; top: 8px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--lv); }
+        .tnode .vlandot { position: absolute; top: 8px; left: 9px; width: 7px; height: 7px; border-radius: 50%; border: 1px solid rgba(0,0,0,.25); }
 
         /* 가이드 */
         .qa-btn { padding: 10px 12px; border-radius: 14px; font-size: 12.5px; text-align: left; cursor: pointer; color: var(--text); background: var(--glass-strong); border: 1px solid var(--border); transition: .2s; }
@@ -540,6 +561,58 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="card mt-5">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                        <h2 class="ctitle"><i data-lucide="shapes" class="w-4 h-4 c-purple"></i>VLAN 구역 관리</h2>
+                        <span class="text-xs t-dim">부서 · 구역별로 장비를 나누고 묶어서 관리해요</span>
+                    </div>
+                    <form class="vlan-form" onsubmit="event.preventDefault(); createVlan();">
+                        <input id="new-vlan-name" type="text" class="sel-input" placeholder="구역 이름 (예: 마케팅팀)" style="flex:1;min-width:140px;">
+                        <input id="new-vlan-cidr" type="text" class="sel-input mono" placeholder="IP 대역 (선택, 예: 10.10.0.0/24)" style="flex:1;min-width:170px;">
+                        <input id="new-vlan-color" type="color" class="color-input" value="#f472b6" title="구역 색상">
+                        <button type="submit" class="btn primary" style="width:auto;">+ 구역 추가</button>
+                    </form>
+                    <div id="vlan-zones" class="vlan-zones"></div>
+                </div>
+
+                <div class="card mt-5">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                        <h2 class="ctitle"><i data-lucide="plus-circle" class="w-4 h-4 c-green"></i>신규 장비 등록</h2>
+                        <span class="text-xs t-dim">장비 모양 · IP를 직접 입력해서 원하는 구역에 배치해요</span>
+                    </div>
+                    <form class="device-form" onsubmit="event.preventDefault(); createDevice();">
+                        <div>
+                            <label class="block text-[11px] font-semibold t-muted mb-1">장비 이름</label>
+                            <input id="new-device-name" type="text" class="sel-input" placeholder="예: 마케팅팀 PC-03">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold t-muted mb-1">IP 주소</label>
+                            <input id="new-device-ip" type="text" class="sel-input mono" placeholder="예: 10.10.0.23">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold t-muted mb-1">장치 모양</label>
+                            <select id="new-device-type" class="sel-input">
+                                <option value="router">🔀 라우터 (Router)</option>
+                                <option value="switch">🔁 스위치 (Switch)</option>
+                                <option value="server" selected>🗄️ 서버 (Server)</option>
+                                <option value="app">🧠 애플리케이션 서버</option>
+                                <option value="pc">🖥️ 워크스테이션 PC</option>
+                                <option value="mobile">📱 모바일 기기</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold t-muted mb-1">소속 구역 (VLAN)</label>
+                            <select id="new-device-vlan" class="sel-input"></select>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold t-muted mb-1">담당자 (선택)</label>
+                            <input id="new-device-owner" type="text" class="sel-input" placeholder="예: 이지환">
+                        </div>
+                        <button type="submit" class="btn primary" style="align-self:end;width:auto;">+ 장비 등록</button>
+                    </form>
+                    <p class="text-xs t-dim mt-3">💡 지금은 화면에만 등록돼요. 실제 장비와의 통신·핑 확인은 SQL·Python 백엔드를 연결하는 다음 단계에서 지원할 계획이에요.</p>
+                </div>
             </section>
 
             <!-- ───── VIEW: 트래픽 · AI 분석 ───── -->
@@ -800,19 +873,39 @@
         };
 
         const NODES = {
-            'core-router':    { name: 'Core Router 01',  short: 'Core Router', ip: '192.168.1.1',  type: 'Core Network Router', owner: 'admin (이지환)', cpu: 24, ram: 42, status: '● 10 Gbps Link Normal', icon: 'router',     x: 50, y: 12 },
-            'dist-sw-1':      { name: 'Dist-SW-01',      short: 'Dist-SW-01',  ip: '192.168.1.10', type: 'Distribution Switch', owner: 'admin (이지환)', cpu: 82, ram: 68, status: '● Normal',              icon: 'network',    x: 30, y: 44 },
-            'dist-sw-2':      { name: 'Dist-SW-02',      short: 'Dist-SW-02',  ip: '192.168.1.11', type: 'Distribution Switch', owner: 'user1 (8bit)',   cpu: 31, ram: 45, status: '● Normal',              icon: 'network',    x: 70, y: 44 },
-            'server-db':      { name: 'DB Cluster Node', short: 'DB Cluster',  ip: '10.0.0.5',     type: 'Database Server',     owner: 'admin (이지환)', cpu: 45, ram: 78, status: '● Normal',              icon: 'database',   x: 14, y: 82 },
-            'server-api':     { name: 'FastAPI Backend', short: 'FastAPI',     ip: '10.0.0.12',    type: 'Application Server',  owner: 'admin (이지환)', cpu: 38, ram: 52, status: '● Normal',              icon: 'cpu',        x: 38, y: 82 },
-            'workstation-pc': { name: 'Dev-PC-01',       short: 'Dev-PC',      ip: '192.168.1.15', type: 'Workstation',         owner: 'user1 (8bit)',   cpu: 18, ram: 30, status: '● Online',              icon: 'monitor',    x: 62, y: 82 },
-            'mobile-gateway': { name: 'Mobile Gateway',  short: 'Mobile GW',   ip: '172.28.8.34',  type: 'Mobile Endpoint',     owner: 'admin (이지환)', cpu: 12, ram: 25, status: '● Online',              icon: 'smartphone', x: 86, y: 82 }
+            'core-router':    { name: 'Core Router 01',  short: 'Core Router', ip: '192.168.1.1',  type: 'Core Network Router', owner: 'admin (이지환)', cpu: 24, ram: 42, status: '● 10 Gbps Link Normal', icon: 'router',     x: 50, y: 12, vlan: 'backbone' },
+            'dist-sw-1':      { name: 'Dist-SW-01',      short: 'Dist-SW-01',  ip: '192.168.1.10', type: 'Distribution Switch', owner: 'admin (이지환)', cpu: 82, ram: 68, status: '● Normal',              icon: 'network',    x: 30, y: 44, vlan: 'dev' },
+            'dist-sw-2':      { name: 'Dist-SW-02',      short: 'Dist-SW-02',  ip: '192.168.1.11', type: 'Distribution Switch', owner: 'user1 (8bit)',   cpu: 31, ram: 45, status: '● Normal',              icon: 'network',    x: 70, y: 44, vlan: 'biz' },
+            'server-db':      { name: 'DB Cluster Node', short: 'DB Cluster',  ip: '10.0.0.5',     type: 'Database Server',     owner: 'admin (이지환)', cpu: 45, ram: 78, status: '● Normal',              icon: 'database',   x: 14, y: 82, vlan: 'dev' },
+            'server-api':     { name: 'FastAPI Backend', short: 'FastAPI',     ip: '10.0.0.12',    type: 'Application Server',  owner: 'admin (이지환)', cpu: 38, ram: 52, status: '● Normal',              icon: 'cpu',        x: 38, y: 82, vlan: 'dev' },
+            'workstation-pc': { name: 'Dev-PC-01',       short: 'Dev-PC',      ip: '192.168.1.15', type: 'Workstation',         owner: 'user1 (8bit)',   cpu: 18, ram: 30, status: '● Online',              icon: 'monitor',    x: 62, y: 82, vlan: 'biz' },
+            'mobile-gateway': { name: 'Mobile Gateway',  short: 'Mobile GW',   ip: '172.28.8.34',  type: 'Mobile Endpoint',     owner: 'admin (이지환)', cpu: 12, ram: 25, status: '● Online',              icon: 'smartphone', x: 86, y: 82, vlan: 'biz' }
         };
         const NODE_KEYS = Object.keys(NODES);
         NODE_KEYS.forEach(k => { const n = NODES[k]; n.lc = n.cpu; n.lr = n.ram; n.lv = n.cpu >= 70 ? 'warn' : 'ok'; });
         const EDGES = [['core-router', 'dist-sw-1'], ['core-router', 'dist-sw-2'], ['dist-sw-1', 'server-db'], ['dist-sw-1', 'server-api'], ['dist-sw-2', 'workstation-pc'], ['dist-sw-2', 'mobile-gateway']];
         const LVC = { ok: 'var(--green)', warn: 'var(--amber)', crit: 'var(--red)' };
         const OWNERS = ['admin (이지환)', 'user1 (8bit)'];
+
+        // VLAN(구역) 목록: 부서·구역별로 장비를 나눠서 묶어요. 나중에 실제 DB로 옮길 때도 이 구조 그대로 테이블화하면 돼요.
+        let vlanSeq = 0;
+        const vlans = [
+            { id: 'backbone', name: 'Backbone (백본)', color: '#22d3ee', cidr: '192.168.1.0/24' },
+            { id: 'dev', name: '개발팀', color: '#a78bfa', cidr: '10.0.0.0/24' },
+            { id: 'biz', name: '경영지원팀', color: '#fb923c', cidr: '192.168.1.0/25' }
+        ];
+        function vlanById(id) { return vlans.find(v => v.id === id); }
+
+        // 신규 장비 등록 폼에서 고를 수 있는 장치 모양(아이콘) 목록. 아래 HTML의 <option value="...">와 값이 일치해야 해요.
+        const DEVICE_TYPES = {
+            router: { icon: 'router', typeLabel: 'Router' },
+            switch: { icon: 'network', typeLabel: 'Switch' },
+            server: { icon: 'database', typeLabel: 'Server' },
+            app: { icon: 'cpu', typeLabel: 'Application Server' },
+            pc: { icon: 'monitor', typeLabel: 'Workstation' },
+            mobile: { icon: 'smartphone', typeLabel: 'Mobile Endpoint' }
+        };
+        let deviceSeq = 0;
 
         // 장애 시뮬레이션 종류별 설정: 장비 부하 증가량 · 색상 · 발생 원인 · 권장 조치를 한 곳에서 관리
         const SIM_TYPES = {
@@ -901,22 +994,34 @@
 
         /* ═════════ 5. 토폴로지 · 장비 UI 생성 ═════════ */
         function buildNodeUI() {
-            // 토폴로지
+            // 토폴로지 맵: x/y 좌표가 있는(=처음부터 배치된) 장비만 그려요. 새로 등록한 장비는 아래 VLAN 구역 카드에서 확인할 수 있어요.
             const lines = EDGES.map(([a, b]) => `<line id="ln-${b}" x1="${NODES[a].x}%" y1="${NODES[a].y}%" x2="${NODES[b].x}%" y2="${NODES[b].y}%"/>`).join('');
-            const btns = NODE_KEYS.map(k => {
+            const btns = NODE_KEYS.filter(k => NODES[k].x != null).map(k => {
                 const n = NODES[k];
+                const vc = (vlanById(n.vlan) || {}).color || 'var(--dim)';
                 return `<button class="tnode lv-ok" id="tn-${k}" style="left:${n.x}%;top:${n.y}%" onclick="selectNode('${k}')">
+                    <span class="vlandot" style="background:${vc}" title="VLAN: ${(vlanById(n.vlan) || {}).name || ''}"></span>
                     <span class="tdot"></span><i data-lucide="${n.icon}" class="w-4 h-4 c-lv"></i><b>${n.name}</b><small class="mono">${n.ip}</small></button>`;
             }).join('');
             $('topo').innerHTML = `<svg>${lines}</svg>${btns}`;
 
-            // 대시보드 장비 칩
+            renderNodeChips();
+            renderNodeTable();
+
+            // 팀 역할
+            $('roles-grid').innerHTML = ROLES.map(r => `<div class="role"><div class="avatar">${r.name[0]}</div><div><p class="text-sm font-bold">${r.name}</p><p class="text-xs t-muted">${r.role}</p></div></div>`).join('');
+        }
+
+        // 대시보드 장비 칩 — 신규 장비를 추가한 뒤에도 다시 호출해서 목록을 갱신해요.
+        function renderNodeChips() {
             $('node-chips').innerHTML = NODE_KEYS.map(k => `
                 <button class="nchip lv-ok" id="nc-${k}" onclick="openNode('${k}')">
-                    <span class="ldot"></span><span class="font-semibold">${NODES[k].short}</span><span class="mono t-muted ml-auto" id="ncc-${k}">0%</span>
+                    <span class="ldot"></span><span class="font-semibold">${NODES[k].short || NODES[k].name}</span><span class="mono t-muted ml-auto" id="ncc-${k}">0%</span>
                 </button>`).join('');
+        }
 
-            // 분석 화면 장비 테이블
+        // 분석 화면 장비 테이블 — 신규 장비를 추가한 뒤에도 다시 호출해서 목록을 갱신해요.
+        function renderNodeTable() {
             $('node-body').innerHTML = NODE_KEYS.map(k => `
                 <tr class="click lv-ok" id="tr-${k}" onclick="openNode('${k}')">
                     <td><div class="flex items-center gap-2"><span class="ldot"></span><b>${NODES[k].name}</b></div></td>
@@ -925,14 +1030,11 @@
                     <td style="min-width:140px"><div class="flex items-center gap-2"><div class="bar flex-1"><i class="bl" id="tr2-${k}" style="width:0%"></i></div><span class="mono w-10 text-right" id="trt-${k}">0%</span></div></td>
                     <td class="c-lv font-semibold" id="ts-${k}"></td>
                 </tr>`).join('');
-
-            // 팀 역할
-            $('roles-grid').innerHTML = ROLES.map(r => `<div class="role"><div class="avatar">${r.name[0]}</div><div><p class="text-sm font-bold">${r.name}</p><p class="text-xs t-muted">${r.role}</p></div></div>`).join('');
         }
 
         function selectNode(key) {
             state.selected = key;
-            NODE_KEYS.forEach(k => $('tn-' + k).classList.toggle('sel', k === key));
+            NODE_KEYS.forEach(k => { const el = $('tn-' + k); if (el) el.classList.toggle('sel', k === key); });
             updateInspector();
         }
 
@@ -955,13 +1057,127 @@
                 const n = NODES[k];
                 setLv($('tn-' + k), n.lv);
                 const ln = $('ln-' + k); if (ln) ln.style.stroke = LVC[n.lv];
-                setLv($('nc-' + k), n.lv); $('ncc-' + k).textContent = Math.round(n.lc) + '%';
+                setLv($('nc-' + k), n.lv);
+                const ncc = $('ncc-' + k); if (ncc) ncc.textContent = Math.round(n.lc) + '%';
                 setLv($('tr-' + k), n.lv);
-                $('tc-' + k).style.width = n.lc + '%'; $('tct-' + k).textContent = Math.round(n.lc) + '%';
-                $('tr2-' + k).style.width = n.lr + '%'; $('trt-' + k).textContent = Math.round(n.lr) + '%';
-                $('ts-' + k).textContent = nodeStatus(n);
+                const tc = $('tc-' + k); if (tc) tc.style.width = n.lc + '%';
+                const tct = $('tct-' + k); if (tct) tct.textContent = Math.round(n.lc) + '%';
+                const tr2 = $('tr2-' + k); if (tr2) tr2.style.width = n.lr + '%';
+                const trt = $('trt-' + k); if (trt) trt.textContent = Math.round(n.lr) + '%';
+                const ts = $('ts-' + k); if (ts) ts.textContent = nodeStatus(n);
             });
             updateInspector();
+        }
+
+        /* ═════════ 5-1. VLAN 구역 관리 ═════════ */
+        function renderVlanZones() {
+            const wrap = $('vlan-zones');
+            if (!wrap) return;
+            wrap.innerHTML = vlans.map(v => {
+                const members = NODE_KEYS.filter(k => NODES[k].vlan === v.id);
+                const chips = members.length ? members.map(k => {
+                    const n = NODES[k];
+                    const moveOpts = vlans.map(vv => `<option value="${vv.id}" ${vv.id === v.id ? 'selected' : ''}>${vv.name}</option>`).join('');
+                    return `
+                        <div class="vlan-chip">
+                            <button class="vlan-chip-main" onclick="openNode('${k}')" title="상세 진단 보기">
+                                <i data-lucide="${n.icon}" class="w-3.5 h-3.5"></i>
+                                <span class="font-semibold">${n.name}</span>
+                                <span class="mono t-dim">${n.ip}</span>
+                            </button>
+                            <select class="sel-input vlan-move" onchange="moveNodeVlan('${k}', this.value)">${moveOpts}</select>
+                        </div>`;
+                }).join('') : `<p class="text-xs t-dim py-2">이 구역에 배치된 장비가 없어요.</p>`;
+                return `
+                    <div class="vlan-zone" style="--vzc:${v.color}">
+                        <div class="vlan-zone-head">
+                            <span class="vzdot"></span>
+                            <span class="font-bold text-sm">${v.name}</span>
+                            ${v.cidr ? `<span class="tag mono">${v.cidr}</span>` : ''}
+                            <span class="text-xs t-dim ml-auto">${members.length}대</span>
+                            <button class="vlan-del" onclick="deleteVlan('${v.id}')" title="구역 삭제">✕</button>
+                        </div>
+                        <div class="vlan-chip-list">${chips}</div>
+                    </div>`;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        function refreshVlanSelects() {
+            const opts = vlans.map(v => `<option value="${v.id}">${v.name}</option>`).join('');
+            const sel = $('new-device-vlan');
+            if (sel) sel.innerHTML = opts;
+        }
+
+        function createVlan() {
+            const nameInput = $('new-vlan-name');
+            const name = nameInput.value.trim();
+            if (!name) { toast('구역 이름을 입력해 주세요.'); return; }
+            const color = $('new-vlan-color').value;
+            const cidr = $('new-vlan-cidr').value.trim();
+            const id = 'vlan' + (++vlanSeq) + '-' + Date.now().toString(36).slice(-4);
+            vlans.push({ id, name, color, cidr });
+            nameInput.value = ''; $('new-vlan-cidr').value = '';
+            renderVlanZones();
+            refreshVlanSelects();
+            toast(`'${name}' 구역이 추가됐어요.`);
+        }
+
+        function deleteVlan(id) {
+            const members = NODE_KEYS.filter(k => NODES[k].vlan === id);
+            if (members.length) { toast('먼저 소속 장비를 다른 구역으로 옮겨주세요.'); return; }
+            if (vlans.length <= 1) { toast('구역이 최소 1개는 있어야 해요.'); return; }
+            const idx = vlans.findIndex(v => v.id === id);
+            if (idx !== -1) vlans.splice(idx, 1);
+            renderVlanZones();
+            refreshVlanSelects();
+        }
+
+        function moveNodeVlan(key, vlanId) {
+            if (!NODES[key]) return;
+            NODES[key].vlan = vlanId;
+            renderVlanZones();
+        }
+
+        /* ═════════ 5-2. 신규 장비 등록 ═════════ */
+        function createDevice() {
+            const nameInput = $('new-device-name');
+            const ipInput = $('new-device-ip');
+            const name = nameInput.value.trim();
+            const ip = ipInput.value.trim();
+            const typeVal = $('new-device-type').value;
+            const vlanId = $('new-device-vlan').value;
+            const ownerInput = $('new-device-owner');
+            const owner = ownerInput.value.trim();
+
+            if (!name || !ip) { toast('장비 이름과 IP 주소를 입력해 주세요.'); return; }
+            if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) { toast('IP 형식을 확인해 주세요. 예) 192.168.1.20'); return; }
+
+            const dt = DEVICE_TYPES[typeVal] || DEVICE_TYPES.server;
+            const key = 'dev-' + (++deviceSeq) + '-' + Date.now().toString(36).slice(-4);
+            const cpu = Math.round(10 + Math.random() * 20);
+            const ram = Math.round(15 + Math.random() * 25);
+
+            NODES[key] = {
+                name, short: name.length > 10 ? name.slice(0, 9) + '…' : name, ip,
+                type: dt.typeLabel, owner: owner || `${state.username} (등록)`,
+                cpu, ram, lc: cpu, lr: ram, lv: 'ok', status: '● Online', icon: dt.icon, vlan: vlanId
+            };
+            NODE_KEYS.push(key);
+
+            renderNodeChips();
+            renderNodeTable();
+            renderVlanZones();
+            if (state.isAdmin) renderDevices();
+            lucide.createIcons();
+
+            pushAlert('info', '신규 장비 등록됨', `${name} (${ip}) 장비가 '${(vlanById(vlanId) || {}).name || vlanId}' 구역에 추가됐어요.`, {
+                cause: '관리자가 토폴로지 화면에서 새 장비를 직접 등록했어요.',
+                action: '지금은 화면상 등록까지만 지원해요. 실제 장비와의 통신 확인(핑·SNMP 등)은 SQL·Python 백엔드를 연결하는 다음 단계에서 추가할 예정이에요.'
+            });
+            toast(`${name} 장비가 등록됐어요.`);
+
+            nameInput.value = ''; ipInput.value = ''; ownerInput.value = '';
         }
 
         function tickNodes() {
@@ -1245,7 +1461,7 @@
             overview: `<strong>[8bit AI 관제 시스템]</strong><br>실시간 네트워크 트래픽과 텔레메트리 데이터를 분석해 AI 위험 스코어를 계산하고, 장애를 미리 막도록 돕는 관제 대시보드예요.`,
             menu: `<strong>[메뉴 구성]</strong><br>• 대시보드: 핵심 지표, 실시간 차트, 장애 시뮬레이션<br>• 토폴로지: 노드를 눌러 장비 진단<br>• 트래픽 · AI 분석: 확대 차트와 장비별 부하<br>• 보안 로그: 경보 기록과 필터<br>• AI 가이드: 사용법과 팀 역할<br>• 기기 관리: 관리자 전용, 소유자 할당`,
             ddos: `<strong>[DDoS & 패킷 손실 시뮬레이션]</strong><br>대시보드의 시뮬레이션 버튼을 누르면 가상 장애 트래픽이 발생해요. AI 스코어가 올라가고, 보안 로그에 경보가 기록되며, 관련 장비의 부하도 함께 올라가요. 버튼마다 색이 달라서 어떤 장애인지 한눈에 구분할 수 있고, 버튼 아래 설명 박스에 발생 원인도 함께 나와요.`,
-            topology: `<strong>[토폴로지 맵 & 텔레메트리]</strong><br>토폴로지 메뉴에서 노드(Core Router, Dist-SW 등)를 누르면 오른쪽 진단창에 IP, CPU·메모리 사용률, 상태가 바로 표시돼요. 노드 색은 부하에 따라 초록 · 노랑 · 빨강으로 바뀌어요.`,
+            topology: `<strong>[토폴로지 맵 & 텔레메트리]</strong><br>토폴로지 메뉴에서 노드(Core Router, Dist-SW 등)를 누르면 오른쪽 진단창에 IP, CPU·메모리 사용률, 상태가 바로 표시돼요. 노드 색은 부하에 따라 초록 · 노랑 · 빨강으로 바뀌어요. 아래쪽 'VLAN 구역 관리'에서는 부서별로 구역을 나누고, 장비를 직접 등록해서 구역에 배치할 수도 있어요.`,
             roles: `<strong>[8비트 프로젝트 팀 역할 분담]</strong><br>• 총괄/권한: 이지환 &nbsp;• UI/대시보드: 장우진<br>• 토폴로지: 양이수 &nbsp;• 로그 수집: 김범수<br>• 백엔드/경보: 구본학 &nbsp;• 관제 DB/ETL: 김민석<br>• AI 예측/분석: 최민규, 김태현`
         };
 
@@ -1287,6 +1503,10 @@
             { keys: ['토폴로지', '네트워크 구조', '네트워크 지도'], html: HELP.topology },
             { keys: ['노드 색', '초록 노랑 빨강', '상태 색깔이 왜'],
               html: `<strong>[노드 상태 색상]</strong><br>초록은 정상, 노랑은 CPU 70% 이상 경고, 빨강은 90% 이상 과부하 상태예요. 장애 시뮬레이션을 켜면 관련 장비 노드의 색이 실시간으로 바뀌어요.` },
+            { keys: ['vlan', '구역 관리', '부서별로 나누', '구역 나누기'],
+              html: `<strong>[VLAN 구역 관리]</strong><br>토폴로지 화면 아래 'VLAN 구역 관리'에서 부서·구역을 새로 만들고, 각 장비를 원하는 구역으로 옮길 수 있어요. 구역마다 색상과 IP 대역(선택)을 지정할 수 있어요.` },
+            { keys: ['신규 장비 등록', '장비 추가', '장비 등록하는 법', '장치 모양'],
+              html: `<strong>[신규 장비 등록]</strong><br>토폴로지 화면 맨 아래에서 장비 이름·IP·장치 모양·소속 구역을 입력하면 새 장비가 등록돼요. 다만 지금은 화면(브라우저)에만 저장되고, 실제 장비와의 통신 확인은 아직 지원하지 않아요.` },
 
             // 분석
             { keys: ['분석 화면', '트래픽 분석', '확대 차트', 'ai 분석'],
@@ -1490,6 +1710,8 @@
         updateClock();
         setInterval(updateClock, 1000);
         buildNodeUI();
+        renderVlanZones();
+        refreshVlanSelects();
         renderAlerts();
         selectNode('core-router');
         updateNodeUI();
