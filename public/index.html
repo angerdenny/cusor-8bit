@@ -68,10 +68,23 @@
             border-right: 1px solid var(--border);
         }
         .logo {
+            position: relative;
             width: 46px; height: 46px; border-radius: 16px; margin-bottom: 14px; display: flex; align-items: center; justify-content: center;
             background: linear-gradient(135deg, #6366f1, #06b6d4); color: #fff; box-shadow: 0 8px 24px rgba(99,102,241,.4);
             font-weight: 900; font-size: 13px; letter-spacing: .02em;
+            border: 0; cursor: pointer; padding: 0; font-family: inherit; transition: transform .2s, box-shadow .2s;
         }
+        .logo:hover { transform: translateY(-2px) scale(1.05); box-shadow: 0 10px 28px rgba(99,102,241,.55); }
+        .logo:active { transform: translateY(0) scale(.97); }
+        .logo.real { background: linear-gradient(135deg, #fb923c, #f43f5e); box-shadow: 0 8px 24px rgba(251,146,60,.45); }
+        .logo.real:hover { box-shadow: 0 10px 28px rgba(251,146,60,.6); }
+        .logo::after {
+            content: attr(data-label); position: absolute; left: calc(100% + 12px); top: 50%; transform: translateY(-50%) translateX(-4px);
+            padding: 6px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; white-space: nowrap; pointer-events: none;
+            background: var(--tip-bg); color: var(--text); border: 1px solid var(--border); opacity: 0; transition: .15s;
+        }
+        .logo:hover::after { opacity: 1; transform: translateY(-50%); }
+        @media (max-width: 767px) { .logo::after { display: none; } }
         .nav { display: flex; flex-direction: column; gap: 8px; }
         .spacer { flex: 1; }
         .nav-btn {
@@ -283,6 +296,12 @@
         .vlan-chip-main span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .vlan-chip-main:hover { border-color: var(--indigo); }
         .vlan-move { flex: none; width: auto; max-width: 110px; font-size: 11px; padding: 6px 8px; }
+        .vlan-edit { margin-left: 6px; width: 22px; height: 22px; border-radius: 8px; border: 1px solid var(--border); background: var(--glass-strong); color: var(--dim); font-size: 11px; line-height: 1; cursor: pointer; transition: .15s; }
+        .vlan-edit:hover { color: var(--indigo); border-color: var(--indigo); }
+        .chip-edit, .chip-del { flex: none; width: 26px; height: 26px; border-radius: 8px; border: 1px solid var(--border); background: var(--glass-strong); color: var(--dim); font-size: 11px; cursor: pointer; transition: .15s; }
+        .chip-edit:hover { color: var(--indigo); border-color: var(--indigo); }
+        .chip-del:hover { color: var(--red); border-color: var(--red); }
+        .readonly-tag { flex: none; font-size: 11px; color: var(--dim); padding: 6px 8px; }
 
         /* 신규 장비 등록 */
         .device-form { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); align-items: end; }
@@ -390,7 +409,7 @@
 
         <!-- 좌측 슬림 사이드바 -->
         <aside class="sidebar">
-            <div class="logo" title="8bit AI Pulse">8bit</div>
+            <button type="button" id="env-toggle-btn" class="logo" data-label="8bit AI Pulse" onclick="toggleEnvironment()">8bit</button>
             <nav class="nav">
                 <button class="nav-btn active" data-nav="overview" data-label="대시보드" onclick="switchView('overview')"><i data-lucide="layout-dashboard" class="w-5 h-5"></i></button>
                 <button class="nav-btn" data-nav="topology" data-label="네트워크 토폴로지" onclick="switchView('topology')"><i data-lucide="network" class="w-5 h-5"></i></button>
@@ -425,6 +444,7 @@
                 </div>
                 <div class="flex items-center gap-3 flex-wrap">
                     <span class="pill sm mono" style="--lv: var(--cyan)">8bit AI Pulse · v2.4 Live</span>
+                    <span id="env-badge" class="pill sm" style="--lv: var(--cyan)"></span>
                     <div id="sys-pill" class="pill lv-ok"><span class="pdot"></span><span id="system-status-text">AI 엔진 정상 작동 중</span></div>
                     <div id="user-role-badge" class="pill" style="--lv: var(--indigo)">👑 관리자 (이지환)</div>
                 </div>
@@ -490,7 +510,7 @@
                     </div>
 
                     <div class="lg:col-span-4 flex flex-col gap-5">
-                        <div class="card">
+                        <div class="card" id="sim-card">
                             <div class="flex items-center justify-between mb-3">
                                 <h2 class="ctitle"><i data-lucide="zap" class="w-4 h-4 c-amber"></i>장애 시뮬레이션</h2>
                                 <span id="sim-state" class="pill sm lv-ok">정상</span>
@@ -567,7 +587,7 @@
                         <h2 class="ctitle"><i data-lucide="shapes" class="w-4 h-4 c-purple"></i>VLAN 구역 관리</h2>
                         <span class="text-xs t-dim">부서 · 구역별로 장비를 나누고 묶어서 관리해요</span>
                     </div>
-                    <form class="vlan-form" onsubmit="event.preventDefault(); createVlan();">
+                    <form id="vlan-form" class="vlan-form" onsubmit="event.preventDefault(); createVlan();">
                         <input id="new-vlan-name" type="text" class="sel-input" placeholder="구역 이름 (예: 마케팅팀)" style="flex:1;min-width:140px;">
                         <input id="new-vlan-cidr" type="text" class="sel-input mono" placeholder="IP 대역 (선택, 예: 10.10.0.0/24)" style="flex:1;min-width:170px;">
                         <input id="new-vlan-color" type="color" class="color-input" value="#f472b6" title="구역 색상">
@@ -576,12 +596,12 @@
                     <div id="vlan-zones" class="vlan-zones"></div>
                 </div>
 
-                <div class="card mt-5">
+                <div class="card mt-5" id="device-form-card">
                     <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
                         <h2 class="ctitle"><i data-lucide="plus-circle" class="w-4 h-4 c-green"></i>신규 장비 등록</h2>
                         <span class="text-xs t-dim">장비 모양 · IP를 직접 입력해서 원하는 구역에 배치해요</span>
                     </div>
-                    <form class="device-form" onsubmit="event.preventDefault(); createDevice();">
+                    <form id="device-form" class="device-form" onsubmit="event.preventDefault(); createDevice();">
                         <div>
                             <label class="block text-[11px] font-semibold t-muted mb-1">장비 이름</label>
                             <input id="new-device-name" type="text" class="sel-input" placeholder="예: 마케팅팀 PC-03">
@@ -751,6 +771,63 @@
         </div>
     </div>
 
+    <!-- 장비 수정 팝업 -->
+    <div id="device-edit-modal" class="modal-overlay" onclick="if (event.target === this) closeDeviceEditModal()">
+        <div class="card modal-card">
+            <button class="modal-close" onclick="closeDeviceEditModal()" aria-label="닫기">✕</button>
+            <h3 class="text-lg font-extrabold mb-4">✎ 장비 정보 수정</h3>
+            <form onsubmit="event.preventDefault(); saveDeviceEdit();" class="grid gap-3">
+                <div>
+                    <label class="block text-[11px] font-semibold t-muted mb-1">장비 이름</label>
+                    <input id="edit-device-name" type="text" class="sel-input" style="width:100%">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold t-muted mb-1">IP 주소</label>
+                    <input id="edit-device-ip" type="text" class="sel-input mono" style="width:100%">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold t-muted mb-1">장치 모양</label>
+                    <select id="edit-device-type" class="sel-input" style="width:100%">
+                        <option value="router">🔀 라우터 (Router)</option>
+                        <option value="switch">🔁 스위치 (Switch)</option>
+                        <option value="server">🗄️ 서버 (Server)</option>
+                        <option value="app">🧠 애플리케이션 서버</option>
+                        <option value="pc">🖥️ 워크스테이션 PC</option>
+                        <option value="mobile">📱 모바일 기기</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold t-muted mb-1">담당자</label>
+                    <input id="edit-device-owner" type="text" class="sel-input" style="width:100%">
+                </div>
+                <button type="submit" class="btn primary" style="width:100%">저장하기</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 구역 수정 팝업 -->
+    <div id="vlan-edit-modal" class="modal-overlay" onclick="if (event.target === this) closeVlanEditModal()">
+        <div class="card modal-card">
+            <button class="modal-close" onclick="closeVlanEditModal()" aria-label="닫기">✕</button>
+            <h3 class="text-lg font-extrabold mb-4">✎ 구역 정보 수정</h3>
+            <form onsubmit="event.preventDefault(); saveVlanEdit();" class="grid gap-3">
+                <div>
+                    <label class="block text-[11px] font-semibold t-muted mb-1">구역 이름</label>
+                    <input id="edit-vlan-name" type="text" class="sel-input" style="width:100%">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold t-muted mb-1">IP 대역 (선택)</label>
+                    <input id="edit-vlan-cidr" type="text" class="sel-input mono" style="width:100%">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold t-muted mb-1">구역 색상</label>
+                    <input id="edit-vlan-color" type="color" class="color-input">
+                </div>
+                <button type="submit" class="btn primary" style="width:100%">저장하기</button>
+            </form>
+        </div>
+    </div>
+
     <script>
         const $ = id => document.getElementById(id);
         const pad = n => String(n).padStart(2, '0');
@@ -792,6 +869,38 @@
         }
         animate3DOrb();
 
+        /* ═════════ 1-1. 실제 환경 / 시뮬레이션 모드 ═════════ */
+        // URL에 ?env=real 이 붙어있으면 '실제 환경' 탭이에요. 같은 코드를 그대로 쓰되
+        // 이 값 하나로 가상 데이터를 채울지 말지, 배너를 어떻게 보여줄지를 결정해요.
+        const IS_REAL_ENV = new URLSearchParams(location.search).get('env') === 'real';
+        const SESSION_KEY = '8bit_pulse_session';
+
+        function toggleEnvironment() {
+            const url = new URL(location.href);
+            if (IS_REAL_ENV) url.searchParams.delete('env');
+            else url.searchParams.set('env', 'real');
+            location.href = url.toString();
+        }
+
+        function applyEnvBanner() {
+            const badge = $('env-badge');
+            const btn = $('env-toggle-btn');
+            if (badge) {
+                if (IS_REAL_ENV) {
+                    badge.textContent = '🟠 실제 환경';
+                    badge.style.setProperty('--lv', 'var(--orange)');
+                } else {
+                    badge.textContent = '🔵 시뮬레이션';
+                    badge.style.setProperty('--lv', 'var(--cyan)');
+                }
+            }
+            if (btn) {
+                btn.classList.toggle('real', IS_REAL_ENV);
+                btn.dataset.label = IS_REAL_ENV ? '시뮬레이션으로 이동' : '실제 환경으로 이동';
+            }
+            document.title = (IS_REAL_ENV ? '[실제 환경] ' : '[시뮬레이션] ') + 'AI 기반 네트워크 장애 예측 및 통합관제 시스템';
+        }
+
         /* ═════════ 2. 로그인 · 잠금 로직 ═════════ */
         let failCount = 0;
         const lockDurations = { 5: 30, 6: 60, 7: 180, 8: 600, 9: 1200 };
@@ -815,6 +924,7 @@
                 
                 state.isAdmin = true;
                 state.username = name;
+                saveSession();
                 showDashboard();
                 return;
             }
@@ -828,6 +938,7 @@
                 
                 state.isAdmin = false;
                 state.username = name;
+                saveSession();
                 showDashboard();
                 return;
             }
@@ -854,7 +965,10 @@
             $('dashboard-screen').classList.add('show');
             $('nav-devices').classList.toggle('hide', !state.isAdmin);
             $('monitored-devices-card').classList.toggle('hide', !state.isAdmin);
+            const vlanForm = $('vlan-form'); if (vlanForm) vlanForm.classList.toggle('hide', !state.isAdmin);
+            const deviceFormCard = $('device-form-card'); if (deviceFormCard) deviceFormCard.classList.toggle('hide', !state.isAdmin);
             $('user-role-badge').textContent = state.isAdmin ? `👑 관리자 (${state.username})` : `👤 일반 사용자 (${state.username})`;
+            renderVlanZones();
             switchView('overview');
         }
 
@@ -862,7 +976,29 @@
             $('dashboard-screen').classList.remove('show');
             $('login-screen').classList.remove('hide');
             $('password-input').value = '';
+            clearSession();
             if (!orbAnimationId) animate3DOrb();
+        }
+
+        // 로그인 정보를 localStorage에 저장/삭제해요. 같은 브라우저에서 8bit 버튼으로 새 탭(실제 환경)을
+        // 열어도 다시 로그인하지 않고 그대로 이어서 쓸 수 있게 하기 위함이에요.
+        function saveSession() {
+            try { localStorage.setItem(SESSION_KEY, JSON.stringify({ isAdmin: state.isAdmin, username: state.username })); } catch (e) {}
+        }
+        function clearSession() {
+            try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+        }
+        function restoreSession() {
+            try {
+                const raw = localStorage.getItem(SESSION_KEY);
+                if (!raw) return false;
+                const s = JSON.parse(raw);
+                if (!s || !s.username) return false;
+                state.isAdmin = !!s.isAdmin;
+                state.username = s.username;
+                showDashboard();
+                return true;
+            } catch (e) { return false; }
         }
 
         /* ═════════ 3. 데이터 모델 ═════════ */
@@ -962,6 +1098,16 @@
               action: '별도 조치가 필요하지 않아요. 계속 모니터링을 진행하세요.', affected: [] }
         ];
 
+        // 실제 환경 탭이면 시뮬레이션용으로 미리 채워둔 가상 장비·경보 데이터를 전부 비워요.
+        // 이후에는 '신규 장비 등록' 폼으로 실제 장비를 하나씩 넣어야만 화면에 나타나요.
+        if (IS_REAL_ENV) {
+            NODE_KEYS.forEach(k => delete NODES[k]);
+            NODE_KEYS.length = 0;
+            EDGES.length = 0;
+            alerts.length = 0;
+            alertSeq = 0;
+        }
+
         /* ═════════ 4. 화면 전환 ═════════ */
         const VIEWS = {
             overview:  ['안녕하세요', '지금 네트워크 상태를 한눈에 확인하세요'],
@@ -995,7 +1141,7 @@
         /* ═════════ 5. 토폴로지 · 장비 UI 생성 ═════════ */
         function buildNodeUI() {
             // 토폴로지 맵: x/y 좌표가 있는(=처음부터 배치된) 장비만 그려요. 새로 등록한 장비는 아래 VLAN 구역 카드에서 확인할 수 있어요.
-            const lines = EDGES.map(([a, b]) => `<line id="ln-${b}" x1="${NODES[a].x}%" y1="${NODES[a].y}%" x2="${NODES[b].x}%" y2="${NODES[b].y}%"/>`).join('');
+            const lines = EDGES.filter(([a, b]) => NODES[a] && NODES[b]).map(([a, b]) => `<line id="ln-${b}" x1="${NODES[a].x}%" y1="${NODES[a].y}%" x2="${NODES[b].x}%" y2="${NODES[b].y}%"/>`).join('');
             const btns = NODE_KEYS.filter(k => NODES[k].x != null).map(k => {
                 const n = NODES[k];
                 const vc = (vlanById(n.vlan) || {}).color || 'var(--dim)';
@@ -1033,6 +1179,7 @@
         }
 
         function selectNode(key) {
+            if (!NODES[key]) return;
             state.selected = key;
             NODE_KEYS.forEach(k => { const el = $('tn-' + k); if (el) el.classList.toggle('sel', k === key); });
             updateInspector();
@@ -1040,6 +1187,14 @@
 
         function updateInspector() {
             const n = NODES[state.selected];
+            if (!n) {
+                $('inspect-node-id').textContent = '등록된 장비 없음';
+                $('inspect-cpu-text').textContent = '-'; $('inspect-cpu-bar').style.width = '0%';
+                $('inspect-ram-text').textContent = '-'; $('inspect-ram-bar').style.width = '0%';
+                $('inspect-ip').textContent = '-'; $('inspect-owner').textContent = '-';
+                $('inspect-type').textContent = '-'; $('inspect-status').textContent = '아래 폼으로 장비를 등록해 보세요';
+                return;
+            }
             $('inspect-node-id').textContent = n.name;
             $('inspect-cpu-text').textContent = `${Math.round(n.lc)}%`;
             $('inspect-cpu-bar').style.width = `${n.lc}%`;
@@ -1078,6 +1233,11 @@
                 const chips = members.length ? members.map(k => {
                     const n = NODES[k];
                     const moveOpts = vlans.map(vv => `<option value="${vv.id}" ${vv.id === v.id ? 'selected' : ''}>${vv.name}</option>`).join('');
+                    const controls = state.isAdmin
+                        ? `<select class="sel-input vlan-move" onchange="moveNodeVlan('${k}', this.value)">${moveOpts}</select>
+                           <button class="chip-edit" onclick="openDeviceEditModal('${k}')" title="장비 수정">✎</button>
+                           <button class="chip-del" onclick="deleteDevice('${k}')" title="장비 삭제">✕</button>`
+                        : '';
                     return `
                         <div class="vlan-chip">
                             <button class="vlan-chip-main" onclick="openNode('${k}')" title="상세 진단 보기">
@@ -1085,9 +1245,13 @@
                                 <span class="font-semibold">${n.name}</span>
                                 <span class="mono t-dim">${n.ip}</span>
                             </button>
-                            <select class="sel-input vlan-move" onchange="moveNodeVlan('${k}', this.value)">${moveOpts}</select>
+                            ${controls}
                         </div>`;
                 }).join('') : `<p class="text-xs t-dim py-2">이 구역에 배치된 장비가 없어요.</p>`;
+                const zoneAdminBtns = state.isAdmin
+                    ? `<button class="vlan-edit" onclick="openVlanEditModal('${v.id}')" title="구역 수정">✎</button>
+                       <button class="vlan-del" onclick="deleteVlan('${v.id}')" title="구역 삭제">✕</button>`
+                    : '';
                 return `
                     <div class="vlan-zone" style="--vzc:${v.color}">
                         <div class="vlan-zone-head">
@@ -1095,7 +1259,7 @@
                             <span class="font-bold text-sm">${v.name}</span>
                             ${v.cidr ? `<span class="tag mono">${v.cidr}</span>` : ''}
                             <span class="text-xs t-dim ml-auto">${members.length}대</span>
-                            <button class="vlan-del" onclick="deleteVlan('${v.id}')" title="구역 삭제">✕</button>
+                            ${zoneAdminBtns}
                         </div>
                         <div class="vlan-chip-list">${chips}</div>
                     </div>`;
@@ -1110,6 +1274,7 @@
         }
 
         function createVlan() {
+            if (!state.isAdmin) return;
             const nameInput = $('new-vlan-name');
             const name = nameInput.value.trim();
             if (!name) { toast('구역 이름을 입력해 주세요.'); return; }
@@ -1124,6 +1289,7 @@
         }
 
         function deleteVlan(id) {
+            if (!state.isAdmin) return;
             const members = NODE_KEYS.filter(k => NODES[k].vlan === id);
             if (members.length) { toast('먼저 소속 장비를 다른 구역으로 옮겨주세요.'); return; }
             if (vlans.length <= 1) { toast('구역이 최소 1개는 있어야 해요.'); return; }
@@ -1134,6 +1300,7 @@
         }
 
         function moveNodeVlan(key, vlanId) {
+            if (!state.isAdmin) return;
             if (!NODES[key]) return;
             NODES[key].vlan = vlanId;
             renderVlanZones();
@@ -1141,6 +1308,7 @@
 
         /* ═════════ 5-2. 신규 장비 등록 ═════════ */
         function createDevice() {
+            if (!state.isAdmin) return;
             const nameInput = $('new-device-name');
             const ipInput = $('new-device-ip');
             const name = nameInput.value.trim();
@@ -1178,6 +1346,85 @@
             toast(`${name} 장비가 등록됐어요.`);
 
             nameInput.value = ''; ipInput.value = ''; ownerInput.value = '';
+        }
+
+        // 장비 삭제: 관리자만 접근하는 버튼에서 호출돼요.
+        function deleteDevice(key) {
+            if (!state.isAdmin || !NODES[key]) return;
+            const name = NODES[key].name;
+            delete NODES[key];
+            const idx = NODE_KEYS.indexOf(key);
+            if (idx !== -1) NODE_KEYS.splice(idx, 1);
+
+            buildNodeUI();
+            renderVlanZones();
+            if (state.isAdmin) renderDevices();
+            if (state.selected === key) { state.selected = NODE_KEYS[0] || null; }
+            updateInspector();
+            lucide.createIcons();
+            toast(`${name} 장비가 삭제됐어요.`);
+        }
+
+        let editingDeviceKey = null;
+        function openDeviceEditModal(key) {
+            if (!state.isAdmin || !NODES[key]) return;
+            const n = NODES[key];
+            editingDeviceKey = key;
+            $('edit-device-name').value = n.name;
+            $('edit-device-ip').value = n.ip;
+            $('edit-device-owner').value = n.owner || '';
+            const typeVal = Object.keys(DEVICE_TYPES).find(t => DEVICE_TYPES[t].icon === n.icon) || 'server';
+            $('edit-device-type').value = typeVal;
+            $('device-edit-modal').classList.add('show');
+        }
+        function closeDeviceEditModal() { $('device-edit-modal').classList.remove('show'); editingDeviceKey = null; }
+        function saveDeviceEdit() {
+            if (!editingDeviceKey || !NODES[editingDeviceKey]) { closeDeviceEditModal(); return; }
+            const name = $('edit-device-name').value.trim();
+            const ip = $('edit-device-ip').value.trim();
+            if (!name || !ip) { toast('장비 이름과 IP 주소를 입력해 주세요.'); return; }
+            if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) { toast('IP 형식을 확인해 주세요. 예) 192.168.1.20'); return; }
+
+            const typeVal = $('edit-device-type').value;
+            const dt = DEVICE_TYPES[typeVal] || DEVICE_TYPES.server;
+            const n = NODES[editingDeviceKey];
+            n.name = name; n.short = name.length > 10 ? name.slice(0, 9) + '…' : name;
+            n.ip = ip; n.type = dt.typeLabel; n.icon = dt.icon;
+            n.owner = $('edit-device-owner').value.trim() || n.owner;
+
+            buildNodeUI();
+            renderVlanZones();
+            if (state.isAdmin) renderDevices();
+            updateInspector();
+            lucide.createIcons();
+            toast(`${name} 장비 정보가 수정됐어요.`);
+            closeDeviceEditModal();
+        }
+
+        let editingVlanId = null;
+        function openVlanEditModal(id) {
+            if (!state.isAdmin) return;
+            const v = vlanById(id);
+            if (!v) return;
+            editingVlanId = id;
+            $('edit-vlan-name').value = v.name;
+            $('edit-vlan-cidr').value = v.cidr || '';
+            $('edit-vlan-color').value = v.color || '#818cf8';
+            $('vlan-edit-modal').classList.add('show');
+        }
+        function closeVlanEditModal() { $('vlan-edit-modal').classList.remove('show'); editingVlanId = null; }
+        function saveVlanEdit() {
+            const v = vlanById(editingVlanId);
+            if (!v) { closeVlanEditModal(); return; }
+            const name = $('edit-vlan-name').value.trim();
+            if (!name) { toast('구역 이름을 입력해 주세요.'); return; }
+            v.name = name;
+            v.cidr = $('edit-vlan-cidr').value.trim();
+            v.color = $('edit-vlan-color').value;
+            renderVlanZones();
+            refreshVlanSelects();
+            toast(`'${name}' 구역 정보가 수정됐어요.`);
+            closeVlanEditModal();
         }
 
         function tickNodes() {
@@ -1231,7 +1478,10 @@
             $('alert-modal').classList.add('show');
         }
         function closeAlertModal() { $('alert-modal').classList.remove('show'); }
-        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAlertModal(); });
+        document.addEventListener('keydown', e => {
+            if (e.key !== 'Escape') return;
+            closeAlertModal(); closeDeviceEditModal(); closeVlanEditModal();
+        });
         function setLogFilter(f) {
             state.logFilter = f;
             document.querySelectorAll('.fchip').forEach(c => c.classList.toggle('on', c.dataset.f === f));
@@ -1706,9 +1956,29 @@
             $('clock-time').textContent = d.toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
         }
 
+        // 실제 환경 탭에서는 '장애 시뮬레이션' 카드를 숨기고, 스탯 카드도 0/빈 상태로 시작해요.
+        // 가짜 랜덤 트래픽·CPU·위험도가 자동으로 움직이는 tick() 인터벌도 켜지 않아요.
+        function applyRealEnvEmptyState() {
+            if (!IS_REAL_ENV) return;
+            const simCard = $('sim-card'); if (simCard) simCard.style.display = 'none';
+
+            state.ingress = 0; state.risk = 0; state.loss = 0;
+            trafficHistory.fill(0); riskHistory.fill(0); lossHistory.fill(0);
+
+            $('stat-traffic-in').textContent = '0 Mbps';
+            $('stat-traffic-trend').textContent = '등록된 장비가 없어요';
+            $('stat-devices').textContent = '0 / 0 Online';
+            $('stat-packet-loss').textContent = '0%';
+            $('stat-ai-risk').textContent = '0%';
+            $('stat-ai-bar').style.width = '0%';
+            $('stat-ai-badge').textContent = '데이터 없음';
+            $('system-status-text').textContent = '실제 장비 등록 대기 중';
+        }
+
         /* ═════════ 초기화 ═════════ */
         updateClock();
         setInterval(updateClock, 1000);
+        applyEnvBanner();
         buildNodeUI();
         renderVlanZones();
         refreshVlanSelects();
@@ -1718,7 +1988,12 @@
         addChatBubble('ai', '안녕하세요! 위 버튼을 누르거나, 궁금한 점을 아래에 직접 입력해 보세요 😊', { typed: true });
         renderBackups();
         lucide.createIcons();
-        setInterval(tick, 1000);
+        applyRealEnvEmptyState();
+        drawAll();
+        if (!restoreSession()) {
+            // 로그인 세션이 없으면 기존처럼 로그인 화면부터 시작해요.
+        }
+        if (!IS_REAL_ENV) setInterval(tick, 1000);
     </script>
 </body>
 </html>
