@@ -45,14 +45,14 @@
         ::-webkit-scrollbar-thumb { background: var(--track); border-radius: 4px; }
         :focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
 
-        /* 상태 색상 헬퍼: 요소에 lv-ok / lv-warn / lv-crit / lv-info 를 붙이면 --lv 가 정해짐 */
+        /* 상태 색상 헬퍼 */
         .lv-ok { --lv: var(--green); } .lv-warn { --lv: var(--amber); } .lv-crit { --lv: var(--red); } .lv-info { --lv: var(--cyan); }
         .c-lv { color: var(--lv); }
         .c-cyan { color: var(--cyan); } .c-amber { color: var(--amber); } .c-indigo { color: var(--indigo); } .c-green { color: var(--green); }
         .c-purple { color: var(--purple); } .c-orange { color: var(--orange); }
         .t-muted { color: var(--muted); } .t-dim { color: var(--dim); }
 
-        /* ───────── 로그인 (기존 유지) ───────── */
+        /* ───────── 로그인 ───────── */
         .login-card {
             background: rgba(255,255,255,.05); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
             border: 1px solid rgba(255,255,255,.1); box-shadow: 0 20px 50px rgba(0,0,0,.5);
@@ -378,7 +378,7 @@
 </head>
 <body class="antialiased selection:bg-indigo-500 selection:text-white">
 
-    <!-- ═════════ 1. 로그인 화면 (기존 유지) ═════════ -->
+    <!-- ═════════ 1. 로그인 화면 ═════════ -->
     <div id="login-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#070913] p-4 overflow-y-auto text-slate-100">
         <div class="mb-3 relative flex items-center justify-center">
             <canvas id="networkOrbCanvas" width="180" height="180" class="drop-shadow-[0_0_40px_rgba(99,102,241,0.5)]"></canvas>
@@ -429,7 +429,7 @@
         </div>
     </div>
 
-    <!-- ═════════ 2. 통합관제 앱 (사이드바 + 콘텐츠) ═════════ -->
+    <!-- ═════════ 2. 통합관제 앱 ═════════ -->
     <div id="dashboard-screen" class="app">
 
         <!-- 좌측 슬림 사이드바 -->
@@ -709,7 +709,7 @@
                     </form>
                     <div class="overflow-x-auto">
                         <table class="tbl">
-                            <thead><tr><th>장비 A</th><th></th><th>장비 B</th><th></th></tr></thead>
+                            <thead id="link-thead"><tr><th>장비 A</th><th></th><th>장비 B</th><th></th></tr></thead>
                             <tbody id="link-body"></tbody>
                         </table>
                     </div>
@@ -796,7 +796,7 @@
                 </div>
             </section>
 
-            <!-- ───── VIEW: 기기 관리 (관리자: 편집 / 일반 사용자: 보기 전용) ───── -->
+            <!-- ───── VIEW: 기기 관리 ───── -->
             <section class="view" data-view="devices">
                 <div class="card">
                     <div class="flex items-center justify-between mb-3">
@@ -921,7 +921,7 @@
         const setLv = (el, lv) => { if (!el) return; el.classList.remove('lv-ok', 'lv-warn', 'lv-crit', 'lv-info'); el.classList.add('lv-' + lv); };
         function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200); }
 
-        /* ═════════ 1. 로그인 화면 3D Orb (기존 유지) ═════════ */
+        /* ═════════ 1. 로그인 화면 3D Orb ═════════ */
         const orbCanvas = $('networkOrbCanvas');
         const orbCtx = orbCanvas.getContext('2d');
         const orbNodes = [];
@@ -955,8 +955,6 @@
         animate3DOrb();
 
         /* ═════════ 1-1. 실제 환경 / 시뮬레이션 모드 ═════════ */
-        // URL에 ?env=real 이 붙어있으면 '실제 환경' 탭이에요. 같은 코드를 그대로 쓰되
-        // 이 값 하나로 가상 데이터를 채울지 말지, 배너를 어떻게 보여줄지를 결정해요.
         const IS_REAL_ENV = new URLSearchParams(location.search).get('env') === 'real';
         const SESSION_KEY = '8bit_pulse_session';
 
@@ -997,10 +995,8 @@
             const name = $('username-input').value.trim();
             const pw = pwd.value;
 
-            // 관리자 권한 허용 이름: '이지환' 또는 '8bit'
             const isAdminName = (name === '이지환' || name === '8bit');
 
-            // 1. 관리자 로그인 (이지환/8bit + 비밀번호 'admin')
             if (isAdminName && pw === 'admin') {
                 failCount = 0;
                 $('fail-count').textContent = 0;
@@ -1014,7 +1010,6 @@
                 return;
             }
 
-            // 2. 일반 사용자 로그인 (관리자 외 다른 이름 + 비밀번호 '8bit')
             if (!isAdminName && pw === '8bit') {
                 failCount = 0;
                 $('fail-count').textContent = 0;
@@ -1028,7 +1023,6 @@
                 return;
             }
 
-            // 3. 비밀번호/이름 실패 처리
             failCount++;
             $('fail-count').textContent = failCount;
             $('fail-count-msg').classList.remove('hide');
@@ -1048,17 +1042,22 @@
             if (orbAnimationId) { cancelAnimationFrame(orbAnimationId); orbAnimationId = null; }
             $('login-screen').classList.add('hide');
             $('dashboard-screen').classList.add('show');
-            $('nav-devices').classList.remove('hide'); // 기기 관리 메뉴는 관리자 · 일반 사용자 모두에게 보여요 (일반 사용자는 보기 전용)
+            $('nav-devices').classList.remove('hide');
             $('monitored-devices-card').classList.toggle('hide', !state.isAdmin);
+            
+            // 관리자 전용 UI 숨김/노출 처리
             const vlanForm = $('vlan-form'); if (vlanForm) vlanForm.classList.toggle('hide', !state.isAdmin);
             const deviceFormCard = $('device-form-card'); if (deviceFormCard) deviceFormCard.classList.toggle('hide', !state.isAdmin);
+            const linkForm = $('link-form'); if (linkForm) linkForm.classList.toggle('hide', !state.isAdmin); // 연결하기 폼 제어
             const topoHint = $('topo-hint-admin'); if (topoHint) topoHint.classList.toggle('hide', !state.isAdmin);
             const devSaveBtn = $('device-save-btn'); if (devSaveBtn) devSaveBtn.classList.toggle('hide', !state.isAdmin);
             const devReadonlyBadge = $('devices-readonly-badge'); if (devReadonlyBadge) devReadonlyBadge.classList.toggle('hide', state.isAdmin);
             const backupControls = $('backup-controls'); if (backupControls) backupControls.classList.toggle('hide', !state.isAdmin);
             const backupReadonlyNote = $('backup-readonly-note'); if (backupReadonlyNote) backupReadonlyNote.classList.toggle('hide', state.isAdmin);
+            
             $('user-role-badge').textContent = state.isAdmin ? `👑 관리자 (${state.username})` : `👤 일반 사용자 (${state.username})`;
             renderVlanZones();
+            renderConnections();
             switchView('overview');
         }
 
@@ -1070,8 +1069,6 @@
             if (!orbAnimationId) animate3DOrb();
         }
 
-        // 로그인 정보를 localStorage에 저장/삭제해요. 같은 브라우저에서 8bit 버튼으로 새 탭(실제 환경)을
-        // 열어도 다시 로그인하지 않고 그대로 이어서 쓸 수 있게 하기 위함이에요.
         function saveSession() {
             try { localStorage.setItem(SESSION_KEY, JSON.stringify({ isAdmin: state.isAdmin, username: state.username })); } catch (e) {}
         }
@@ -1111,26 +1108,21 @@
         NODE_KEYS.forEach(k => { const n = NODES[k]; n.lc = n.cpu; n.lr = n.ram; n.lv = n.cpu >= 70 ? 'warn' : 'ok'; });
         const EDGES = [['core-router', 'dist-sw-1'], ['core-router', 'dist-sw-2'], ['dist-sw-1', 'server-db'], ['dist-sw-1', 'server-api'], ['dist-sw-2', 'workstation-pc'], ['dist-sw-2', 'mobile-gateway']];
         const LVC = { ok: 'var(--green)', warn: 'var(--amber)', crit: 'var(--red)' };
-        // 두 장비 사이의 선(연결)마다 고유 id를 만들어요. 한 장비가 여러 개의 연결을 가질 수도 있기 때문에,
-        // 예전처럼 '도착 장비 id'만으로는 구분할 수 없어서 '출발-도착' 조합으로 id를 만들어요.
         function edgeId(a, b) { return `ln-${a}__${b}`; }
         function edgeExists(a, b) { return EDGES.some(([x, y]) => (x === a && y === b) || (x === b && y === a)); }
 
         /* ═════════ IP 주소 형식 검증 ═════════ */
-        // 점(.)으로 구분된 4자리 숫자인지, 각 자리가 0~255 범위인지까지 정확히 검사해요.
-        // (예: "999.1.1.1"이나 "10.10.0" 처럼 자릿수가 틀리거나 범위를 벗어나면 false)
         function isValidIp(ip) {
             if (typeof ip !== 'string') return false;
             const parts = ip.trim().split('.');
             if (parts.length !== 4) return false;
             return parts.every(p => {
-                if (!/^\d{1,3}$/.test(p)) return false;   // 숫자가 아니거나 자릿수 이상
-                if (p.length > 1 && p[0] === '0') return false; // "01"처럼 불필요한 0으로 시작 금지
+                if (!/^\d{1,3}$/.test(p)) return false;
+                if (p.length > 1 && p[0] === '0') return false;
                 const n = Number(p);
                 return n >= 0 && n <= 255;
             });
         }
-        // 입력창 아래 에러 문구를 보여주고, 테두리를 빨갛게 표시한 뒤 다시 입력하도록 포커스를 돌려줘요.
         function showIpError(inputEl) {
             if (!inputEl) return;
             inputEl.classList.add('input-error');
@@ -1140,7 +1132,6 @@
             inputEl.focus();
             inputEl.select();
         }
-        // 입력값을 고치기 시작하면 에러 표시를 지워요.
         function clearIpError(inputEl) {
             if (!inputEl) return;
             inputEl.classList.remove('input-error');
@@ -1149,7 +1140,6 @@
         }
         const OWNERS = ['admin (이지환)', 'user1 (8bit)'];
 
-        // VLAN(구역) 목록: 부서·구역별로 장비를 나눠서 묶어요. 나중에 실제 DB로 옮길 때도 이 구조 그대로 테이블화하면 돼요.
         let vlanSeq = 0;
         const vlans = [
             { id: 'backbone', name: 'Backbone (백본)', color: '#22d3ee', cidr: '192.168.1.0/24' },
@@ -1158,7 +1148,6 @@
         ];
         function vlanById(id) { return vlans.find(v => v.id === id); }
 
-        // 신규 장비 등록 폼에서 고를 수 있는 장치 모양(아이콘) 목록. 아래 HTML의 <option value="...">와 값이 일치해야 해요.
         const DEVICE_TYPES = {
             router: { icon: 'router', typeLabel: 'Router' },
             switch: { icon: 'network', typeLabel: 'Switch' },
@@ -1169,7 +1158,6 @@
         };
         let deviceSeq = 0;
 
-        // 장애 시뮬레이션 종류별 설정: 장비 부하 증가량 · 색상 · 발생 원인 · 권장 조치를 한 곳에서 관리
         const SIM_TYPES = {
             ddos: {
                 tone: 'red', lv: 'crit', title: 'DDoS 부하 발생됨',
@@ -1200,7 +1188,6 @@
                 boost: { 'dist-sw-1': [95, 80] }
             }
         };
-        // 기존 코드 호환용 별칭 (장비 부하 계산에서 사용)
         const BOOST = Object.fromEntries(Object.entries(SIM_TYPES).map(([k, v]) => [k, v.boost]));
         function nodeStatus(n) { return n.lv === 'crit' ? '✖ Overload — 즉시 조치 필요' : n.lv === 'warn' ? '▲ High Load Warning' : n.status; }
 
@@ -1224,8 +1211,6 @@
               action: '별도 조치가 필요하지 않아요. 계속 모니터링을 진행하세요.', affected: [] }
         ];
 
-        // 실제 환경 탭이면 시뮬레이션용으로 미리 채워둔 가상 장비·경보 데이터를 전부 비워요.
-        // 이후에는 '신규 장비 등록' 폼으로 실제 장비를 하나씩 넣어야만 화면에 나타나요.
         if (IS_REAL_ENV) {
             NODE_KEYS.forEach(k => delete NODES[k]);
             NODE_KEYS.length = 0;
@@ -1245,7 +1230,7 @@
         };
 
         function switchView(name) {
-            if (state.view === 'guide' && name !== 'guide') resetChat(); // 가이드 탭을 벗어나면 대화 내용 초기화
+            if (state.view === 'guide' && name !== 'guide') resetChat();
             state.view = name;
             document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.dataset.view === name));
             document.querySelectorAll('.nav-btn[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === name));
@@ -1255,7 +1240,6 @@
             wave.classList.toggle('hide', name !== 'overview');
             wave.classList.remove('waving');
             if (name === 'overview') { void wave.offsetWidth; wave.classList.add('waving'); }
-            // 기기 관리 화면은 관리자/일반 사용자 안내 문구가 달라요.
             $('page-sub').textContent = (name === 'devices' && !state.isAdmin)
                 ? '기기별 소유자 할당과 DB 백업 기록을 확인할 수 있어요 (보기 전용)'
                 : t[1];
@@ -1268,8 +1252,6 @@
 
         /* ═════════ 5. 토폴로지 · 장비 UI 생성 ═════════ */
         function buildNodeUI() {
-            // 토폴로지 맵: x/y 좌표가 있는(=처음부터 배치된) 장비만 그려요. 새로 등록한 장비는 아래 VLAN 구역 카드에서 확인할 수 있어요.
-            // 한 장비가 여러 연결을 가질 수 있어서, 선마다 'ln-출발_도착' 형태의 고유 id를 붙여요.
             const lines = EDGES.filter(([a, b]) => NODES[a] && NODES[b]).map(([a, b]) => `<line id="${edgeId(a, b)}" x1="${NODES[a].x}%" y1="${NODES[a].y}%" x2="${NODES[b].x}%" y2="${NODES[b].y}%"/>`).join('');
             const btns = NODE_KEYS.filter(k => NODES[k].x != null).map(k => {
                 const n = NODES[k];
@@ -1285,12 +1267,10 @@
             refreshLinkSelects();
             renderConnections();
 
-            // 팀 역할
             $('roles-grid').innerHTML = ROLES.map(r => `<div class="role"><div class="avatar">${r.name[0]}</div><div><p class="text-sm font-bold">${r.name}</p><p class="text-xs t-muted">${r.role}</p></div></div>`).join('');
         }
 
         /* ═════════ 5-4. 장비 연결(선) 관리 ═════════ */
-        // 신규 장비 등록 폼 · 우클릭 팝업 · 연결 관리 폼의 <select>들을 항상 최신 장비 목록으로 채워요.
         function refreshLinkSelects() {
             const opts = NODE_KEYS.map(k => `<option value="${k}">${NODES[k].name}</option>`).join('');
             const withNone = `<option value="">연결 안 함</option>` + opts;
@@ -1299,7 +1279,6 @@
             const from = $('link-from'); if (from) { const prev = from.value; from.innerHTML = opts; if (NODES[prev]) from.value = prev; }
             const to = $('link-to'); if (to) {
                 const prev = to.value; to.innerHTML = opts;
-                // 장비 A와 다른 장비가 기본으로 선택되도록 해요.
                 if (NODES[prev] && prev !== (from ? from.value : '')) to.value = prev;
                 else if (to.options.length > 1 && from) to.selectedIndex = (from.selectedIndex + 1) % to.options.length;
             }
@@ -1309,7 +1288,6 @@
             if (!from || !to) return;
             const tmp = from.value; from.value = to.value; to.value = tmp;
         }
-        // 관리자가 두 장비를 골라 연결선을 새로 추가해요.
         function connectDevices() {
             if (!state.isAdmin) return;
             const a = $('link-from').value, b = $('link-to').value;
@@ -1321,7 +1299,6 @@
             buildNodeUI(); updateNodeUI(); lucide.createIcons();
             toast(`${NODES[a].name} ↔ ${NODES[b].name} 연결선이 추가됐어요.`);
         }
-        // 연결선을 삭제해요.
         function disconnectEdge(a, b) {
             if (!state.isAdmin) return;
             const idx = EDGES.findIndex(([x, y]) => x === a && y === b);
@@ -1329,22 +1306,40 @@
             buildNodeUI(); updateNodeUI(); lucide.createIcons();
             toast('연결이 해제됐어요.');
         }
-        // 연결 관리 카드의 목록 테이블을 다시 그려요.
+
+        /* 일반 사용자는 해제 컬럼 제거 및 연결 해제 버튼 숨김 */
         function renderConnections() {
             const body = $('link-body');
+            const thead = $('link-thead');
             if (!body) return;
+
+            if (thead) {
+                thead.innerHTML = state.isAdmin 
+                    ? `<tr><th>장비 A</th><th></th><th>장비 B</th><th></th></tr>` 
+                    : `<tr><th>장비 A</th><th></th><th>장비 B</th></tr>`;
+            }
+
             const rows = EDGES.filter(([a, b]) => NODES[a] && NODES[b]);
-            body.innerHTML = rows.length ? rows.map(([a, b]) => `
+            if (!rows.length) {
+                const colSpan = state.isAdmin ? 4 : 3;
+                body.innerHTML = `<tr><td colspan="${colSpan}" class="text-center t-dim py-6">아직 등록된 연결이 없어요.</td></tr>`;
+                return;
+            }
+
+            body.innerHTML = rows.map(([a, b]) => {
+                const deleteAction = state.isAdmin 
+                    ? `<td><button class="text-xs font-semibold" style="color:var(--red)" onclick="disconnectEdge('${a}','${b}')">연결 해제</button></td>` 
+                    : ``;
+                return `
                 <tr>
                     <td class="font-semibold">${NODES[a].name}</td>
                     <td class="t-dim text-center">↔</td>
                     <td class="font-semibold">${NODES[b].name}</td>
-                    <td><button class="text-xs font-semibold" style="color:var(--red)" onclick="disconnectEdge('${a}','${b}')">연결 해제</button></td>
-                </tr>`).join('')
-                : `<tr><td colspan="4" class="text-center t-dim py-6">아직 등록된 연결이 없어요. 위에서 두 장비를 골라 연결해 보세요.</td></tr>`;
+                    ${deleteAction}
+                </tr>`;
+            }).join('');
         }
 
-        // 대시보드 장비 칩 — 신규 장비를 추가한 뒤에도 다시 호출해서 목록을 갱신해요.
         function renderNodeChips() {
             $('node-chips').innerHTML = NODE_KEYS.map(k => `
                 <button class="nchip lv-ok" id="nc-${k}" onclick="openNode('${k}')">
@@ -1352,7 +1347,6 @@
                 </button>`).join('');
         }
 
-        // 분석 화면 장비 테이블 — 신규 장비를 추가한 뒤에도 다시 호출해서 목록을 갱신해요.
         function renderNodeTable() {
             $('node-body').innerHTML = NODE_KEYS.map(k => `
                 <tr class="click lv-ok" id="tr-${k}" onclick="openNode('${k}')">
@@ -1406,7 +1400,6 @@
                 const trt = $('trt-' + k); if (trt) trt.textContent = Math.round(n.lr) + '%';
                 const ts = $('ts-' + k); if (ts) ts.textContent = nodeStatus(n);
             });
-            // 연결선은 장비 하나당 여러 개일 수 있어서, EDGES 전체를 돌면서 도착 장비의 상태색으로 칠해요.
             EDGES.forEach(([a, b]) => {
                 const ln = $(edgeId(a, b));
                 if (ln && NODES[b]) ln.style.stroke = LVC[NODES[b].lv];
@@ -1497,8 +1490,6 @@
         }
 
         /* ═════════ 5-2. 신규 장비 등록 ═════════ */
-
-        // 공간 자율 배치: 좌표를 지정하지 않고 등록하면, 기존 장비와 겹치지 않는 빈 자리를 스스로 찾아서 놓아요.
         function autoLayoutPosition() {
             const bounds = { xMin: 8, xMax: 92, yMin: 12, yMax: 88 };
             const minDist = 15;
@@ -1520,7 +1511,6 @@
             return fallback || { x: 50, y: 50 };
         }
 
-        // 서로 너무 가깝거나 겹친 노드들을 부드럽게 밀어내서, 새 장비를 추가/삭제할 때마다 맵 전체를 보기 좋게 재정렬해요.
         function relaxLayout() {
             const keys = NODE_KEYS.filter(k => NODES[k].x != null);
             if (keys.length < 2) return;
@@ -1548,7 +1538,6 @@
             }
         }
 
-        // IP를 비워두고 등록하면, 소속 구역(VLAN)의 대역을 기준으로 아직 쓰이지 않은 주소를 하나 찾아 자동으로 채워요.
         function nextAvailableIp(vlanId) {
             const vlan = vlanById(vlanId);
             let base = '10.10.0.';
@@ -1564,8 +1553,6 @@
             return base + Math.floor(2 + Math.random() * 252);
         }
 
-        // 장비 등록의 공용 처리부: 일반 폼 등록과 토폴로지 맵 우클릭 빠른 등록이 모두 이 함수를 거쳐요.
-        // 여기서 buildNodeUI()를 직접 호출하기 때문에, 신규 장비가 토폴로지 맵에 즉시(실시간으로) 반영돼요.
         function commitNewDevice({ name, ip, typeVal, vlanId, owner, x, y, linkTo }) {
             const dt = DEVICE_TYPES[typeVal] || DEVICE_TYPES.server;
             const key = 'dev-' + (++deviceSeq) + '-' + Date.now().toString(36).slice(-4);
@@ -1581,11 +1568,10 @@
             };
             NODE_KEYS.push(key);
 
-            // 연결할 장비를 골랐으면, 새 장비와 그 장비 사이에 연결선을 하나 만들어요.
             if (linkTo && NODES[linkTo] && linkTo !== key) EDGES.push([linkTo, key]);
 
-            relaxLayout();     // 새 위치 기준으로 겹치는 노드들을 자동 재배치
-            buildNodeUI();     // 토폴로지 맵을 즉시 다시 그려서 화면에 실시간으로 반영
+            relaxLayout();
+            buildNodeUI();
             renderVlanZones();
             if (state.isAdmin) renderDevices();
             updateNodeUI();
@@ -1621,8 +1607,7 @@
             nameInput.value = ''; ipInput.value = ''; ownerInput.value = ''; $('new-device-link').value = '';
         }
 
-        /* ═════════ 5-3. 토폴로지 맵 우클릭 → 빠른 장비 등록 ═════════ */
-        // 폼을 다 채우지 않아도, 맵의 빈 곳에서 마우스 오른쪽 버튼을 누르면 그 위치에 바로 장비를 추가할 수 있어요.
+        /* ═════════ 5-3. 우클릭 빠른 장비 등록 ═════════ */
         let pendingCtxPos = null;
 
         function refreshCtxVlanSelect() {
@@ -1635,7 +1620,7 @@
         }
 
         function openTopoContextMenu(e) {
-            if (!state.isAdmin) return; // 관리자만 우클릭으로 등록할 수 있어요.
+            if (!state.isAdmin) return;
             e.preventDefault();
             const topo = $('topo');
             const wrap = topo.parentElement;
@@ -1692,19 +1677,17 @@
         document.addEventListener('click', (e) => {
             const menu = $('topo-ctx');
             if (!menu || menu.classList.contains('hide')) return;
-            if (menu.contains(e.target)) return; // 팝업 내부 클릭(입력·버튼)은 유지
+            if (menu.contains(e.target)) return;
             closeTopoContextMenu();
         });
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeTopoContextMenu(); });
 
-        // 장비 삭제: 관리자만 접근하는 버튼에서 호출돼요.
         function deleteDevice(key) {
             if (!state.isAdmin || !NODES[key]) return;
             const name = NODES[key].name;
             delete NODES[key];
             const idx = NODE_KEYS.indexOf(key);
             if (idx !== -1) NODE_KEYS.splice(idx, 1);
-            // 이 장비와 연결되어 있던 선도 함께 정리해요.
             for (let i = EDGES.length - 1; i >= 0; i--) { if (EDGES[i][0] === key || EDGES[i][1] === key) EDGES.splice(i, 1); }
 
             buildNodeUI();
@@ -1799,7 +1782,6 @@
             <p>${a.msg}</p>
         </div>`;
 
-        // lv, title, msg는 필수. cause(발생 원인) · action(권장 조치) · affected(영향받는 장비 배열)는 선택 — 팝업에서 보여줘요.
         function pushAlert(lv, title, msg, extra = {}) {
             const a = { id: ++alertSeq, lv, title, msg, time: clock(), cause: extra.cause || '', action: extra.action || '', affected: extra.affected || [] };
             alerts.unshift(a);
@@ -1867,7 +1849,6 @@
             const affected = Object.keys(t.boost).map(k => NODES[k] && NODES[k].name).filter(Boolean);
             pushAlert(t.lv, t.title, t.msg, { cause: t.cause, action: t.action, affected });
 
-            // 시뮬레이션 카드 안의 설명 박스에도 원인을 바로 보여줘요.
             const desc = $('sim-desc');
             desc.style.borderColor = `color-mix(in srgb, var(--${t.tone}) 45%, transparent)`;
             desc.innerHTML = `
@@ -1907,7 +1888,6 @@
             const n = parseInt(hex, 16);
             return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
         }
-        // Catmull-Rom → Bezier 곡선
         function curve(ctx, p, minY, maxY) {
             ctx.moveTo(p[0].x, p[0].y);
             for (let i = 0; i < p.length - 1; i++) {
@@ -1934,7 +1914,6 @@
             const cyan = C('--cyan'), red = C('--red'), grid = C('--grid'), dim = C('--dim');
             const { L, R, T, B } = CH, pw = w - L - R, ph = h - T - B, step = pw / (maxPoints - 1), bottom = T + ph;
 
-            // 격자 + 축 라벨
             ctx.font = '10px ui-monospace, Menlo, monospace'; ctx.textBaseline = 'middle';
             for (let i = 0; i <= 4; i++) {
                 const y = T + (ph * i) / 4;
@@ -1965,7 +1944,6 @@
             drawLine(tp, cyan, 0.32, 2.6);
             drawLine(rp, red, 0.16, 2.2);
 
-            // 마우스 오버 툴팁
             const idx = hoverIdx[cv.id];
             if (idx != null && tp[idx]) {
                 const x = tp[idx].x;
@@ -2026,7 +2004,6 @@
             lossHistory.push(state.loss); lossHistory.shift();
             timeHistory.push(clock()); timeHistory.shift();
 
-            // 스탯 카드
             $('stat-traffic-in').textContent = `${state.ingress} Mbps`;
             const d = state.ingress - prev;
             $('stat-traffic-trend').textContent =
@@ -2040,12 +2017,10 @@
 
             const aiLv = state.risk > 80 ? 'crit' : state.risk > 50 ? 'warn' : 'ok';
             const lossLv = state.loss >= 5 ? 'crit' : state.loss >= 1.5 ? 'warn' : 'ok';
-            setLv($('ai-score-card'), aiLv); setLv($('loss-card'), lossLv); setLv($('sys-pill'), aiLv);
-            $('stat-ai-badge').textContent = aiLv === 'crit' ? '심각 (경보)' : aiLv === 'warn' ? '주의 (상승)' : '안전 (낮음)';
+            setLv($('ai-score-card'), aiLv); setLv($('loss-card'), lossLv); setLv($('sys-pill'), aiLv);$('stat-ai-badge').textContent = aiLv === 'crit' ? '심각 (경보)' : aiLv === 'warn' ? '주의 (상승)' : '안전 (낮음)';
             $('system-status-text').textContent = aiLv === 'crit' ? 'AI 경보: 장애 위험 감지!' : aiLv === 'warn' ? 'AI 경고: 이상 징후 임계치' : 'AI 엔진 정상 작동 중';
             $('traffic-card').classList.toggle('danger', aiLv === 'crit');
 
-            // 분석 요약
             $('an-peak').textContent = `${Math.max(...trafficHistory)} Mbps`;
             $('an-risk').textContent = `${(riskHistory.reduce((a, b) => a + b, 0) / maxPoints).toFixed(1)}%`;
             $('an-loss').textContent = `${Math.max(...lossHistory).toFixed(2)}%`;
@@ -2069,17 +2044,13 @@
             roles: `<strong>[8비트 프로젝트 팀 역할 분담]</strong><br>• 총괄/권한: 이지환 &nbsp;• UI/대시보드: 장우진<br>• 토폴로지: 양이수 &nbsp;• 로그 수집: 김범수<br>• 백엔드/경보: 구본학 &nbsp;• 관제 DB/ETL: 김민석<br>• AI 예측/분석: 최민규, 김태현`
         };
 
-        // 자유 입력 질문에 답할 때 쓰는 키워드 매칭 지식베이스 (HELP 항목 + 추가 FAQ)
         const QA_KB = [
-            // 시스템 전반
             { keys: ['시스템이 뭐', '시스템 소개', '무슨 시스템', '뭐하는 시스템', '이 사이트는', '전체 개요'], html: HELP.overview },
             { keys: ['메뉴 구성', '메뉴 종류', '화면 구성', '어떤 메뉴', '사이드바 메뉴'], html: HELP.menu },
             { keys: ['모바일', '휴대폰 화면', '반응형', '폰으로 보면'],
               html: `<strong>[모바일 화면]</strong><br>화면이 좁아지면 왼쪽 사이드바가 하단 탭바로 바뀌어요. 메뉴 아이콘은 그대로 있고, 위치만 화면 아래쪽으로 옮겨가요.` },
             { keys: ['새로고침하면', '데이터 저장', '서버에 저장', '기록이 남아'],
               html: `<strong>[데이터 저장 여부]</strong><br>이 화면은 시연용이라 브라우저 안에서만 동작해요. 새로고침하면 트래픽·알림·기기 설정·백업 기록이 모두 초기값으로 돌아가고, 서버에는 저장되지 않아요.` },
-
-            // 대시보드
             { keys: ['대시보드가 뭐', '홈 화면', '첫 화면', '대시보드 구성'],
               html: `<strong>[대시보드]</strong><br>맨 처음 보이는 화면이에요. 위쪽엔 실시간 트래픽·기기 현황·AI 위험 스코어·패킷 손실률 요약 카드가 있고, 가운데엔 실시간 차트, 오른쪽엔 장애 시뮬레이션과 최근 알림, 아래엔 장비 상태 요약이 있어요.` },
             { keys: ['실시간 트래픽', '수신 트래픽', 'mbps'],
@@ -2088,8 +2059,6 @@
               html: `<strong>[AI 장애 위험 스코어]</strong><br>0~100% 사이의 수치로, 50% 넘으면 주의(노랑), 80% 넘으면 심각(빨강)으로 표시돼요. 값이 올라갈수록 장애 가능성이 높다는 뜻이에요.` },
             { keys: ['패킷 손실률', '손실 임계치'],
               html: `<strong>[평균 패킷 손실률 카드]</strong><br>기준 임계치는 1.5%예요. 1.5% 이상이면 주의, 5% 이상이면 심각 상태로 카드 색이 바뀌어요.` },
-
-            // 시뮬레이션 (개별)
             { keys: ['ddos', '디도스'],
               html: `<strong>[DDoS 부하 발생]</strong><br>외부에서 다량의 위조 트래픽을 집중적으로 보내 대역폭과 세션 자원을 고갈시키는 공격을 흉내 내요. 수신 대역폭이 1Gbps를 넘고 AI 위험도가 급등해요. 빨간색 버튼이에요.` },
             { keys: ['패킷 손실', '손실률 유발'],
@@ -2102,8 +2071,6 @@
               html: `<strong>[정상 상태로 되돌리기]</strong><br>진행 중인 장애 시뮬레이션을 멈추고 트래픽·위험도·손실률을 기본값으로 되돌려요. 보안 로그에도 '데이터 리셋' 기록이 남아요.` },
             { keys: ['버튼 색', '왜 색이 달라', '색깔 의미'],
               html: `<strong>[시뮬레이션 버튼 색상]</strong><br>DDoS(빨강) · 패킷 손실(노랑) · CPU 고부하(주황) · 회선 다운(보라)으로 색을 다르게 해서 어떤 장애인지 한눈에 구분할 수 있게 했어요.` },
-
-            // 토폴로지
             { keys: ['토폴로지', '네트워크 구조', '네트워크 지도'], html: HELP.topology },
             { keys: ['노드 색', '초록 노랑 빨강', '상태 색깔이 왜'],
               html: `<strong>[노드 상태 색상]</strong><br>초록은 정상, 노랑은 CPU 70% 이상 경고, 빨강은 90% 이상 과부하 상태예요. 장애 시뮬레이션을 켜면 관련 장비 노드의 색이 실시간으로 바뀌어요.` },
@@ -2111,22 +2078,14 @@
               html: `<strong>[VLAN 구역 관리]</strong><br>토폴로지 화면 아래 'VLAN 구역 관리'에서 부서·구역을 새로 만들고, 각 장비를 원하는 구역으로 옮길 수 있어요. 구역마다 색상과 IP 대역(선택)을 지정할 수 있어요.` },
             { keys: ['신규 장비 등록', '장비 추가', '장비 등록하는 법', '장치 모양'],
               html: `<strong>[신규 장비 등록]</strong><br>토폴로지 화면 맨 아래에서 장비 이름·IP·장치 모양·소속 구역을 입력하면 새 장비가 등록돼요. 다만 지금은 화면(브라우저)에만 저장되고, 실제 장비와의 통신 확인은 아직 지원하지 않아요.` },
-
-            // 분석
             { keys: ['분석 화면', '트래픽 분석', '확대 차트', 'ai 분석'],
               html: `<strong>[트래픽 · AI 분석]</strong><br>최근 40초의 최고 트래픽·평균 위험도·최대 손실률을 요약해 보여주고, 대시보드보다 큰 확대 차트와 장비별 CPU·메모리 부하 표를 볼 수 있어요.` },
-
-            // 보안 로그 & 알림 팝업
             { keys: ['보안 로그', '로그 필터', '로그 화면'],
               html: `<strong>[보안 로그]</strong><br>모든 알림이 시간 순서로 쌓이는 화면이에요. 위험·경고·정보 버튼으로 필터링할 수 있고, 안 읽은 알림 개수는 사이드바 종 아이콘의 빨간 배지로 표시돼요.` },
             { keys: ['알림 팝업', '알림 클릭', '알림 자세히', '발생 원인 어디', '권장 조치'],
               html: `<strong>[알림 상세 보기]</strong><br>대시보드나 보안 로그의 알림 카드를 클릭하면 팝업이 떠서 발생 시각, 발생 원인, 영향받는 장비, 권장 조치를 자세히 볼 수 있어요. 바깥 영역을 클릭하거나 Esc 키로 닫을 수 있어요.` },
-
-            // 가이드(이 채팅)
             { keys: ['ai 가이드', '질문 어떻게', '채팅 어떻게', '타이핑 효과'],
               html: `<strong>[AI 가이드 & 질문]</strong><br>지금 보고 있는 이 채팅창이에요! 위 버튼을 눌러도 되고, 아래 입력창에 궁금한 점을 직접 적어도 돼요. 답은 실시간으로 한 글자씩 타이핑되고, 다른 메뉴로 이동하면 대화 내용은 초기화돼요.` },
-
-            // 기기 관리 & DB 백업 & 팀
             { keys: ['기기 관리', '소유자', '할당'],
               html: `<strong>[기기 관리]</strong><br>왼쪽 사이드바의 '기기 관리' 메뉴에서 IP·기기명·종류·상태·소유자를 확인할 수 있어요. 관리자는 소유자를 지정해 저장할 수 있고, 일반 사용자는 보기만 가능해요.` },
             { keys: ['db 백업', '백업 기능', '데이터베이스 백업', '백업하는 법'],
@@ -2134,16 +2093,12 @@
             { keys: ['보관 기간', '몇 개월 저장', '백업 몇 개월', '만료'],
               html: `<strong>[백업 보관 기간]</strong><br>백업할 때 1개월 · 3개월 · 6개월 · 12개월 · 24개월 · 영구 보관 중 하나를 선택할 수 있어요. 선택한 기간이 지나면 만료 예정일로 표시돼요.` },
             { keys: ['역할', '팀원', '담당'], html: HELP.roles },
-
-            // 계정 · 로그인
             { keys: ['로그인 방법', '로그인 어떻게', '계정 정보', '로그인 안내'],
               html: `<strong>[로그인 안내]</strong><br>이름 '이지환' + 비밀번호 'admin'이면 관리자로, 그 외 이름 + 비밀번호 '8bit'이면 일반 사용자로 로그인돼요.` },
             { keys: ['관리자랑 일반', '권한 차이', '권한 뭐가 달라'],
               html: `<strong>[관리자 vs 일반 사용자]</strong><br>'기기 관리' 메뉴는 관리자·일반 사용자 모두 볼 수 있지만, 소유자 변경 저장과 DB 백업 실행·삭제는 관리자만 가능해요(일반 사용자는 보기 전용). '모니터링 기기 현황' 카드는 관리자에게만 보여요. 나머지 기능은 동일해요.` },
             { keys: ['잠금', '차단', '실패 횟수', '오류 횟수'],
               html: `<strong>[로그인 실패 잠금 정책]</strong><br>이름·비밀번호를 5회 이상 틀리면 30초부터 시작해 점점 길게 잠기고, 10회를 넘으면 IP가 차단된 화면으로 바뀌어요.` },
-
-            // 테마 · 시계
             { keys: ['다크 모드', '라이트 모드', '테마 전환', '화면 밝기'],
               html: `<strong>[테마 전환]</strong><br>사이드바 맨 아래 해·달 아이콘 버튼을 누르면 다크 모드와 라이트 모드를 바로 전환할 수 있어요.` },
             { keys: ['시계', '날짜 표시', '오늘 날짜', '지금 몇 시'],
@@ -2157,14 +2112,12 @@
             return hit ? hit.html : `죄송해요, 아직 답을 준비하지 못한 질문이에요 🙏 위 버튼을 눌러보시거나, "대시보드", "토폴로지", "DDoS", "DB 백업" 같은 다른 표현으로 다시 질문해 주세요.`;
         }
 
-        /* ═════════ 실시간 타이핑 엔진 ═════════ */
         let typingBusy = false;
         function setTypingBusy(v) {
             typingBusy = v;
             const send = $('chat-send'); if (send) send.disabled = v;
             document.querySelectorAll('.qa-btn').forEach(b => b.disabled = v);
         }
-        // html 태그는 통째로, 일반 글자는 한 글자씩 흘려보내며 타이핑 효과를 만들어요.
         function typeHTML(el, html, speed = 14) {
             el.innerHTML = '';
             el.classList.add('typing');
@@ -2190,14 +2143,13 @@
             const b = document.createElement('div');
             b.className = 'chat-bubble ' + role;
             log.appendChild(b);
-            if (role === 'user') b.textContent = content;      // 사용자 입력은 그대로 텍스트로만 표시 (HTML 삽입 방지)
+            if (role === 'user') b.textContent = content;
             else if (typed) typeHTML(b, content);
             else b.innerHTML = content;
             log.scrollTop = log.scrollHeight;
             return b;
         }
 
-        // 다른 메뉴로 이동하면 AI 가이드 대화 내용을 비우고 인사말만 다시 띄워요.
         function resetChat() {
             const log = $('chat-log');
             if (!log) return;
@@ -2228,7 +2180,6 @@
         function renderDevices() {
             $('device-body').innerHTML = NODE_KEYS.map(k => {
                 const n = NODES[k];
-                // 관리자는 소유자를 바로 바꿀 수 있는 드롭다운을, 일반 사용자는 값만 보이는 텍스트를 표시해요.
                 const ownerCell = state.isAdmin
                     ? `<select class="sel-input" id="own-${k}">${OWNERS.map(o => `<option ${o === n.owner ? 'selected' : ''}>${o}</option>`).join('')}</select>`
                     : `<span class="t-muted">${n.owner}</span>`;
@@ -2242,7 +2193,7 @@
             }).join('');
         }
         function saveAssignments() {
-            if (!state.isAdmin) return; // 일반 사용자는 보기 전용이라 저장할 수 없어요.
+            if (!state.isAdmin) return;
             NODE_KEYS.forEach(k => { const s = $('own-' + k); if (s) NODES[k].owner = s.value; });
             updateInspector();
             toast('기기 소유자 할당 정보가 저장되었어요.');
@@ -2253,7 +2204,6 @@
         const backups = [];
         const RETENTION_LABEL = { 1: '1개월', 3: '3개월', 6: '6개월', 12: '12개월', 24: '24개월', 0: '영구 보관' };
 
-        // 저장 순간의 날짜·시간을 초 단위까지 정확히 기록해요.
         function formatDateTime(d) {
             const p = n => String(n).padStart(2, '0');
             return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
@@ -2265,7 +2215,7 @@
         }
 
         function createBackup() {
-            if (!state.isAdmin) return; // 일반 사용자는 백업을 실행할 수 없어요.
+            if (!state.isAdmin) return;
             const months = parseInt($('backup-retention').value, 10);
             const now = new Date();
             const expires = months > 0 ? addMonths(now, months) : null;
@@ -2287,7 +2237,7 @@
         }
 
         function deleteBackup(id) {
-            if (!state.isAdmin) return; // 일반 사용자는 백업을 삭제할 수 없어요.
+            if (!state.isAdmin) return;
             const idx = backups.findIndex(b => b.id === id);
             if (idx !== -1) backups.splice(idx, 1);
             renderBackups();
@@ -2313,12 +2263,9 @@
         /* ═════════ 실시간 날짜 · 시계 ═════════ */
         function updateClock() {
             const d = new Date();
-            $('clock-date').textContent = d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-            $('clock-time').textContent = d.toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+            $('clock-date').textContent = d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });$('clock-time').textContent = d.toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
         }
 
-        // 실제 환경 탭에서는 '장애 시뮬레이션' 카드를 숨기고, 스탯 카드도 0/빈 상태로 시작해요.
-        // 가짜 랜덤 트래픽·CPU·위험도가 자동으로 움직이는 tick() 인터벌도 켜지 않아요.
         function applyRealEnvEmptyState() {
             if (!IS_REAL_ENV) return;
             const simCard = $('sim-card'); if (simCard) simCard.style.display = 'none';
@@ -2326,13 +2273,10 @@
             state.ingress = 0; state.risk = 0; state.loss = 0;
             trafficHistory.fill(0); riskHistory.fill(0); lossHistory.fill(0);
 
-            $('stat-traffic-in').textContent = '0 Mbps';
-            $('stat-traffic-trend').textContent = '등록된 장비가 없어요';
+            $('stat-traffic-in').textContent = '0 Mbps';$('stat-traffic-trend').textContent = '등록된 장비가 없어요';
             $('stat-devices').textContent = '0 / 0 Online';
-            $('stat-packet-loss').textContent = '0%';
-            $('stat-ai-risk').textContent = '0%';
-            $('stat-ai-bar').style.width = '0%';
-            $('stat-ai-badge').textContent = '데이터 없음';
+            $('stat-packet-loss').textContent = '0\%';$('stat-ai-risk').textContent = '0%';
+            $('stat-ai-bar').style.width = '0\%';$('stat-ai-badge').textContent = '데이터 없음';
             $('system-status-text').textContent = '실제 장비 등록 대기 중';
         }
 
@@ -2352,7 +2296,6 @@
         applyRealEnvEmptyState();
         drawAll();
         if (!restoreSession()) {
-            // 로그인 세션이 없으면 기존처럼 로그인 화면부터 시작해요.
         }
         if (!IS_REAL_ENV) setInterval(tick, 1000);
     </script>
