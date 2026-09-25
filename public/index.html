@@ -267,19 +267,37 @@
         .sel-input { background: var(--input); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 6px 10px; font-size: 12px; }
 
         /* 토폴로지 */
-        .topo-wrap { overflow-x: auto; border-radius: 18px; background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid var(--border); }
-        .topo { position: relative; height: 410px; min-width: 540px; }
+        .topo-wrap { position: relative; overflow-x: auto; border-radius: 18px; background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid var(--border); }
+        .topo { position: relative; height: 410px; min-width: 540px; cursor: default; }
         .topo svg { position: absolute; inset: 0; width: 100%; height: 100%; }
         .topo line { stroke-width: 2; stroke-dasharray: 5 6; opacity: .75; animation: flow 1s linear infinite; }
         @keyframes flow { to { stroke-dashoffset: -11; } }
         .tnode {
             position: absolute; z-index: 2; transform: translate(-50%, -50%); min-width: 106px; padding: 11px 13px; border-radius: 16px;
             display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; text-align: center; color: var(--text);
-            background: var(--node-bg); border: 1.5px solid var(--lv); transition: transform .2s, box-shadow .2s;
+            background: var(--node-bg); border: 1.5px solid var(--lv); transition: left .35s ease, top .35s ease, transform .2s, box-shadow .2s;
         }
         .tnode:hover { transform: translate(-50%, calc(-50% - 3px)); }
         .tnode.sel { box-shadow: 0 0 0 3px color-mix(in srgb, var(--lv) 28%, transparent), 0 10px 28px color-mix(in srgb, var(--lv) 24%, transparent); }
         .tnode b { font-size: 12px; } .tnode small { font-size: 10px; color: var(--muted); }
+
+        /* 토폴로지 맵 우클릭 빠른 장비 등록 팝업 */
+        .topo-ctx {
+            position: absolute; z-index: 45; width: 226px; padding: 12px; border-radius: 16px;
+            background: var(--tip-bg); border: 1px solid var(--border); box-shadow: var(--shadow);
+            display: flex; flex-direction: column; gap: 8px;
+            backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+        }
+        .topo-ctx-head { display: flex; align-items: center; justify-content: space-between; }
+        .topo-ctx-head span { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+        .topo-ctx-close {
+            width: 20px; height: 20px; border-radius: 7px; border: 1px solid var(--border); background: var(--glass-strong);
+            color: var(--dim); font-size: 11px; line-height: 1; cursor: pointer; transition: .15s;
+        }
+        .topo-ctx-close:hover { color: var(--red); border-color: var(--red); }
+        .topo-ctx .sel-input { width: 100%; box-sizing: border-box; }
+        .topo-ctx-add { width: 100%; }
+        .topo-hint-badge { padding: 3px 9px; border-radius: 999px; font-size: 11px; background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); border: 1px solid color-mix(in srgb, var(--green) 35%, transparent); }
 
         /* VLAN 구역 관리 */
         .vlan-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
@@ -552,9 +570,33 @@
                     <div class="card lg:col-span-8">
                         <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
                             <h2 class="ctitle"><i data-lucide="network" class="w-4 h-4 c-cyan"></i>네트워크 인프라 토폴로지 맵</h2>
-                            <div class="flex items-center gap-2"><span class="text-xs t-dim">노드를 누르면 상세 진단이 열려요</span><span class="credit">양이수</span></div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="text-xs t-dim">노드를 누르면 상세 진단이 열려요</span>
+                                <span id="topo-hint-admin" class="topo-hint-badge hide">🖱️ 빈 곳 우클릭 → 그 자리에 바로 등록</span>
+                                <span class="credit">양이수</span>
+                            </div>
                         </div>
-                        <div class="topo-wrap"><div id="topo" class="topo"></div></div>
+                        <div class="topo-wrap">
+                            <div id="topo" class="topo" oncontextmenu="openTopoContextMenu(event)"></div>
+                            <div id="topo-ctx" class="topo-ctx hide">
+                                <div class="topo-ctx-head">
+                                    <span>+ 이 위치에 장비 추가</span>
+                                    <button type="button" class="topo-ctx-close" onclick="closeTopoContextMenu()">✕</button>
+                                </div>
+                                <input id="ctx-device-name" type="text" class="sel-input" placeholder="장비 이름" onkeydown="if(event.key==='Enter'){event.preventDefault();quickCreateDevice();}">
+                                <select id="ctx-device-type" class="sel-input">
+                                    <option value="router">🔀 라우터</option>
+                                    <option value="switch">🔁 스위치</option>
+                                    <option value="server" selected>🗄️ 서버</option>
+                                    <option value="app">🧠 앱 서버</option>
+                                    <option value="pc">🖥️ 워크스테이션</option>
+                                    <option value="mobile">📱 모바일</option>
+                                </select>
+                                <select id="ctx-device-vlan" class="sel-input"></select>
+                                <input id="ctx-device-ip" type="text" class="sel-input mono" placeholder="IP (비우면 자동)">
+                                <button type="button" class="btn primary topo-ctx-add" onclick="quickCreateDevice()">+ 바로 등록</button>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="card lg:col-span-4 self-start">
@@ -967,6 +1009,7 @@
             $('monitored-devices-card').classList.toggle('hide', !state.isAdmin);
             const vlanForm = $('vlan-form'); if (vlanForm) vlanForm.classList.toggle('hide', !state.isAdmin);
             const deviceFormCard = $('device-form-card'); if (deviceFormCard) deviceFormCard.classList.toggle('hide', !state.isAdmin);
+            const topoHint = $('topo-hint-admin'); if (topoHint) topoHint.classList.toggle('hide', !state.isAdmin);
             $('user-role-badge').textContent = state.isAdmin ? `👑 관리자 (${state.username})` : `👤 일반 사용자 (${state.username})`;
             renderVlanZones();
             switchView('overview');
@@ -1307,6 +1350,105 @@
         }
 
         /* ═════════ 5-2. 신규 장비 등록 ═════════ */
+
+        // 공간 자율 배치: 좌표를 지정하지 않고 등록하면, 기존 장비와 겹치지 않는 빈 자리를 스스로 찾아서 놓아요.
+        function autoLayoutPosition() {
+            const bounds = { xMin: 8, xMax: 92, yMin: 12, yMax: 88 };
+            const minDist = 15;
+            let fallback = null, fallbackScore = -1;
+            for (let attempt = 0; attempt < 80; attempt++) {
+                const x = bounds.xMin + Math.random() * (bounds.xMax - bounds.xMin);
+                const y = bounds.yMin + Math.random() * (bounds.yMax - bounds.yMin);
+                let minD = Infinity;
+                NODE_KEYS.forEach(k => {
+                    const n = NODES[k];
+                    if (n.x == null) return;
+                    const d = Math.hypot(n.x - x, n.y - y);
+                    if (d < minD) minD = d;
+                });
+                if (minD === Infinity) minD = 999;
+                if (minD >= minDist) return { x: +x.toFixed(1), y: +y.toFixed(1) };
+                if (minD > fallbackScore) { fallbackScore = minD; fallback = { x: +x.toFixed(1), y: +y.toFixed(1) }; }
+            }
+            return fallback || { x: 50, y: 50 };
+        }
+
+        // 서로 너무 가깝거나 겹친 노드들을 부드럽게 밀어내서, 새 장비를 추가/삭제할 때마다 맵 전체를 보기 좋게 재정렬해요.
+        function relaxLayout() {
+            const keys = NODE_KEYS.filter(k => NODES[k].x != null);
+            if (keys.length < 2) return;
+            const minDist = 15;
+            for (let it = 0; it < 50; it++) {
+                let moved = false;
+                for (let i = 0; i < keys.length; i++) {
+                    const a = NODES[keys[i]];
+                    let fx = 0, fy = 0;
+                    for (let j = 0; j < keys.length; j++) {
+                        if (i === j) continue;
+                        const b = NODES[keys[j]];
+                        const dx = a.x - b.x, dy = a.y - b.y;
+                        const dist = Math.hypot(dx, dy) || 0.01;
+                        if (dist < minDist) {
+                            moved = true;
+                            const push = (minDist - dist) / dist * 0.5;
+                            fx += dx * push; fy += dy * push;
+                        }
+                    }
+                    a.x = clamp(a.x + fx, 6, 94);
+                    a.y = clamp(a.y + fy, 10, 90);
+                }
+                if (!moved) break;
+            }
+        }
+
+        // IP를 비워두고 등록하면, 소속 구역(VLAN)의 대역을 기준으로 아직 쓰이지 않은 주소를 하나 찾아 자동으로 채워요.
+        function nextAvailableIp(vlanId) {
+            const vlan = vlanById(vlanId);
+            let base = '10.10.0.';
+            if (vlan && vlan.cidr) {
+                const m = vlan.cidr.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}/);
+                if (m) base = m[1] + '.';
+            }
+            const used = new Set(NODE_KEYS.map(k => NODES[k].ip));
+            for (let i = 2; i < 254; i++) {
+                const cand = base + i;
+                if (!used.has(cand)) return cand;
+            }
+            return base + Math.floor(2 + Math.random() * 252);
+        }
+
+        // 장비 등록의 공용 처리부: 일반 폼 등록과 토폴로지 맵 우클릭 빠른 등록이 모두 이 함수를 거쳐요.
+        // 여기서 buildNodeUI()를 직접 호출하기 때문에, 신규 장비가 토폴로지 맵에 즉시(실시간으로) 반영돼요.
+        function commitNewDevice({ name, ip, typeVal, vlanId, owner, x, y }) {
+            const dt = DEVICE_TYPES[typeVal] || DEVICE_TYPES.server;
+            const key = 'dev-' + (++deviceSeq) + '-' + Date.now().toString(36).slice(-4);
+            const cpu = Math.round(10 + Math.random() * 20);
+            const ram = Math.round(15 + Math.random() * 25);
+            const pos = (x != null && y != null) ? { x: clamp(x, 4, 96), y: clamp(y, 6, 94) } : autoLayoutPosition();
+
+            NODES[key] = {
+                name, short: name.length > 10 ? name.slice(0, 9) + '…' : name, ip,
+                type: dt.typeLabel, owner: owner || `${state.username} (등록)`,
+                cpu, ram, lc: cpu, lr: ram, lv: 'ok', status: '● Online', icon: dt.icon, vlan: vlanId,
+                x: pos.x, y: pos.y
+            };
+            NODE_KEYS.push(key);
+
+            relaxLayout();     // 새 위치 기준으로 겹치는 노드들을 자동 재배치
+            buildNodeUI();     // 토폴로지 맵을 즉시 다시 그려서 화면에 실시간으로 반영
+            renderVlanZones();
+            if (state.isAdmin) renderDevices();
+            updateNodeUI();
+            lucide.createIcons();
+
+            pushAlert('info', '신규 장비 등록됨', `${name} (${ip}) 장비가 '${(vlanById(vlanId) || {}).name || vlanId}' 구역에 추가되어 토폴로지 맵에 반영됐어요.`, {
+                cause: '관리자가 토폴로지 화면에서 새 장비를 직접 등록했어요.',
+                action: '지금은 화면상 등록까지만 지원해요. 실제 장비와의 통신 확인(핑·SNMP 등)은 SQL·Python 백엔드를 연결하는 다음 단계에서 추가할 예정이에요.'
+            });
+            toast(`${name} 장비가 등록되어 토폴로지 맵에 나타났어요.`);
+            return key;
+        }
+
         function createDevice() {
             if (!state.isAdmin) return;
             const nameInput = $('new-device-name');
@@ -1321,32 +1463,77 @@
             if (!name || !ip) { toast('장비 이름과 IP 주소를 입력해 주세요.'); return; }
             if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) { toast('IP 형식을 확인해 주세요. 예) 192.168.1.20'); return; }
 
-            const dt = DEVICE_TYPES[typeVal] || DEVICE_TYPES.server;
-            const key = 'dev-' + (++deviceSeq) + '-' + Date.now().toString(36).slice(-4);
-            const cpu = Math.round(10 + Math.random() * 20);
-            const ram = Math.round(15 + Math.random() * 25);
-
-            NODES[key] = {
-                name, short: name.length > 10 ? name.slice(0, 9) + '…' : name, ip,
-                type: dt.typeLabel, owner: owner || `${state.username} (등록)`,
-                cpu, ram, lc: cpu, lr: ram, lv: 'ok', status: '● Online', icon: dt.icon, vlan: vlanId
-            };
-            NODE_KEYS.push(key);
-
-            renderNodeChips();
-            renderNodeTable();
-            renderVlanZones();
-            if (state.isAdmin) renderDevices();
-            lucide.createIcons();
-
-            pushAlert('info', '신규 장비 등록됨', `${name} (${ip}) 장비가 '${(vlanById(vlanId) || {}).name || vlanId}' 구역에 추가됐어요.`, {
-                cause: '관리자가 토폴로지 화면에서 새 장비를 직접 등록했어요.',
-                action: '지금은 화면상 등록까지만 지원해요. 실제 장비와의 통신 확인(핑·SNMP 등)은 SQL·Python 백엔드를 연결하는 다음 단계에서 추가할 예정이에요.'
-            });
-            toast(`${name} 장비가 등록됐어요.`);
+            commitNewDevice({ name, ip, typeVal, vlanId, owner });
 
             nameInput.value = ''; ipInput.value = ''; ownerInput.value = '';
         }
+
+        /* ═════════ 5-3. 토폴로지 맵 우클릭 → 빠른 장비 등록 ═════════ */
+        // 폼을 다 채우지 않아도, 맵의 빈 곳에서 마우스 오른쪽 버튼을 누르면 그 위치에 바로 장비를 추가할 수 있어요.
+        let pendingCtxPos = null;
+
+        function refreshCtxVlanSelect() {
+            const sel = $('ctx-device-vlan');
+            if (sel) sel.innerHTML = vlans.map(v => `<option value="${v.id}">${v.name}</option>`).join('');
+        }
+
+        function openTopoContextMenu(e) {
+            if (!state.isAdmin) return; // 관리자만 우클릭으로 등록할 수 있어요.
+            e.preventDefault();
+            const topo = $('topo');
+            const wrap = topo.parentElement;
+            const topoRect = topo.getBoundingClientRect();
+            const wrapRect = wrap.getBoundingClientRect();
+
+            const xPct = clamp((e.clientX - topoRect.left) / topoRect.width * 100, 4, 96);
+            const yPct = clamp((e.clientY - topoRect.top) / topoRect.height * 100, 6, 94);
+            pendingCtxPos = { x: +xPct.toFixed(1), y: +yPct.toFixed(1) };
+
+            refreshCtxVlanSelect();
+            const menu = $('topo-ctx');
+            menu.classList.remove('hide');
+
+            let left = e.clientX - wrapRect.left + wrap.scrollLeft;
+            let top = e.clientY - wrapRect.top;
+            left = clamp(left, 8, Math.max(8, wrap.scrollWidth - 236));
+            top = clamp(top, 8, Math.max(8, topo.clientHeight - 220));
+            menu.style.left = left + 'px';
+            menu.style.top = top + 'px';
+
+            $('ctx-device-name').value = '';
+            $('ctx-device-ip').value = '';
+            setTimeout(() => { const el = $('ctx-device-name'); if (el) el.focus(); }, 30);
+        }
+
+        function closeTopoContextMenu() {
+            const menu = $('topo-ctx');
+            if (menu) menu.classList.add('hide');
+            pendingCtxPos = null;
+        }
+
+        function quickCreateDevice() {
+            if (!pendingCtxPos) return;
+            const nameInput = $('ctx-device-name');
+            const name = nameInput.value.trim();
+            if (!name) { toast('장비 이름을 입력해 주세요.'); nameInput.focus(); return; }
+
+            const typeVal = $('ctx-device-type').value;
+            const vlanId = $('ctx-device-vlan').value;
+            let ip = $('ctx-device-ip').value.trim();
+            if (ip && !/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) { toast('IP 형식을 확인해 주세요. 예) 192.168.1.20'); return; }
+            if (!ip) ip = nextAvailableIp(vlanId);
+
+            commitNewDevice({ name, ip, typeVal, vlanId, owner: '', x: pendingCtxPos.x, y: pendingCtxPos.y });
+            closeTopoContextMenu();
+        }
+
+        document.addEventListener('click', (e) => {
+            const menu = $('topo-ctx');
+            if (!menu || menu.classList.contains('hide')) return;
+            if (menu.contains(e.target)) return; // 팝업 내부 클릭(입력·버튼)은 유지
+            closeTopoContextMenu();
+        });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeTopoContextMenu(); });
 
         // 장비 삭제: 관리자만 접근하는 버튼에서 호출돼요.
         function deleteDevice(key) {
