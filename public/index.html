@@ -264,7 +264,14 @@
         .tbl tbody tr.click { cursor: pointer; }
         .tbl tbody tr:hover { background: var(--glass-strong); }
         .tag { padding: 2px 8px; border-radius: 8px; font-size: 11px; background: var(--glass-strong); border: 1px solid var(--border); color: var(--muted); }
-        .sel-input { background: var(--input); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 6px 10px; font-size: 12px; }
+        .sel-input { background: var(--input); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 6px 10px; font-size: 12px; transition: border-color .15s, box-shadow .15s; }
+        .sel-input.input-error { border-color: var(--red) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 22%, transparent); }
+        .field-err { display: none; font-size: 11px; color: var(--red); margin-top: 4px; font-weight: 600; }
+        .field-err.show { display: block; }
+        .link-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; margin-bottom: 16px; }
+        .link-form > div { display: flex; flex-direction: column; gap: 4px; }
+        .link-swap { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--border); background: var(--glass-strong); color: var(--muted); cursor: pointer; flex: none; }
+        .link-swap:hover { color: var(--text); }
 
         /* 토폴로지 */
         .topo-wrap { position: relative; overflow-x: auto; border-radius: 18px; background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid var(--border); }
@@ -435,7 +442,7 @@
                 <button class="nav-btn" data-nav="logs" data-label="보안 로그" onclick="switchView('logs')">
                     <i data-lucide="bell" class="w-5 h-5"></i><span id="log-badge" class="nbadge hide">0</span>
                 </button>
-                <button id="nav-devices" class="nav-btn hide" data-nav="devices" data-label="기기 관리 (관리자)" onclick="switchView('devices')"><i data-lucide="server" class="w-5 h-5"></i></button>
+                <button id="nav-devices" class="nav-btn hide" data-nav="devices" data-label="기기 관리" onclick="switchView('devices')"><i data-lucide="server" class="w-5 h-5"></i></button>
                 <button class="nav-btn" data-nav="guide" data-label="AI 가이드" onclick="switchView('guide')"><i data-lucide="bot" class="w-5 h-5"></i></button>
             </nav>
             <div class="spacer"></div>
@@ -593,7 +600,9 @@
                                     <option value="mobile">📱 모바일</option>
                                 </select>
                                 <select id="ctx-device-vlan" class="sel-input"></select>
-                                <input id="ctx-device-ip" type="text" class="sel-input mono" placeholder="IP (비우면 자동)">
+                                <select id="ctx-device-link" class="sel-input"></select>
+                                <input id="ctx-device-ip" type="text" class="sel-input mono" placeholder="IP (비우면 자동)" oninput="clearIpError(this)">
+                                <p id="ctx-device-ip-err" class="field-err">IP 형식이 올바르지 않아요. 0~255 숫자 4개를 마침표(.)로 구분해 다시 입력해 주세요.</p>
                                 <button type="button" class="btn primary topo-ctx-add" onclick="quickCreateDevice()">+ 바로 등록</button>
                             </div>
                         </div>
@@ -650,7 +659,8 @@
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold t-muted mb-1">IP 주소</label>
-                            <input id="new-device-ip" type="text" class="sel-input mono" placeholder="예: 10.10.0.23">
+                            <input id="new-device-ip" type="text" class="sel-input mono" placeholder="예: 10.10.0.23" oninput="clearIpError(this)">
+                            <p id="new-device-ip-err" class="field-err">IP 형식이 올바르지 않아요. 0~255 숫자 4개를 마침표(.)로 구분해 다시 입력해 주세요. 예) 192.168.1.20</p>
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold t-muted mb-1">장치 모양</label>
@@ -668,12 +678,41 @@
                             <select id="new-device-vlan" class="sel-input"></select>
                         </div>
                         <div>
+                            <label class="block text-[11px] font-semibold t-muted mb-1">연결할 장비 (선택)</label>
+                            <select id="new-device-link" class="sel-input"></select>
+                        </div>
+                        <div>
                             <label class="block text-[11px] font-semibold t-muted mb-1">담당자 (선택)</label>
                             <input id="new-device-owner" type="text" class="sel-input" placeholder="예: 이지환">
                         </div>
                         <button type="submit" class="btn primary" style="align-self:end;width:auto;">+ 장비 등록</button>
                     </form>
                     <p class="text-xs t-dim mt-3">💡 지금은 화면에만 등록돼요. 실제 장비와의 통신·핑 확인은 SQL·Python 백엔드를 연결하는 다음 단계에서 지원할 계획이에요.</p>
+                </div>
+
+                <div class="card mt-5" id="link-manage-card">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                        <h2 class="ctitle"><i data-lucide="git-branch" class="w-4 h-4 c-cyan"></i>장비 연결 관리</h2>
+                        <span class="text-xs t-dim">토폴로지 맵에서 두 장비를 선으로 이어주는 연결을 관리해요</span>
+                    </div>
+                    <form id="link-form" class="link-form" onsubmit="event.preventDefault(); connectDevices();">
+                        <div style="flex:1;min-width:150px;">
+                            <label class="block text-[11px] font-semibold t-muted mb-1">장비 A</label>
+                            <select id="link-from" class="sel-input" style="width:100%"></select>
+                        </div>
+                        <button type="button" class="link-swap" title="순서 바꾸기" onclick="swapLinkSelects()">⇄</button>
+                        <div style="flex:1;min-width:150px;">
+                            <label class="block text-[11px] font-semibold t-muted mb-1">장비 B</label>
+                            <select id="link-to" class="sel-input" style="width:100%"></select>
+                        </div>
+                        <button type="submit" class="btn primary" style="width:auto;">+ 연결하기</button>
+                    </form>
+                    <div class="overflow-x-auto">
+                        <table class="tbl">
+                            <thead><tr><th>장비 A</th><th></th><th>장비 B</th><th></th></tr></thead>
+                            <tbody id="link-body"></tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
 
@@ -757,12 +796,14 @@
                 </div>
             </section>
 
-            <!-- ───── VIEW: 기기 관리 (관리자) ───── -->
+            <!-- ───── VIEW: 기기 관리 (관리자: 편집 / 일반 사용자: 보기 전용) ───── -->
             <section class="view" data-view="devices">
                 <div class="card">
                     <div class="flex items-center justify-between mb-3">
-                        <h2 class="ctitle"><i data-lucide="server" class="w-4 h-4 c-indigo"></i>접속 기기 할당 및 권한 관리</h2>
-                        <button class="btn primary" onclick="saveAssignments()">변경사항 저장</button>
+                        <h2 class="ctitle"><i data-lucide="server" class="w-4 h-4 c-indigo"></i>접속 기기 할당 및 권한 관리
+                            <span id="devices-readonly-badge" class="tag hide" style="margin-left:8px">보기 전용</span>
+                        </h2>
+                        <button id="device-save-btn" class="btn primary" onclick="saveAssignments()">변경사항 저장</button>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="tbl">
@@ -777,7 +818,7 @@
                         <h2 class="ctitle"><i data-lucide="database-backup" class="w-4 h-4 c-cyan"></i>DB 백업 관리</h2>
                         <span class="text-xs t-dim">저장 순간의 날짜 · 시간이 그대로 기록돼요</span>
                     </div>
-                    <div class="flex flex-wrap items-end gap-3 mb-4">
+                    <div id="backup-controls" class="flex flex-wrap items-end gap-3 mb-4">
                         <div>
                             <label class="block text-[11px] font-semibold t-muted mb-1">보관 기간</label>
                             <select id="backup-retention" class="sel-input">
@@ -792,6 +833,7 @@
                         <button class="btn primary" onclick="createBackup()"><i data-lucide="database-backup" class="w-4 h-4"></i>지금 백업하기</button>
                         <span class="text-xs t-dim">현재 저장된 백업 <strong id="backup-count" class="t-muted">0</strong>건</span>
                     </div>
+                    <p id="backup-readonly-note" class="text-xs t-dim hide" style="margin-top:-8px; margin-bottom:12px">👤 일반 사용자는 백업 기록을 볼 수만 있고, 백업 실행 · 삭제는 관리자만 가능해요.</p>
                     <div class="overflow-x-auto">
                         <table class="tbl">
                             <thead><tr><th>백업 시각</th><th>보관 기간</th><th>만료 예정</th><th>용량</th><th>상태</th><th></th></tr></thead>
@@ -825,7 +867,8 @@
                 </div>
                 <div>
                     <label class="block text-[11px] font-semibold t-muted mb-1">IP 주소</label>
-                    <input id="edit-device-ip" type="text" class="sel-input mono" style="width:100%">
+                    <input id="edit-device-ip" type="text" class="sel-input mono" style="width:100%" oninput="clearIpError(this)">
+                    <p id="edit-device-ip-err" class="field-err">IP 형식이 올바르지 않아요. 0~255 숫자 4개를 마침표(.)로 구분해 다시 입력해 주세요. 예) 192.168.1.20</p>
                 </div>
                 <div>
                     <label class="block text-[11px] font-semibold t-muted mb-1">장치 모양</label>
@@ -1005,11 +1048,15 @@
             if (orbAnimationId) { cancelAnimationFrame(orbAnimationId); orbAnimationId = null; }
             $('login-screen').classList.add('hide');
             $('dashboard-screen').classList.add('show');
-            $('nav-devices').classList.toggle('hide', !state.isAdmin);
+            $('nav-devices').classList.remove('hide'); // 기기 관리 메뉴는 관리자 · 일반 사용자 모두에게 보여요 (일반 사용자는 보기 전용)
             $('monitored-devices-card').classList.toggle('hide', !state.isAdmin);
             const vlanForm = $('vlan-form'); if (vlanForm) vlanForm.classList.toggle('hide', !state.isAdmin);
             const deviceFormCard = $('device-form-card'); if (deviceFormCard) deviceFormCard.classList.toggle('hide', !state.isAdmin);
             const topoHint = $('topo-hint-admin'); if (topoHint) topoHint.classList.toggle('hide', !state.isAdmin);
+            const devSaveBtn = $('device-save-btn'); if (devSaveBtn) devSaveBtn.classList.toggle('hide', !state.isAdmin);
+            const devReadonlyBadge = $('devices-readonly-badge'); if (devReadonlyBadge) devReadonlyBadge.classList.toggle('hide', state.isAdmin);
+            const backupControls = $('backup-controls'); if (backupControls) backupControls.classList.toggle('hide', !state.isAdmin);
+            const backupReadonlyNote = $('backup-readonly-note'); if (backupReadonlyNote) backupReadonlyNote.classList.toggle('hide', state.isAdmin);
             $('user-role-badge').textContent = state.isAdmin ? `👑 관리자 (${state.username})` : `👤 일반 사용자 (${state.username})`;
             renderVlanZones();
             switchView('overview');
@@ -1064,6 +1111,42 @@
         NODE_KEYS.forEach(k => { const n = NODES[k]; n.lc = n.cpu; n.lr = n.ram; n.lv = n.cpu >= 70 ? 'warn' : 'ok'; });
         const EDGES = [['core-router', 'dist-sw-1'], ['core-router', 'dist-sw-2'], ['dist-sw-1', 'server-db'], ['dist-sw-1', 'server-api'], ['dist-sw-2', 'workstation-pc'], ['dist-sw-2', 'mobile-gateway']];
         const LVC = { ok: 'var(--green)', warn: 'var(--amber)', crit: 'var(--red)' };
+        // 두 장비 사이의 선(연결)마다 고유 id를 만들어요. 한 장비가 여러 개의 연결을 가질 수도 있기 때문에,
+        // 예전처럼 '도착 장비 id'만으로는 구분할 수 없어서 '출발-도착' 조합으로 id를 만들어요.
+        function edgeId(a, b) { return `ln-${a}__${b}`; }
+        function edgeExists(a, b) { return EDGES.some(([x, y]) => (x === a && y === b) || (x === b && y === a)); }
+
+        /* ═════════ IP 주소 형식 검증 ═════════ */
+        // 점(.)으로 구분된 4자리 숫자인지, 각 자리가 0~255 범위인지까지 정확히 검사해요.
+        // (예: "999.1.1.1"이나 "10.10.0" 처럼 자릿수가 틀리거나 범위를 벗어나면 false)
+        function isValidIp(ip) {
+            if (typeof ip !== 'string') return false;
+            const parts = ip.trim().split('.');
+            if (parts.length !== 4) return false;
+            return parts.every(p => {
+                if (!/^\d{1,3}$/.test(p)) return false;   // 숫자가 아니거나 자릿수 이상
+                if (p.length > 1 && p[0] === '0') return false; // "01"처럼 불필요한 0으로 시작 금지
+                const n = Number(p);
+                return n >= 0 && n <= 255;
+            });
+        }
+        // 입력창 아래 에러 문구를 보여주고, 테두리를 빨갛게 표시한 뒤 다시 입력하도록 포커스를 돌려줘요.
+        function showIpError(inputEl) {
+            if (!inputEl) return;
+            inputEl.classList.add('input-error');
+            const err = $(inputEl.id + '-err');
+            if (err) err.classList.add('show');
+            toast('IP 주소 형식이 올바르지 않아요. 0~255 사이 숫자 4개를 점(.)으로 구분해서 다시 입력해 주세요.');
+            inputEl.focus();
+            inputEl.select();
+        }
+        // 입력값을 고치기 시작하면 에러 표시를 지워요.
+        function clearIpError(inputEl) {
+            if (!inputEl) return;
+            inputEl.classList.remove('input-error');
+            const err = $(inputEl.id + '-err');
+            if (err) err.classList.remove('show');
+        }
         const OWNERS = ['admin (이지환)', 'user1 (8bit)'];
 
         // VLAN(구역) 목록: 부서·구역별로 장비를 나눠서 묶어요. 나중에 실제 DB로 옮길 때도 이 구조 그대로 테이블화하면 돼요.
@@ -1162,7 +1245,6 @@
         };
 
         function switchView(name) {
-            if (name === 'devices' && !state.isAdmin) name = 'overview';
             if (state.view === 'guide' && name !== 'guide') resetChat(); // 가이드 탭을 벗어나면 대화 내용 초기화
             state.view = name;
             document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.dataset.view === name));
@@ -1173,7 +1255,10 @@
             wave.classList.toggle('hide', name !== 'overview');
             wave.classList.remove('waving');
             if (name === 'overview') { void wave.offsetWidth; wave.classList.add('waving'); }
-            $('page-sub').textContent = t[1];
+            // 기기 관리 화면은 관리자/일반 사용자 안내 문구가 달라요.
+            $('page-sub').textContent = (name === 'devices' && !state.isAdmin)
+                ? '기기별 소유자 할당과 DB 백업 기록을 확인할 수 있어요 (보기 전용)'
+                : t[1];
             if (name === 'logs') { state.unread = 0; updateBadge(); }
             if (name === 'devices') { renderDevices(); renderBackups(); }
             window.scrollTo({ top: 0 });
@@ -1184,7 +1269,8 @@
         /* ═════════ 5. 토폴로지 · 장비 UI 생성 ═════════ */
         function buildNodeUI() {
             // 토폴로지 맵: x/y 좌표가 있는(=처음부터 배치된) 장비만 그려요. 새로 등록한 장비는 아래 VLAN 구역 카드에서 확인할 수 있어요.
-            const lines = EDGES.filter(([a, b]) => NODES[a] && NODES[b]).map(([a, b]) => `<line id="ln-${b}" x1="${NODES[a].x}%" y1="${NODES[a].y}%" x2="${NODES[b].x}%" y2="${NODES[b].y}%"/>`).join('');
+            // 한 장비가 여러 연결을 가질 수 있어서, 선마다 'ln-출발_도착' 형태의 고유 id를 붙여요.
+            const lines = EDGES.filter(([a, b]) => NODES[a] && NODES[b]).map(([a, b]) => `<line id="${edgeId(a, b)}" x1="${NODES[a].x}%" y1="${NODES[a].y}%" x2="${NODES[b].x}%" y2="${NODES[b].y}%"/>`).join('');
             const btns = NODE_KEYS.filter(k => NODES[k].x != null).map(k => {
                 const n = NODES[k];
                 const vc = (vlanById(n.vlan) || {}).color || 'var(--dim)';
@@ -1196,9 +1282,66 @@
 
             renderNodeChips();
             renderNodeTable();
+            refreshLinkSelects();
+            renderConnections();
 
             // 팀 역할
             $('roles-grid').innerHTML = ROLES.map(r => `<div class="role"><div class="avatar">${r.name[0]}</div><div><p class="text-sm font-bold">${r.name}</p><p class="text-xs t-muted">${r.role}</p></div></div>`).join('');
+        }
+
+        /* ═════════ 5-4. 장비 연결(선) 관리 ═════════ */
+        // 신규 장비 등록 폼 · 우클릭 팝업 · 연결 관리 폼의 <select>들을 항상 최신 장비 목록으로 채워요.
+        function refreshLinkSelects() {
+            const opts = NODE_KEYS.map(k => `<option value="${k}">${NODES[k].name}</option>`).join('');
+            const withNone = `<option value="">연결 안 함</option>` + opts;
+            const newLink = $('new-device-link'); if (newLink) { const prev = newLink.value; newLink.innerHTML = withNone; if (NODES[prev]) newLink.value = prev; }
+            const ctxLink = $('ctx-device-link'); if (ctxLink) ctxLink.innerHTML = withNone;
+            const from = $('link-from'); if (from) { const prev = from.value; from.innerHTML = opts; if (NODES[prev]) from.value = prev; }
+            const to = $('link-to'); if (to) {
+                const prev = to.value; to.innerHTML = opts;
+                // 장비 A와 다른 장비가 기본으로 선택되도록 해요.
+                if (NODES[prev] && prev !== (from ? from.value : '')) to.value = prev;
+                else if (to.options.length > 1 && from) to.selectedIndex = (from.selectedIndex + 1) % to.options.length;
+            }
+        }
+        function swapLinkSelects() {
+            const from = $('link-from'), to = $('link-to');
+            if (!from || !to) return;
+            const tmp = from.value; from.value = to.value; to.value = tmp;
+        }
+        // 관리자가 두 장비를 골라 연결선을 새로 추가해요.
+        function connectDevices() {
+            if (!state.isAdmin) return;
+            const a = $('link-from').value, b = $('link-to').value;
+            if (!a || !b) { toast('연결할 두 장비를 선택해 주세요.'); return; }
+            if (a === b) { toast('같은 장비끼리는 연결할 수 없어요.'); return; }
+            if (!NODES[a] || !NODES[b]) return;
+            if (edgeExists(a, b)) { toast('이미 연결되어 있는 장비예요.'); return; }
+            EDGES.push([a, b]);
+            buildNodeUI(); updateNodeUI(); lucide.createIcons();
+            toast(`${NODES[a].name} ↔ ${NODES[b].name} 연결선이 추가됐어요.`);
+        }
+        // 연결선을 삭제해요.
+        function disconnectEdge(a, b) {
+            if (!state.isAdmin) return;
+            const idx = EDGES.findIndex(([x, y]) => x === a && y === b);
+            if (idx !== -1) EDGES.splice(idx, 1);
+            buildNodeUI(); updateNodeUI(); lucide.createIcons();
+            toast('연결이 해제됐어요.');
+        }
+        // 연결 관리 카드의 목록 테이블을 다시 그려요.
+        function renderConnections() {
+            const body = $('link-body');
+            if (!body) return;
+            const rows = EDGES.filter(([a, b]) => NODES[a] && NODES[b]);
+            body.innerHTML = rows.length ? rows.map(([a, b]) => `
+                <tr>
+                    <td class="font-semibold">${NODES[a].name}</td>
+                    <td class="t-dim text-center">↔</td>
+                    <td class="font-semibold">${NODES[b].name}</td>
+                    <td><button class="text-xs font-semibold" style="color:var(--red)" onclick="disconnectEdge('${a}','${b}')">연결 해제</button></td>
+                </tr>`).join('')
+                : `<tr><td colspan="4" class="text-center t-dim py-6">아직 등록된 연결이 없어요. 위에서 두 장비를 골라 연결해 보세요.</td></tr>`;
         }
 
         // 대시보드 장비 칩 — 신규 장비를 추가한 뒤에도 다시 호출해서 목록을 갱신해요.
@@ -1254,7 +1397,6 @@
             NODE_KEYS.forEach(k => {
                 const n = NODES[k];
                 setLv($('tn-' + k), n.lv);
-                const ln = $('ln-' + k); if (ln) ln.style.stroke = LVC[n.lv];
                 setLv($('nc-' + k), n.lv);
                 const ncc = $('ncc-' + k); if (ncc) ncc.textContent = Math.round(n.lc) + '%';
                 setLv($('tr-' + k), n.lv);
@@ -1263,6 +1405,11 @@
                 const tr2 = $('tr2-' + k); if (tr2) tr2.style.width = n.lr + '%';
                 const trt = $('trt-' + k); if (trt) trt.textContent = Math.round(n.lr) + '%';
                 const ts = $('ts-' + k); if (ts) ts.textContent = nodeStatus(n);
+            });
+            // 연결선은 장비 하나당 여러 개일 수 있어서, EDGES 전체를 돌면서 도착 장비의 상태색으로 칠해요.
+            EDGES.forEach(([a, b]) => {
+                const ln = $(edgeId(a, b));
+                if (ln && NODES[b]) ln.style.stroke = LVC[NODES[b].lv];
             });
             updateInspector();
         }
@@ -1419,7 +1566,7 @@
 
         // 장비 등록의 공용 처리부: 일반 폼 등록과 토폴로지 맵 우클릭 빠른 등록이 모두 이 함수를 거쳐요.
         // 여기서 buildNodeUI()를 직접 호출하기 때문에, 신규 장비가 토폴로지 맵에 즉시(실시간으로) 반영돼요.
-        function commitNewDevice({ name, ip, typeVal, vlanId, owner, x, y }) {
+        function commitNewDevice({ name, ip, typeVal, vlanId, owner, x, y, linkTo }) {
             const dt = DEVICE_TYPES[typeVal] || DEVICE_TYPES.server;
             const key = 'dev-' + (++deviceSeq) + '-' + Date.now().toString(36).slice(-4);
             const cpu = Math.round(10 + Math.random() * 20);
@@ -1434,6 +1581,9 @@
             };
             NODE_KEYS.push(key);
 
+            // 연결할 장비를 골랐으면, 새 장비와 그 장비 사이에 연결선을 하나 만들어요.
+            if (linkTo && NODES[linkTo] && linkTo !== key) EDGES.push([linkTo, key]);
+
             relaxLayout();     // 새 위치 기준으로 겹치는 노드들을 자동 재배치
             buildNodeUI();     // 토폴로지 맵을 즉시 다시 그려서 화면에 실시간으로 반영
             renderVlanZones();
@@ -1441,11 +1591,12 @@
             updateNodeUI();
             lucide.createIcons();
 
-            pushAlert('info', '신규 장비 등록됨', `${name} (${ip}) 장비가 '${(vlanById(vlanId) || {}).name || vlanId}' 구역에 추가되어 토폴로지 맵에 반영됐어요.`, {
+            const linkNote = (linkTo && NODES[linkTo]) ? ` '${NODES[linkTo].name}'과(와) 연결됐어요.` : '';
+            pushAlert('info', '신규 장비 등록됨', `${name} (${ip}) 장비가 '${(vlanById(vlanId) || {}).name || vlanId}' 구역에 추가되어 토폴로지 맵에 반영됐어요.${linkNote}`, {
                 cause: '관리자가 토폴로지 화면에서 새 장비를 직접 등록했어요.',
                 action: '지금은 화면상 등록까지만 지원해요. 실제 장비와의 통신 확인(핑·SNMP 등)은 SQL·Python 백엔드를 연결하는 다음 단계에서 추가할 예정이에요.'
             });
-            toast(`${name} 장비가 등록되어 토폴로지 맵에 나타났어요.`);
+            toast(`${name} 장비가 등록되어 토폴로지 맵에 나타났어요.${linkNote}`);
             return key;
         }
 
@@ -1457,15 +1608,17 @@
             const ip = ipInput.value.trim();
             const typeVal = $('new-device-type').value;
             const vlanId = $('new-device-vlan').value;
+            const linkTo = $('new-device-link').value;
             const ownerInput = $('new-device-owner');
             const owner = ownerInput.value.trim();
 
             if (!name || !ip) { toast('장비 이름과 IP 주소를 입력해 주세요.'); return; }
-            if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) { toast('IP 형식을 확인해 주세요. 예) 192.168.1.20'); return; }
+            if (!isValidIp(ip)) { showIpError(ipInput); return; }
+            clearIpError(ipInput);
 
-            commitNewDevice({ name, ip, typeVal, vlanId, owner });
+            commitNewDevice({ name, ip, typeVal, vlanId, owner, linkTo });
 
-            nameInput.value = ''; ipInput.value = ''; ownerInput.value = '';
+            nameInput.value = ''; ipInput.value = ''; ownerInput.value = ''; $('new-device-link').value = '';
         }
 
         /* ═════════ 5-3. 토폴로지 맵 우클릭 → 빠른 장비 등록 ═════════ */
@@ -1475,6 +1628,10 @@
         function refreshCtxVlanSelect() {
             const sel = $('ctx-device-vlan');
             if (sel) sel.innerHTML = vlans.map(v => `<option value="${v.id}">${v.name}</option>`).join('');
+        }
+        function refreshCtxLinkSelect() {
+            const sel = $('ctx-device-link');
+            if (sel) sel.innerHTML = `<option value="">연결 안 함</option>` + NODE_KEYS.map(k => `<option value="${k}">${NODES[k].name}</option>`).join('');
         }
 
         function openTopoContextMenu(e) {
@@ -1490,6 +1647,7 @@
             pendingCtxPos = { x: +xPct.toFixed(1), y: +yPct.toFixed(1) };
 
             refreshCtxVlanSelect();
+            refreshCtxLinkSelect();
             const menu = $('topo-ctx');
             menu.classList.remove('hide');
 
@@ -1502,6 +1660,7 @@
 
             $('ctx-device-name').value = '';
             $('ctx-device-ip').value = '';
+            clearIpError($('ctx-device-ip'));
             setTimeout(() => { const el = $('ctx-device-name'); if (el) el.focus(); }, 30);
         }
 
@@ -1519,11 +1678,14 @@
 
             const typeVal = $('ctx-device-type').value;
             const vlanId = $('ctx-device-vlan').value;
-            let ip = $('ctx-device-ip').value.trim();
-            if (ip && !/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) { toast('IP 형식을 확인해 주세요. 예) 192.168.1.20'); return; }
+            const linkTo = $('ctx-device-link').value;
+            const ipInput = $('ctx-device-ip');
+            let ip = ipInput.value.trim();
+            if (ip && !isValidIp(ip)) { showIpError(ipInput); return; }
+            clearIpError(ipInput);
             if (!ip) ip = nextAvailableIp(vlanId);
 
-            commitNewDevice({ name, ip, typeVal, vlanId, owner: '', x: pendingCtxPos.x, y: pendingCtxPos.y });
+            commitNewDevice({ name, ip, typeVal, vlanId, owner: '', x: pendingCtxPos.x, y: pendingCtxPos.y, linkTo });
             closeTopoContextMenu();
         }
 
@@ -1542,6 +1704,8 @@
             delete NODES[key];
             const idx = NODE_KEYS.indexOf(key);
             if (idx !== -1) NODE_KEYS.splice(idx, 1);
+            // 이 장비와 연결되어 있던 선도 함께 정리해요.
+            for (let i = EDGES.length - 1; i >= 0; i--) { if (EDGES[i][0] === key || EDGES[i][1] === key) EDGES.splice(i, 1); }
 
             buildNodeUI();
             renderVlanZones();
@@ -1559,6 +1723,7 @@
             editingDeviceKey = key;
             $('edit-device-name').value = n.name;
             $('edit-device-ip').value = n.ip;
+            clearIpError($('edit-device-ip'));
             $('edit-device-owner').value = n.owner || '';
             const typeVal = Object.keys(DEVICE_TYPES).find(t => DEVICE_TYPES[t].icon === n.icon) || 'server';
             $('edit-device-type').value = typeVal;
@@ -1568,9 +1733,11 @@
         function saveDeviceEdit() {
             if (!editingDeviceKey || !NODES[editingDeviceKey]) { closeDeviceEditModal(); return; }
             const name = $('edit-device-name').value.trim();
-            const ip = $('edit-device-ip').value.trim();
+            const ipInput = $('edit-device-ip');
+            const ip = ipInput.value.trim();
             if (!name || !ip) { toast('장비 이름과 IP 주소를 입력해 주세요.'); return; }
-            if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) { toast('IP 형식을 확인해 주세요. 예) 192.168.1.20'); return; }
+            if (!isValidIp(ip)) { showIpError(ipInput); return; }
+            clearIpError(ipInput);
 
             const typeVal = $('edit-device-type').value;
             const dt = DEVICE_TYPES[typeVal] || DEVICE_TYPES.server;
@@ -1896,7 +2063,7 @@
 
         const HELP = {
             overview: `<strong>[8bit AI 관제 시스템]</strong><br>실시간 네트워크 트래픽과 텔레메트리 데이터를 분석해 AI 위험 스코어를 계산하고, 장애를 미리 막도록 돕는 관제 대시보드예요.`,
-            menu: `<strong>[메뉴 구성]</strong><br>• 대시보드: 핵심 지표, 실시간 차트, 장애 시뮬레이션<br>• 토폴로지: 노드를 눌러 장비 진단<br>• 트래픽 · AI 분석: 확대 차트와 장비별 부하<br>• 보안 로그: 경보 기록과 필터<br>• AI 가이드: 사용법과 팀 역할<br>• 기기 관리: 관리자 전용, 소유자 할당`,
+            menu: `<strong>[메뉴 구성]</strong><br>• 대시보드: 핵심 지표, 실시간 차트, 장애 시뮬레이션<br>• 토폴로지: 노드를 눌러 장비 진단<br>• 트래픽 · AI 분석: 확대 차트와 장비별 부하<br>• 보안 로그: 경보 기록과 필터<br>• AI 가이드: 사용법과 팀 역할<br>• 기기 관리: 관리자·일반 사용자 모두 확인 가능 (일반 사용자는 보기 전용)`,
             ddos: `<strong>[DDoS & 패킷 손실 시뮬레이션]</strong><br>대시보드의 시뮬레이션 버튼을 누르면 가상 장애 트래픽이 발생해요. AI 스코어가 올라가고, 보안 로그에 경보가 기록되며, 관련 장비의 부하도 함께 올라가요. 버튼마다 색이 달라서 어떤 장애인지 한눈에 구분할 수 있고, 버튼 아래 설명 박스에 발생 원인도 함께 나와요.`,
             topology: `<strong>[토폴로지 맵 & 텔레메트리]</strong><br>토폴로지 메뉴에서 노드(Core Router, Dist-SW 등)를 누르면 오른쪽 진단창에 IP, CPU·메모리 사용률, 상태가 바로 표시돼요. 노드 색은 부하에 따라 초록 · 노랑 · 빨강으로 바뀌어요. 아래쪽 'VLAN 구역 관리'에서는 부서별로 구역을 나누고, 장비를 직접 등록해서 구역에 배치할 수도 있어요.`,
             roles: `<strong>[8비트 프로젝트 팀 역할 분담]</strong><br>• 총괄/권한: 이지환 &nbsp;• UI/대시보드: 장우진<br>• 토폴로지: 양이수 &nbsp;• 로그 수집: 김범수<br>• 백엔드/경보: 구본학 &nbsp;• 관제 DB/ETL: 김민석<br>• AI 예측/분석: 최민규, 김태현`
@@ -1961,9 +2128,9 @@
 
             // 기기 관리 & DB 백업 & 팀
             { keys: ['기기 관리', '소유자', '할당'],
-              html: `<strong>[기기 관리]</strong><br>관리자 계정으로 로그인하면 왼쪽 사이드바에 '기기 관리' 메뉴가 나타나요. IP·기기명·종류·상태를 확인하고, 기기별 소유자를 지정해 저장할 수 있어요.` },
+              html: `<strong>[기기 관리]</strong><br>왼쪽 사이드바의 '기기 관리' 메뉴에서 IP·기기명·종류·상태·소유자를 확인할 수 있어요. 관리자는 소유자를 지정해 저장할 수 있고, 일반 사용자는 보기만 가능해요.` },
             { keys: ['db 백업', '백업 기능', '데이터베이스 백업', '백업하는 법'],
-              html: `<strong>[DB 백업]</strong><br>기기 관리 화면 아래쪽 'DB 백업 관리'에서 보관 기간을 고르고 '지금 백업하기'를 누르면, 그 순간의 날짜·시간이 초 단위까지 정확히 기록돼요.` },
+              html: `<strong>[DB 백업]</strong><br>기기 관리 화면 아래쪽 'DB 백업 관리'에서 보관 기간을 고르고 '지금 백업하기'를 누르면, 그 순간의 날짜·시간이 초 단위까지 정확히 기록돼요. 일반 사용자는 이 백업 기록을 볼 수만 있고, 실행·삭제는 관리자만 할 수 있어요.` },
             { keys: ['보관 기간', '몇 개월 저장', '백업 몇 개월', '만료'],
               html: `<strong>[백업 보관 기간]</strong><br>백업할 때 1개월 · 3개월 · 6개월 · 12개월 · 24개월 · 영구 보관 중 하나를 선택할 수 있어요. 선택한 기간이 지나면 만료 예정일로 표시돼요.` },
             { keys: ['역할', '팀원', '담당'], html: HELP.roles },
@@ -1972,7 +2139,7 @@
             { keys: ['로그인 방법', '로그인 어떻게', '계정 정보', '로그인 안내'],
               html: `<strong>[로그인 안내]</strong><br>이름 '이지환' + 비밀번호 'admin'이면 관리자로, 그 외 이름 + 비밀번호 '8bit'이면 일반 사용자로 로그인돼요.` },
             { keys: ['관리자랑 일반', '권한 차이', '권한 뭐가 달라'],
-              html: `<strong>[관리자 vs 일반 사용자]</strong><br>관리자는 '기기 관리'(DB 백업 포함) 메뉴와 '모니터링 기기 현황' 카드를 볼 수 있지만, 일반 사용자에게는 이 두 가지가 보이지 않아요. 나머지 기능은 동일해요.` },
+              html: `<strong>[관리자 vs 일반 사용자]</strong><br>'기기 관리' 메뉴는 관리자·일반 사용자 모두 볼 수 있지만, 소유자 변경 저장과 DB 백업 실행·삭제는 관리자만 가능해요(일반 사용자는 보기 전용). '모니터링 기기 현황' 카드는 관리자에게만 보여요. 나머지 기능은 동일해요.` },
             { keys: ['잠금', '차단', '실패 횟수', '오류 횟수'],
               html: `<strong>[로그인 실패 잠금 정책]</strong><br>이름·비밀번호를 5회 이상 틀리면 30초부터 시작해 점점 길게 잠기고, 10회를 넘으면 IP가 차단된 화면으로 바뀌어요.` },
 
@@ -2061,16 +2228,21 @@
         function renderDevices() {
             $('device-body').innerHTML = NODE_KEYS.map(k => {
                 const n = NODES[k];
+                // 관리자는 소유자를 바로 바꿀 수 있는 드롭다운을, 일반 사용자는 값만 보이는 텍스트를 표시해요.
+                const ownerCell = state.isAdmin
+                    ? `<select class="sel-input" id="own-${k}">${OWNERS.map(o => `<option ${o === n.owner ? 'selected' : ''}>${o}</option>`).join('')}</select>`
+                    : `<span class="t-muted">${n.owner}</span>`;
                 return `<tr>
                     <td class="mono">${n.ip}</td>
                     <td class="font-semibold">${n.name}</td>
                     <td><span class="tag">${n.type}</span></td>
                     <td class="c-lv lv-${n.lv} font-semibold">● ${n.lv === 'ok' ? 'Online' : n.lv === 'warn' ? 'Warning' : 'Critical'}</td>
-                    <td><select class="sel-input" id="own-${k}">${OWNERS.map(o => `<option ${o === n.owner ? 'selected' : ''}>${o}</option>`).join('')}</select></td>
+                    <td>${ownerCell}</td>
                 </tr>`;
             }).join('');
         }
         function saveAssignments() {
+            if (!state.isAdmin) return; // 일반 사용자는 보기 전용이라 저장할 수 없어요.
             NODE_KEYS.forEach(k => { const s = $('own-' + k); if (s) NODES[k].owner = s.value; });
             updateInspector();
             toast('기기 소유자 할당 정보가 저장되었어요.');
@@ -2093,6 +2265,7 @@
         }
 
         function createBackup() {
+            if (!state.isAdmin) return; // 일반 사용자는 백업을 실행할 수 없어요.
             const months = parseInt($('backup-retention').value, 10);
             const now = new Date();
             const expires = months > 0 ? addMonths(now, months) : null;
@@ -2114,6 +2287,7 @@
         }
 
         function deleteBackup(id) {
+            if (!state.isAdmin) return; // 일반 사용자는 백업을 삭제할 수 없어요.
             const idx = backups.findIndex(b => b.id === id);
             if (idx !== -1) backups.splice(idx, 1);
             renderBackups();
@@ -2129,7 +2303,7 @@
                     <td class="t-muted">${b.expiresLabel}</td>
                     <td class="mono">${b.sizeMB} MB</td>
                     <td class="c-green font-semibold">● 정상</td>
-                    <td><button class="text-xs font-semibold" style="color:var(--red)" onclick="deleteBackup(${b.id})">삭제</button></td>
+                    <td>${state.isAdmin ? `<button class="text-xs font-semibold" style="color:var(--red)" onclick="deleteBackup(${b.id})">삭제</button>` : ''}</td>
                 </tr>`).join('')
                 : `<tr><td colspan="6" class="text-center t-dim py-6">아직 백업 기록이 없어요. 보관 기간을 고르고 '지금 백업하기'를 눌러보세요.</td></tr>`;
             const countEl = $('backup-count');
