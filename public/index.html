@@ -274,17 +274,21 @@
         .link-swap:hover { color: var(--text); }
 
         /* 토폴로지 */
-        .topo-wrap { position: relative; overflow-x: auto; border-radius: 18px; background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid var(--border); }
-        .topo { position: relative; height: 410px; min-width: 540px; cursor: default; }
-        .topo svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+        .topo-card { display: flex; flex-direction: column; min-height: 680px; }
+        .topo-card > .topo-wrap { flex: 1; }
+        .topo-wrap { position: relative; overflow: hidden; border-radius: 18px; background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid var(--border); cursor: grab; }
+        .topo-wrap.panning { cursor: grabbing; user-select: none; }
+        .topo { position: relative; height: 100%; min-height: 560px; min-width: 720px; cursor: inherit; transform-origin: center center; transition: transform .15s ease; }
+        @media (max-width: 767px) { .topo-card { min-height: 420px; } .topo { min-height: 320px; } }
+        .topo svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
         .topo line { stroke-width: 2; stroke-dasharray: 5 6; opacity: .75; animation: flow 1s linear infinite; }
         @keyframes flow { to { stroke-dashoffset: -11; } }
         .tnode {
-            position: absolute; z-index: 2; transform: translate(-50%, -50%); min-width: 106px; padding: 11px 13px; border-radius: 16px;
+            position: absolute; z-index: 2; transform: translate(-50%, -50%) scale(var(--topo-node-scale, 1)); min-width: 106px; padding: 11px 13px; border-radius: 16px;
             display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; text-align: center; color: var(--text);
             background: var(--node-bg); border: 1.5px solid var(--lv); transition: left .35s ease, top .35s ease, transform .2s, box-shadow .2s;
         }
-        .tnode:hover { transform: translate(-50%, calc(-50% - 3px)); }
+        .tnode:hover { transform: translate(-50%, calc(-50% - 3px)) scale(var(--topo-node-scale, 1)); }
         .tnode.sel { box-shadow: 0 0 0 3px color-mix(in srgb, var(--lv) 28%, transparent), 0 10px 28px color-mix(in srgb, var(--lv) 24%, transparent); }
         .tnode b { font-size: 12px; } .tnode small { font-size: 10px; color: var(--muted); }
         .topo.topo-admin .tnode { cursor: grab; touch-action: none; }
@@ -318,6 +322,24 @@
         .topo-ctx .sel-input { width: 100%; box-sizing: border-box; }
         .topo-ctx-add { width: 100%; }
         .topo-hint-badge { padding: 3px 9px; border-radius: 999px; font-size: 11px; background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); border: 1px solid color-mix(in srgb, var(--green) 35%, transparent); }
+        .topo-arrange-btn {
+            display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 999px; font-size: 11px; font-weight: 700;
+            color: var(--indigo); background: color-mix(in srgb, var(--indigo) 14%, transparent); border: 1px solid color-mix(in srgb, var(--indigo) 38%, transparent);
+            cursor: pointer; transition: transform .15s, box-shadow .15s;
+        }
+        .topo-arrange-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px color-mix(in srgb, var(--indigo) 30%, transparent); }
+        .topo-arrange-btn:active { transform: translateY(0); }
+        .topo-zoom {
+            display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 999px;
+            background: var(--glass-strong); border: 1px solid var(--border);
+        }
+        .topo-zoom button {
+            width: 22px; height: 22px; border-radius: 999px; border: 0; background: transparent; color: var(--text);
+            cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; line-height: 1;
+            transition: background .15s;
+        }
+        .topo-zoom button:hover { background: var(--glass); }
+        .topo-zoom span { font-size: 10.5px; font-weight: 700; color: var(--muted); min-width: 32px; text-align: center; font-variant-numeric: tabular-nums; }
 
         /* VLAN 구역 관리 */
         .vlan-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
@@ -587,18 +609,25 @@
             <!-- ───── VIEW: 토폴로지 ───── -->
             <section class="view" data-view="topology">
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                    <div class="card lg:col-span-8">
+                    <div class="card lg:col-span-8 topo-card">
                         <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
                             <h2 class="ctitle"><i data-lucide="network" class="w-4 h-4 c-cyan"></i>네트워크 인프라 토폴로지 맵</h2>
                             <div class="flex items-center gap-2 flex-wrap">
                                 <span class="text-xs t-dim">노드를 누르면 상세 진단이 열려요</span>
                                 <span id="topo-hint-admin" class="topo-hint-badge hide">🖱️ 빈 곳 우클릭 → 그 자리에 바로 등록</span>
                                 <span id="topo-hint-drag" class="topo-hint-badge hide">✋ 노드를 꾹 눌러서 자유롭게 이동</span>
+                                <button type="button" id="topo-arrange-btn" class="topo-arrange-btn hide" onclick="autoArrangeTopology()"><i data-lucide="layout-grid" class="w-3.5 h-3.5"></i>예쁘게 정렬</button>
+                                <div class="topo-zoom">
+                                    <button type="button" onclick="topoZoomBy(-0.1)" title="축소">−</button>
+                                    <span id="topo-zoom-label">100%</span>
+                                    <button type="button" onclick="topoZoomBy(0.1)" title="확대">+</button>
+                                    <button type="button" onclick="topoZoomReset()" title="100%로 초기화">⟳</button>
+                                </div>
                                 <span class="credit">양이수</span>
                             </div>
                         </div>
-                        <div class="topo-wrap">
-                            <div id="topo" class="topo" oncontextmenu="openTopoContextMenu(event)"></div>
+                        <div id="topo-wrap" class="topo-wrap" oncontextmenu="openTopoContextMenu(event)">
+                            <div id="topo" class="topo"></div>
                             <div id="topo-ctx" class="topo-ctx hide">
                                 <div class="topo-ctx-head">
                                     <span>+ 이 위치에 장비 추가</span>
@@ -1078,6 +1107,7 @@
             const linkForm = $('link-form'); if (linkForm) linkForm.classList.toggle('hide', !state.isAdmin); // 연결하기 폼 제어
             const topoHint = $('topo-hint-admin'); if (topoHint) topoHint.classList.toggle('hide', !state.isAdmin);
             const topoDragHint = $('topo-hint-drag'); if (topoDragHint) topoDragHint.classList.toggle('hide', !state.isAdmin);
+            const topoArrangeBtn = $('topo-arrange-btn'); if (topoArrangeBtn) topoArrangeBtn.classList.toggle('hide', !state.isAdmin);
             const topoEl = $('topo'); if (topoEl) topoEl.classList.toggle('topo-admin', state.isAdmin);
             const devSaveBtn = $('device-save-btn'); if (devSaveBtn) devSaveBtn.classList.toggle('hide', !state.isAdmin);
             const devReadonlyBadge = $('devices-readonly-badge'); if (devReadonlyBadge) devReadonlyBadge.classList.toggle('hide', state.isAdmin);
@@ -1285,49 +1315,67 @@
             return NODE_KEYS.filter(k => NODES[k].x != null && NODES[k].vlan === vlanId && k !== excludeKey);
         }
 
-        // VLAN 구역의 원형 영역을 픽셀 기준으로 계산 (컨테이너가 정사각형이 아니어도 시각적으로 둥글게 보이도록 rx/ry를 따로 계산)
-        function computeZoneGeometry(vlanId, rect, excludeKey) {
-            const members = vlanMembers(vlanId, excludeKey);
-            if (!members.length || !rect || !rect.width || !rect.height) return null;
-            const pts = members.map(k => ({ x: NODES[k].x / 100 * rect.width, y: NODES[k].y / 100 * rect.height }));
-            const cxPx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
-            const cyPx = pts.reduce((s, p) => s + p.y, 0) / pts.length;
-            let maxDist = 0;
-            pts.forEach(p => { const d = Math.hypot(p.x - cxPx, p.y - cyPx); if (d > maxDist) maxDist = d; });
-            const PADDING = 64, MIN_R = 80;
-            const radiusPx = Math.max(maxDist + PADDING, MIN_R);
-            return {
-                cxPx, cyPx, radiusPx,
-                cxPercent: cxPx / rect.width * 100,
-                cyPercent: cyPx / rect.height * 100,
-                rxPercent: radiusPx / rect.width * 100,
-                ryPercent: radiusPx / rect.height * 100
-            };
+        // 확대/축소(zoom)는 CSS transform으로 시각적 크기만 바꾸는데, getBoundingClientRect()는
+        // 그 변환이 반영된 "화면상 크기"를 반환한다. 구역 원의 %는 SVG 자체의 고유 크기(변환 전) 기준으로
+        // 해석되므로, 화면상 크기로 %를 계산하면 확대율에 따라 이중으로 스케일이 적용돼 원이 커지거나 잘린다.
+        // 그래서 구역 도형 계산에는 항상 이 "변환 영향을 받지 않는" 고유 크기를 사용한다.
+        function topoIntrinsicRect() {
+            const el = $('topo');
+            return { width: (el && el.offsetWidth) || 1, height: (el && el.offsetHeight) || 1 };
         }
 
-        function buildVlanZoneMarkup(rect) {
-            return vlans.map(v => {
-                const geo = computeZoneGeometry(v.id, rect, null);
-                if (!geo) return '';
-                const labelY = Math.max(geo.cyPercent - geo.ryPercent + 3, 3);
-                return `<g class="vzone" id="vz-${v.id}" pointer-events="none">
-                    <ellipse cx="${geo.cxPercent}%" cy="${geo.cyPercent}%" rx="${geo.rxPercent}%" ry="${geo.ryPercent}%" fill="${v.color}" fill-opacity="0.10" stroke="${v.color}" stroke-opacity="0.55" stroke-width="1.5" stroke-dasharray="7 6"/>
-                    <text x="${geo.cxPercent}%" y="${labelY}%" fill="${v.color}" font-size="11" font-weight="700" text-anchor="middle" style="paint-order:stroke;stroke:var(--bg);stroke-width:3px;">${v.name}</text>
-                </g>`;
-            }).join('');
-        }
+        /* 1. 구역 원 반지름 계산 보정 (computeZoneGeometry) */
+function computeZoneGeometry(vlanId, rect, excludeKey) {
+    const members = vlanMembers(vlanId, excludeKey);
+    if (!members.length || !rect || !rect.width || !rect.height) return null;
+    const pts = members.map(k => ({ x: NODES[k].x / 100 * rect.width, y: NODES[k].y / 100 * rect.height }));
+    const cxPx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+    const cyPx = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+    let maxDist = 0;
+    pts.forEach(p => { const d = Math.hypot(p.x - cxPx, p.y - cyPx); if (d > maxDist) maxDist = d; });
+    
+    // 장비가 1개일 때는 과도하게 원이 커지지 않도록 적정 픽셀 반지름(68px) 적용
+    const PADDING = 46, MIN_R = members.length === 1 ? 68 : 60;
+    const radiusPx = Math.max(maxDist + PADDING, MIN_R);
+    
+    return {
+        cxPx, cyPx, radiusPx,
+        cxPercent: cxPx / rect.width * 100,
+        cyPercent: cyPx / rect.height * 100,
+        rxPercent: radiusPx / rect.width * 100,
+        ryPercent: radiusPx / rect.height * 100
+    };
+}
 
-        // 드래그 중 매 프레임 전체를 다시 그리지 않고 구역 도형만 가볍게 갱신
-        function updateVlanZoneShapes(rect) {
-            vlans.forEach(v => {
-                const g = document.getElementById('vz-' + v.id);
-                const geo = computeZoneGeometry(v.id, rect, null);
-                if (!g || !geo) return;
-                const ell = g.querySelector('ellipse'), txt = g.querySelector('text');
-                if (ell) { ell.setAttribute('cx', geo.cxPercent + '%'); ell.setAttribute('cy', geo.cyPercent + '%'); ell.setAttribute('rx', geo.rxPercent + '%'); ell.setAttribute('ry', geo.ryPercent + '%'); }
-                if (txt) { txt.setAttribute('x', geo.cxPercent + '%'); txt.setAttribute('y', Math.max(geo.cyPercent - geo.ryPercent + 3, 3) + '%'); }
-            });
+/* 2. VLAN 텍스트 위치를 노드 중심점(cyPercent) 기준으로 일정 px만큼만 올리기 (buildVlanZoneMarkup) */
+function buildVlanZoneMarkup(rect) {
+    return vlans.map(v => {
+        const geo = computeZoneGeometry(v.id, rect, null);
+        if (!geo) return '';
+        // 원의 거대해진 ryPercent에 의존하지 않고, 원 중심에서 위로 일정 거리(ryPercent의 0.75배)에 배치
+        const labelY = geo.cyPercent + geo.ryPercent + 3.5; 
+        return `<g class="vzone" id="vz-${v.id}" pointer-events="none">
+            <ellipse cx="${geo.cxPercent}%" cy="${geo.cyPercent}%" rx="${geo.rxPercent}%" ry="${geo.ryPercent}%" fill="${v.color}" fill-opacity="0.10" stroke="${v.color}" stroke-opacity="0.55" style="stroke-width:calc(1.5px * var(--topo-node-scale, 1));" stroke-dasharray="7 6"/>
+            <text x="${geo.cxPercent}%" y="${geo.cyPercent}%" dy="calc(${geo.radiusPx + 18}px * var(--topo-node-scale, 1))" fill="${v.color}" font-weight="700" text-anchor="middle" style="font-size:calc(11px * var(--topo-node-scale, 1));paint-order:stroke;stroke:var(--bg);stroke-width:calc(3px * var(--topo-node-scale, 1));">${v.name}</text>
+        </g>`;
+    }).join('');
+}
+
+/* 3. 드래그 중 갱신 함수 (updateVlanZoneShapes) */
+function updateVlanZoneShapes(rect) {
+    vlans.forEach(v => {
+        const g = document.getElementById('vz-' + v.id);
+        const geo = computeZoneGeometry(v.id, rect, null);
+        if (!g || !geo) return;
+        const ell = g.querySelector('ellipse'), txt = g.querySelector('text');
+        if (ell) { ell.setAttribute('cx', geo.cxPercent + '%'); ell.setAttribute('cy', geo.cyPercent + '%'); ell.setAttribute('rx', geo.rxPercent + '%'); ell.setAttribute('ry', geo.ryPercent + '%'); }
+        if (txt) { 
+            const labelY = Math.max(geo.cyPercent - 6, 2);
+            txt.setAttribute('x', geo.cxPercent + '%'); 
+            txt.setAttribute('y', labelY + '%');
         }
+    });
+}
 
         // 드래그로 놓인 위치가 다른 VLAN 구역 안이면 그 구역 id를 반환 (여러 구역과 겹치면 중심에 가장 가까운 구역)
         function findZoneAtPoint(xPercent, yPercent, rect, excludeVlan, excludeKey) {
@@ -1344,7 +1392,7 @@
         }
 
         function buildNodeUI() {
-            const topoRect = $('topo').getBoundingClientRect();
+            const topoRect = topoIntrinsicRect();
             const zoneShapes = buildVlanZoneMarkup(topoRect);
             const lines = EDGES.filter(([a, b]) => NODES[a] && NODES[b]).map(([a, b]) => `<line id="${edgeId(a, b)}" x1="${NODES[a].x}%" y1="${NODES[a].y}%" x2="${NODES[b].x}%" y2="${NODES[b].y}%"/>`).join('');
             const btns = NODE_KEYS.filter(k => NODES[k].x != null).map(k => {
@@ -1369,12 +1417,41 @@
         }
 
         /* ═════════ 5-3. 노드 드래그 배치(꾹 눌러서 자유 이동) ═════════ */
+        // 100%보다 축소했을 때 화면에 보이는 여백도 실제로 장비를 놓을 수 있는 공간이 되도록,
+        // 배치 좌표는 0~100% 밖으로도 여유 있게 허용한다 (최소 축소 50% 기준 역산한 값).
+        const NODE_POS_MIN = -50, NODE_POS_MAX = 150;
         let nodeDragState = null;
         let nodeDragMoved = false;
 
         function handleNodeClick(key, e) {
             if (nodeDragMoved) { nodeDragMoved = false; return; } // 드래그 직후 발생하는 클릭은 선택으로 취급하지 않음
             selectNode(key);
+        }
+
+        // 드래그 중인 노드가 다른 노드와 너무 가까워지면(겹치면) 상대 노드를 밀어내서 겹침을 방지
+        const MIN_NODE_GAP_PX = 96;
+        function resolveNodeOverlaps(activeKey, rect) {
+            const a = NODES[activeKey];
+            if (!a || !rect || !rect.width || !rect.height) return;
+            const ax = a.x / 100 * rect.width, ay = a.y / 100 * rect.height;
+            NODE_KEYS.forEach(k => {
+                if (k === activeKey) return;
+                const b = NODES[k];
+                if (!b || b.x == null) return;
+                const bx = b.x / 100 * rect.width, by = b.y / 100 * rect.height;
+                let dx = bx - ax, dy = by - ay;
+                let dist = Math.hypot(dx, dy);
+                if (dist >= MIN_NODE_GAP_PX) return;
+                if (dist < 0.01) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; dist = 0.01; }
+                const push = MIN_NODE_GAP_PX - dist;
+                const nx = bx + (dx / dist) * push;
+                const ny = by + (dy / dist) * push;
+                b.x = Math.max(NODE_POS_MIN, Math.min(NODE_POS_MAX, nx / rect.width * 100));
+                b.y = Math.max(NODE_POS_MIN, Math.min(NODE_POS_MAX, ny / rect.height * 100));
+                const bEl = document.getElementById('tn-' + k);
+                if (bEl) { bEl.style.left = b.x + '%'; bEl.style.top = b.y + '%'; }
+                updateEdgesFor(k);
+            });
         }
 
         function updateEdgesFor(key) {
@@ -1422,14 +1499,17 @@
             e.preventDefault();
             let xPct = ((e.clientX - d.rect.left) / d.rect.width) * 100;
             let yPct = ((e.clientY - d.rect.top) / d.rect.height) * 100;
-            xPct = Math.max(3, Math.min(97, xPct));
-            yPct = Math.max(4, Math.min(96, yPct));
+            // 축소(zoom out)한 상태에서는 화면에 보이는 여백도 실제로 쓸 수 있는 공간이 되도록
+            // 0~100% 범위 밖으로도 넉넉히 이동을 허용한다 (100% 확대 배치와 별개로 묶이지 않음).
+            xPct = Math.max(NODE_POS_MIN, Math.min(NODE_POS_MAX, xPct));
+            yPct = Math.max(NODE_POS_MIN, Math.min(NODE_POS_MAX, yPct));
             NODES[d.key].x = xPct;
             NODES[d.key].y = yPct;
             d.nodeEl.style.left = xPct + '%';
             d.nodeEl.style.top = yPct + '%';
             updateEdgesFor(d.key);
-            updateVlanZoneShapes(d.rect);
+            resolveNodeOverlaps(d.key, d.rect);
+            updateVlanZoneShapes(topoIntrinsicRect());
         }
 
         function onTopoPointerUp(e) {
@@ -1441,7 +1521,7 @@
             d.nodeEl.classList.remove('dragging');
             if (d.moved) {
                 const n = NODES[d.key];
-                const targetVlan = findZoneAtPoint(n.x, n.y, d.rect, n.vlan, d.key);
+                const targetVlan = findZoneAtPoint(n.x, n.y, topoIntrinsicRect(), n.vlan, d.key);
                 if (targetVlan && targetVlan !== n.vlan) {
                     const zoneName = (vlanById(targetVlan) || {}).name || '';
                     n.vlan = targetVlan;
@@ -1449,7 +1529,7 @@
                     if (state.selected) selectNode(state.selected);
                     toast(`${n.name}이(가) '${zoneName}' 구역으로 자동 이동됐어요.`);
                 } else {
-                    updateVlanZoneShapes(d.rect);
+                    updateVlanZoneShapes(topoIntrinsicRect());
                     toast(`${n.name} 위치를 옮겼어요.`);
                 }
             }
@@ -1457,6 +1537,175 @@
         }
 
         $('topo').addEventListener('pointerdown', onTopoPointerDown);
+
+        /* ═════════ 5-3-1. 토폴로지 자동 정렬(예쁘게 정렬) ═════════ */
+        function autoArrangeTopology() {
+            if (!state.isAdmin) { toast('레이아웃 정렬은 관리자만 할 수 있어요.'); return; }
+            if (NODE_KEYS.length === 0) return;
+
+            // 무방향 인접 리스트 구성
+            const adj = {};
+            NODE_KEYS.forEach(k => adj[k] = []);
+            EDGES.forEach(([a, b]) => { if (adj[a] && adj[b]) { adj[a].push(b); adj[b].push(a); } });
+
+            // 회선이 하나도 없는 '미연결' 장비는 별도의 마지막 줄로 뺀다
+            const linkedKeys = NODE_KEYS.filter(k => adj[k].length > 0);
+            const unlinkedKeys = NODE_KEYS.filter(k => adj[k].length === 0);
+
+            // 상위 → 하위로 등록된 연결 방향을 기준으로 뿌리(최상단) 노드 추정
+            const childSet = new Set(EDGES.map(([, b]) => b));
+            let roots = linkedKeys.filter(k => !childSet.has(k));
+            if (roots.length === 0 && linkedKeys.length) {
+                roots = [linkedKeys.slice().sort((a, b) => adj[b].length - adj[a].length)[0]];
+            }
+
+            // BFS로 레벨(단계) 계산 — 뿌리에서 몇 단계 떨어져 있는지
+            const level = {};
+            const queue = [];
+            roots.forEach(r => { level[r] = 0; queue.push(r); });
+            let qi = 0;
+            while (qi < queue.length) {
+                const cur = queue[qi++];
+                adj[cur].forEach(nb => { if (level[nb] === undefined) { level[nb] = level[cur] + 1; queue.push(nb); } });
+            }
+            // 같은 연결망인데도 못 찾은 노드(뿌리에서 못 닿은 경우)는 남은 것들 중 하나를 새 뿌리로 잡아 이어서 계산
+            linkedKeys.forEach(k => {
+                if (level[k] !== undefined) return;
+                level[k] = 0;
+                const q2 = [k]; let qi2 = 0;
+                while (qi2 < q2.length) {
+                    const cur = q2[qi2++];
+                    adj[cur].forEach(nb => { if (level[nb] === undefined) { level[nb] = level[cur] + 1; q2.push(nb); } });
+                }
+            });
+
+            const maxLinkedLevel = linkedKeys.length ? Math.max(...linkedKeys.map(k => level[k])) : -1;
+            unlinkedKeys.forEach(k => { level[k] = maxLinkedLevel + 1; });
+
+            const levels = {};
+            NODE_KEYS.forEach(k => { (levels[level[k]] = levels[level[k]] || []).push(k); });
+            const levelIdx = Object.keys(levels).map(Number).sort((a, b) => a - b);
+            const totalLevels = levelIdx.length;
+
+            // 컨테이너가 커도 노드 사이 간격에 상한을 둬서, 단이 적을 땐 위쪽에 아담하게 모이고
+            // 단이 많아질 때만 전체 높이를 고르게 나눠 쓰도록 한다 (가장자리까지 억지로 늘리지 않음)
+            const TOP_Y = 14, MAX_Y = 84, MAX_Y_STEP = 34;
+            const TOP_X = 12, MAX_X = 88;
+            const yStep = totalLevels > 1 ? Math.min(MAX_Y_STEP, (MAX_Y - TOP_Y) / (totalLevels - 1)) : 0;
+
+            // 위 단계(부모)의 x 위치 평균(barycenter)에 가깝게 정렬해서 선이 최대한 덜 꼬이게 배치
+            const posX = {};
+            levelIdx.forEach((lv, li) => {
+                const keysAtLevel = levels[lv];
+                const order = keysAtLevel.slice().sort((ka, kb) => {
+                    const bx = (k) => {
+                        const parents = adj[k].filter(nb => level[nb] < lv && posX[nb] !== undefined);
+                        if (!parents.length) return 50;
+                        return parents.reduce((s, p) => s + posX[p], 0) / parents.length;
+                    };
+                    return bx(ka) - bx(kb);
+                });
+                const n = order.length;
+                const y = totalLevels === 1 ? 46 : TOP_Y + li * yStep;
+                order.forEach((k, i) => {
+                    const x = n === 1 ? 50 : TOP_X + i * ((MAX_X - TOP_X) / (n - 1));
+                    posX[k] = x;
+                    NODES[k].x = Math.round(x * 10) / 10;
+                    NODES[k].y = Math.round(y * 10) / 10;
+                });
+            });
+
+            buildNodeUI(); updateNodeUI(); lucide.createIcons();
+            if (state.selected) selectNode(state.selected);
+            toast('토폴로지를 보기 좋게 정렬했어요.');
+        }
+
+        /* ═════════ 5-3-2. 토폴로지 확대 · 축소 ═════════ */
+        let topoZoom = 1;
+        let topoPanX = 0, topoPanY = 0; // 화면 이동(팬) 오프셋 — 스크롤이 아니라 실제 좌표 이동값(px, 확대율과 무관하게 화면 픽셀 기준)
+        const TOPO_ZOOM_MIN = 0.5, TOPO_ZOOM_MAX = 1.8;
+        function applyTopoZoom() {
+            const topoEl = $('topo');
+            if (!topoEl) return;
+            // translate를 scale보다 앞에 적어야 팬 이동량이 확대율과 무관하게 항상 화면 픽셀 그대로 적용된다.
+            topoEl.style.transform = `translate(${topoPanX}px, ${topoPanY}px) scale(${topoZoom})`;
+            // 캔버스는 축소되더라도 장비 박스(아이콘·이름·IP)는 계속 읽기 좋은 크기를 유지하도록
+            // 역보정 배율을 CSS 변수로 내려준다 (지도 앱의 핀이 확대·축소와 무관하게 일정한 크기로 보이는 것과 같은 원리).
+            topoEl.style.setProperty('--topo-node-scale', (1 / topoZoom).toFixed(4));
+            const label = $('topo-zoom-label');
+            if (label) label.textContent = Math.round(topoZoom * 100) + '%';
+        }
+        function topoZoomBy(delta) {
+            topoZoom = Math.min(TOPO_ZOOM_MAX, Math.max(TOPO_ZOOM_MIN, Math.round((topoZoom + delta) * 100) / 100));
+            applyTopoZoom();
+        }
+        function topoZoomReset() { topoZoom = 1; topoPanX = 0; topoPanY = 0; applyTopoZoom(); }
+        (function setupTopoZoomGestures() {
+            const wrap = document.getElementById('topo-wrap');
+            if (!wrap) return;
+            // 트랙패드 핀치 / Ctrl(⌘)+휠 확대축소
+            wrap.addEventListener('wheel', (e) => {
+                if (!e.ctrlKey) return; // 일반 스크롤은 그대로 두고, 핀치 · Ctrl+휠일 때만 확대축소로 처리
+                e.preventDefault();
+                topoZoomBy(e.deltaY > 0 ? -0.05 : 0.05);
+            }, { passive: false });
+            // 모바일 두 손가락 핀치 확대축소
+            let pinchStartDist = null, pinchStartZoom = 1;
+            wrap.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    const [t1, t2] = e.touches;
+                    pinchStartDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+                    pinchStartZoom = topoZoom;
+                }
+            }, { passive: true });
+            wrap.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 2 && pinchStartDist) {
+                    e.preventDefault();
+                    const [t1, t2] = e.touches;
+                    const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+                    topoZoom = Math.min(TOPO_ZOOM_MAX, Math.max(TOPO_ZOOM_MIN, Math.round(pinchStartZoom * (dist / pinchStartDist) * 100) / 100));
+                    applyTopoZoom();
+                }
+            }, { passive: false });
+            wrap.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinchStartDist = null; });
+        })();
+
+        /* ═════════ 5-3-3. 빈 공간 꾹 눌러서 화면 이동(웹페이지 드래그 스크롤처럼) ═════════ */
+        // 스크롤이 아니라 화면 이동값(topoPanX/Y)을 직접 바꾸는 방식이라, 콘텐츠가 화면에
+        // 다 들어와서 스크롤할 여백이 없는 100% 화면에서도 상하좌우 어디로든 자유롭게 움직일 수 있다.
+        (function setupTopoPan() {
+            const wrap = document.getElementById('topo-wrap');
+            if (!wrap) return;
+            let pan = null;
+            wrap.addEventListener('pointerdown', (e) => {
+                if (e.button !== undefined && e.button !== 0 && e.pointerType === 'mouse') return; // 왼쪽 클릭 · 터치만
+                if (e.target.closest('.tnode')) return;       // 노드 위에서는 노드 드래그(꾹 눌러 이동)에게 양보
+                if (e.target.closest('#topo-ctx')) return;    // 우클릭 등록 팝업 위에서는 팬 시작 안 함
+                pan = { startX: e.clientX, startY: e.clientY, panX: topoPanX, panY: topoPanY, moved: false, pointerId: e.pointerId };
+            });
+            wrap.addEventListener('pointermove', (e) => {
+                if (!pan) return;
+                const dx = e.clientX - pan.startX, dy = e.clientY - pan.startY;
+                if (!pan.moved) {
+                    if (Math.hypot(dx, dy) < 4) return; // 살짝 흔들리는 클릭까지 팬으로 인식하지 않도록
+                    pan.moved = true;
+                    wrap.classList.add('panning');
+                    wrap.setPointerCapture && wrap.setPointerCapture(pan.pointerId);
+                }
+                e.preventDefault();
+                // 화면 이동 최대 범위를 제한 (-400px ~ +400px)
+                const MAX_PAN = 400;
+                topoPanX = Math.max(-MAX_PAN, Math.min(MAX_PAN, pan.panX + dx));
+                topoPanY = Math.max(-MAX_PAN, Math.min(MAX_PAN, pan.panY + dy));
+                applyTopoZoom();
+            });
+            function endPan() {
+                if (pan && pan.moved) wrap.classList.remove('panning');
+                pan = null;
+            }
+            wrap.addEventListener('pointerup', endPan);
+            wrap.addEventListener('pointercancel', endPan);
+        })();
 
         /* ═════════ 5-4. 장비 연결(선) 관리 ═════════ */
         function refreshLinkSelects() {
@@ -1797,8 +2046,8 @@
                             fx += dx * push; fy += dy * push;
                         }
                     }
-                    a.x = clamp(a.x + fx, 6, 94);
-                    a.y = clamp(a.y + fy, 10, 90);
+                    a.x = clamp(a.x + fx, NODE_POS_MIN, NODE_POS_MAX);
+                    a.y = clamp(a.y + fy, NODE_POS_MIN, NODE_POS_MAX);
                 }
                 if (!moved) break;
             }
@@ -1824,7 +2073,7 @@
             const key = 'dev-' + (++deviceSeq) + '-' + Date.now().toString(36).slice(-4);
             const cpu = Math.round(10 + Math.random() * 20);
             const ram = Math.round(15 + Math.random() * 25);
-            const pos = (x != null && y != null) ? { x: clamp(x, 4, 96), y: clamp(y, 6, 94) } : autoLayoutPosition();
+            const pos = (x != null && y != null) ? { x: clamp(x, NODE_POS_MIN, NODE_POS_MAX), y: clamp(y, NODE_POS_MIN, NODE_POS_MAX) } : autoLayoutPosition();
 
             NODES[key] = {
                 name, short: name.length > 10 ? name.slice(0, 9) + '…' : name, ip,
@@ -1887,14 +2136,17 @@
 
         function openTopoContextMenu(e) {
             if (!state.isAdmin) return;
+            if (e.target.closest('#topo-ctx')) return; // 팝업 폼 위 우클릭은 무시
             e.preventDefault();
             const topo = $('topo');
             const wrap = topo.parentElement;
             const topoRect = topo.getBoundingClientRect();
             const wrapRect = wrap.getBoundingClientRect();
 
-            const xPct = clamp((e.clientX - topoRect.left) / topoRect.width * 100, 4, 96);
-            const yPct = clamp((e.clientY - topoRect.top) / topoRect.height * 100, 6, 94);
+            // 확대·축소로 #topo가 시각적으로 작아졌어도(예: 50%) wrap 전체 어디를 우클릭하든
+            // 같은 좌표 비율로 환산되도록, 클릭 지점을 축소된 topoRect 기준 %로 계산한다.
+            const xPct = clamp((e.clientX - topoRect.left) / topoRect.width * 100, NODE_POS_MIN, NODE_POS_MAX);
+            const yPct = clamp((e.clientY - topoRect.top) / topoRect.height * 100, NODE_POS_MIN, NODE_POS_MAX);
             pendingCtxPos = { x: +xPct.toFixed(1), y: +yPct.toFixed(1) };
 
             refreshCtxVlanSelect();
@@ -1947,6 +2199,11 @@
             closeTopoContextMenu();
         });
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeTopoContextMenu(); });
+
+        function deleteSelectedNode() {
+            if (!state.isAdmin || !state.selected || !NODES[state.selected]) return;
+            deleteDevice(state.selected);
+        }
 
         function deleteDevice(key) {
             if (!state.isAdmin || !NODES[key]) return;
@@ -2552,6 +2809,7 @@
         setInterval(updateClock, 1000);
         applyEnvBanner();
         buildNodeUI();
+        applyTopoZoom();
         renderVlanZones();
         refreshVlanSelects();
         renderAlerts();
