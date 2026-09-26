@@ -925,6 +925,7 @@
                     <label class="block text-[11px] font-semibold t-muted mb-1">IP 주소</label>
                     <input id="edit-device-ip" type="text" class="sel-input mono" style="width:100%" oninput="clearIpError(this)">
                     <p id="edit-device-ip-err" class="field-err">IP 형식이 올바르지 않아요. 0~255 숫자 4개를 마침표(.)로 구분해 다시 입력해 주세요. 예) 192.168.1.20</p>
+                    <p id="edit-device-ip-hint" style="display:none; font-size:11px; color:var(--amber); margin-top:4px; font-weight:600;">📍 구역이 바뀌어서 IP 대역도 바뀌었을 수 있어요. 아래에 새 구역에 맞는 주소를 추천해 뒀으니, 확인하고 필요하면 직접 수정해 주세요.</p>
                 </div>
                 <div>
                     <label class="block text-[11px] font-semibold t-muted mb-1">장치 모양</label>
@@ -1333,11 +1334,20 @@ function computeZoneGeometry(vlanId, rect, excludeKey) {
     const cyPx = pts.reduce((s, p) => s + p.y, 0) / pts.length;
     let maxDist = 0;
     pts.forEach(p => { const d = Math.hypot(p.x - cxPx, p.y - cyPx); if (d > maxDist) maxDist = d; });
-    
-    // 장비가 1개일 때는 과도하게 원이 커지지 않도록 적정 픽셀 반지름(68px) 적용
-    const PADDING = 46, MIN_R = members.length === 1 ? 68 : 60;
+
+    // 캔버스를 축소(zoom out)하면 노드 박스는 --topo-node-scale(=1/topoZoom)만큼 화면에서 더 크게
+    // 그려지는데, 구역 원의 반지름은 그동안 고정 px였다. 그래서 축소된 상태(예: 50%)에서는
+    // 실제로 커진 노드 박스보다 원이 작아져 테두리가 아이콘·이름을 다시 관통하는 문제가 있었다.
+    // 원 반지름도 같은 배율(nodeScale)만큼 함께 키워서 항상 노드 박스를 여유 있게 감싸도록 한다.
+    const nodeScale = (typeof topoZoom === 'number' && topoZoom > 0) ? 1 / topoZoom : 1;
+    const PADDING = 46 * nodeScale;
+    const MIN_R = 60 * nodeScale;
+    // 장비가 1개일 때는 maxDist가 0이 되어 MIN_R로만 고정되는데, 그마저도 노드 박스보다
+    // 작을 수 있으니 노드 박스 자체의 대략적 반지름(68px, 배율 보정)만큼을 최소로 보정한다.
+    const NODE_HALF_PX = 68 * nodeScale;
+    if (members.length === 1) maxDist = Math.max(maxDist, NODE_HALF_PX);
     const radiusPx = Math.max(maxDist + PADDING, MIN_R);
-    
+
     return {
         cxPx, cyPx, radiusPx,
         cxPercent: cxPx / rect.width * 100,
@@ -1352,11 +1362,15 @@ function buildVlanZoneMarkup(rect) {
     return vlans.map(v => {
         const geo = computeZoneGeometry(v.id, rect, null);
         if (!geo) return '';
-        // 원의 거대해진 ryPercent에 의존하지 않고, 원 중심에서 위로 일정 거리(ryPercent의 0.75배)에 배치
-        const labelY = geo.cyPercent + geo.ryPercent + 3.5; 
+        // 장치 개수와 무관하게 항상 원 "아래"에 이름을 표시한다.
+        // (예전에는 장치 1개짜리 구역만 "원 위"에 표시했는데, 그 구역이 캔버스 상단 근처에
+        //  있으면 이름 텍스트가 화면 밖으로 밀려나 안 보이는 문제가 있었다. 아래쪽 배치는
+        //  구역 원 반지름이 이미 노드 박스보다 넉넉히 크기 때문에 장치 1개일 때도 겹치지 않는다.)
+        const offsetY = geo.radiusPx + 18;
+
         return `<g class="vzone" id="vz-${v.id}" pointer-events="none">
             <ellipse cx="${geo.cxPercent}%" cy="${geo.cyPercent}%" rx="${geo.rxPercent}%" ry="${geo.ryPercent}%" fill="${v.color}" fill-opacity="0.10" stroke="${v.color}" stroke-opacity="0.55" style="stroke-width:calc(1.5px * var(--topo-node-scale, 1));" stroke-dasharray="7 6"/>
-            <text x="${geo.cxPercent}%" y="${geo.cyPercent}%" dy="calc(${geo.radiusPx + 18}px * var(--topo-node-scale, 1))" fill="${v.color}" font-weight="700" text-anchor="middle" style="font-size:calc(11px * var(--topo-node-scale, 1));paint-order:stroke;stroke:var(--bg);stroke-width:calc(3px * var(--topo-node-scale, 1));">${v.name}</text>
+            <text x="${geo.cxPercent}%" y="${geo.cyPercent}%" dy="calc(${offsetY}px * var(--topo-node-scale, 1))" fill="${v.color}" font-weight="700" text-anchor="middle" style="font-size:calc(11px * var(--topo-node-scale, 1));paint-order:stroke;stroke:var(--bg);stroke-width:calc(3px * var(--topo-node-scale, 1));">${v.name}</text>
         </g>`;
     }).join('');
 }
@@ -1367,6 +1381,10 @@ function updateVlanZoneShapes(rect) {
         const g = document.getElementById('vz-' + v.id);
         const geo = computeZoneGeometry(v.id, rect, null);
         if (!g || !geo) return;
+
+        // buildVlanZoneMarkup과 동일하게 항상 원 아래에 배치 (두 함수가 서로 다른 기준을
+        // 쓰면 드래그 도중에만 이름이 위로 튀어 화면 밖으로 사라지는 문제가 생긴다)
+        const offsetY = geo.radiusPx + 18;
         const ell = g.querySelector('ellipse'), txt = g.querySelector('text');
         if (ell) { 
             ell.setAttribute('cx', geo.cxPercent + '%'); 
@@ -1377,7 +1395,7 @@ function updateVlanZoneShapes(rect) {
         if (txt) { 
             txt.setAttribute('x', geo.cxPercent + '%'); 
             txt.setAttribute('y', geo.cyPercent + '%');
-            txt.setAttribute('dy', `calc(${geo.radiusPx + 18}px * var(--topo-node-scale, 1))`);
+            txt.setAttribute('dy', `calc(${offsetY}px * var(--topo-node-scale, 1))`);
         }
     });
 }
@@ -1502,10 +1520,18 @@ function updateVlanZoneShapes(rect) {
                 d.nodeEl.setPointerCapture && d.nodeEl.setPointerCapture(d.pointerId);
             }
             e.preventDefault();
-            let xPct = ((e.clientX - d.rect.left) / d.rect.width) * 100;
-            let yPct = ((e.clientY - d.rect.top) / d.rect.height) * 100;
-            // 축소(zoom out)한 상태에서는 화면에 보이는 여백도 실제로 쓸 수 있는 공간이 되도록
-            // 0~100% 범위 밖으로도 넉넉히 이동을 허용한다 (100% 확대 배치와 별개로 묶이지 않음).
+            // 확대/축소 배율과 무관하게, 실제 화면에 "보이는" 캔버스 영역(topo-wrap) 밖으로 커서가
+            // 아무리 더 나아가도 장치는 그 경계까지만 따라가도록 커서 좌표를 먼저 그 경계 안으로 고정한다.
+            // (기존에는 고정 비율(-50%~150%)만 썼는데, 이 비율은 50% 축소를 기준으로 맞춘 값이라
+            //  그 외 배율에서는 커서가 화면 끝(wrap 경계)을 넘어가야 장치가 멈추거나, 반대로
+            //  장치가 먼저 멈춘 뒤에도 커서만 한참 더 나아가는 식으로 둘이 어긋났다.)
+            const wrapEl = $('topo-wrap');
+            const wrapRect = wrapEl ? wrapEl.getBoundingClientRect() : d.rect;
+            const clampedClientX = Math.max(wrapRect.left, Math.min(wrapRect.right, e.clientX));
+            const clampedClientY = Math.max(wrapRect.top, Math.min(wrapRect.bottom, e.clientY));
+            let xPct = ((clampedClientX - d.rect.left) / d.rect.width) * 100;
+            let yPct = ((clampedClientY - d.rect.top) / d.rect.height) * 100;
+            // 위 wrap 경계 계산이 실패하는 경우(레이아웃 이슈 등)를 대비한 안전장치로 기존 범위도 유지
             xPct = Math.max(NODE_POS_MIN, Math.min(NODE_POS_MAX, xPct));
             yPct = Math.max(NODE_POS_MIN, Math.min(NODE_POS_MAX, yPct));
             NODES[d.key].x = xPct;
@@ -1531,8 +1557,15 @@ function updateVlanZoneShapes(rect) {
                     const zoneName = (vlanById(targetVlan) || {}).name || '';
                     n.vlan = targetVlan;
                     buildNodeUI(); updateNodeUI(); lucide.createIcons();
+                    renderVlanZones(); // 지도에서 구역을 옮기면 아래 'VLAN 구역 관리' 표에도 즉시 반영
                     if (state.selected) selectNode(state.selected);
                     toast(`${n.name}이(가) '${zoneName}' 구역으로 자동 이동됐어요.`);
+                    // 구역이 바뀌면 IP 대역도 달라질 수 있으니, 새 구역에 맞는 주소를 추천해서
+                    // 장비 수정 팝업을 바로 띄워 확인/수정하도록 안내한다
+                    if (state.isAdmin) {
+                        const suggestedIp = nextAvailableIp(targetVlan);
+                        openDeviceEditModal(d.key, suggestedIp);
+                    }
                 } else {
                     updateVlanZoneShapes(topoIntrinsicRect());
                     toast(`${n.name} 위치를 옮겼어요.`);
@@ -2228,16 +2261,19 @@ function updateVlanZoneShapes(rect) {
         }
 
         let editingDeviceKey = null;
-        function openDeviceEditModal(key) {
+        function openDeviceEditModal(key, suggestedIp) {
             if (!state.isAdmin || !NODES[key]) return;
             const n = NODES[key];
             editingDeviceKey = key;
             $('edit-device-name').value = n.name;
-            $('edit-device-ip').value = n.ip;
+            $('edit-device-ip').value = suggestedIp || n.ip;
             clearIpError($('edit-device-ip'));
             $('edit-device-owner').value = n.owner || '';
             const typeVal = Object.keys(DEVICE_TYPES).find(t => DEVICE_TYPES[t].icon === n.icon) || 'server';
             $('edit-device-type').value = typeVal;
+            // 드래그로 구역을 옮긴 직후 열렸을 때만(suggestedIp가 있을 때만) IP 확인 안내 문구를 보여준다
+            const hint = $('edit-device-ip-hint');
+            if (hint) hint.style.display = suggestedIp ? 'block' : 'none';
             $('device-edit-modal').classList.add('show');
         }
         function closeDeviceEditModal() { $('device-edit-modal').classList.remove('show'); editingDeviceKey = null; }
