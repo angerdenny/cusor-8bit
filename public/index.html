@@ -643,20 +643,22 @@
                                 <div class="flex justify-between gap-3"><span class="t-dim">종류</span><span id="inspect-type" class="t-muted">Core Network Router</span></div>
                                 <div class="flex justify-between gap-3"><span class="t-dim">상태</span><span id="inspect-status" class="font-semibold c-lv lv-ok">● 10 Gbps Link Normal</span></div>
                             </div>
-                            <div id="inspect-connect-box" class="hide" style="padding:12px 14px;border-radius:14px;background:color-mix(in srgb, var(--amber) 10%, transparent);border:1px solid color-mix(in srgb, var(--amber) 35%, transparent);">
-                                <p class="text-xs font-semibold c-amber mb-2">⚠ 이 장비는 아직 연결된 회선이 없어요</p>
+                            <div id="inspect-connect-box" class="hide" style="padding:12px 14px;border-radius:14px;background:var(--input);border:1px solid var(--border)">
+                                <p id="inspect-connect-title" class="text-xs font-semibold mb-2">🔗 새 연결 추가</p>
                                 <div class="flex gap-2 flex-wrap items-center">
                                     <select id="inspect-connect-target" class="sel-input" style="flex:1;min-width:130px"></select>
                                     <button type="button" class="btn primary" onclick="quickConnectFromInspector()">지금 연결하기</button>
                                 </div>
                             </div>
                             <div id="inspect-links-box" class="hide" style="padding:12px 14px;border-radius:14px;background:var(--input);border:1px solid var(--border)">
-                                <p class="text-xs font-semibold t-muted mb-2">🔗 연결된 장비</p>
+                                <p class="text-xs font-semibold t-muted mb-2">현재 연결된 장비</p>
                                 <div class="inspect-links-list"></div>
                             </div>
+                            <button type="button" id="inspect-delete-btn" class="hide" style="width:100%;padding:10px;border-radius:12px;border:1px solid color-mix(in srgb, var(--red) 40%, transparent);background:color-mix(in srgb, var(--red) 10%, transparent);color:var(--red);font-size:12.5px;font-weight:700;cursor:pointer;" onclick="deleteSelectedNode()">🗑 이 장비 삭제</button>
                         </div>
                     </div>
                 </div>
+
 
                 <div class="card mt-5">
                     <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
@@ -1587,21 +1589,32 @@
             setLv($('inspect-status'), n.lv);
 
             const edges = nodeEdges(state.selected);
+            const connectedKeys = new Set(edges.map(([a, b]) => a === state.selected ? b : a));
+            const availableTargets = NODE_KEYS.filter(k => k !== state.selected && !connectedKeys.has(k));
 
             if (box) {
-                const showConnectBox = state.isAdmin && NODE_KEYS.length > 1 && edges.length === 0;
+                const showConnectBox = state.isAdmin && availableTargets.length > 0;
                 box.classList.toggle('hide', !showConnectBox);
                 if (showConnectBox) {
+                    const title = $('inspect-connect-title');
+                    if (title) {
+                        title.textContent = edges.length === 0 ? '⚠ 이 장비는 아직 연결된 회선이 없어요' : '🔗 새 연결 추가';
+                        title.classList.toggle('c-amber', edges.length === 0);
+                    }
                     const target = $('inspect-connect-target');
                     const isBusy = document.activeElement === target; // 사용자가 드롭다운을 조작 중이면 건드리지 않음
-                    if (!isBusy && inspectConnectBuiltFor !== state.selected) {
-                        target.innerHTML = NODE_KEYS.filter(k => k !== state.selected).map(k => `<option value="${k}">${NODES[k].name}</option>`).join('');
-                        inspectConnectBuiltFor = state.selected;
+                    const sig = state.selected + ':' + availableTargets.join(',');
+                    if (!isBusy && inspectConnectBuiltFor !== sig) {
+                        target.innerHTML = availableTargets.map(k => `<option value="${k}">${NODES[k].name}</option>`).join('');
+                        inspectConnectBuiltFor = sig;
                     }
                 } else {
                     inspectConnectBuiltFor = null;
                 }
             }
+
+            const delBtn = $('inspect-delete-btn');
+            if (delBtn) delBtn.classList.toggle('hide', !state.isAdmin);
 
             if (linksBox) {
                 const showLinksBox = state.isAdmin && edges.length > 0;
