@@ -1368,11 +1368,16 @@ function updateVlanZoneShapes(rect) {
         const geo = computeZoneGeometry(v.id, rect, null);
         if (!g || !geo) return;
         const ell = g.querySelector('ellipse'), txt = g.querySelector('text');
-        if (ell) { ell.setAttribute('cx', geo.cxPercent + '%'); ell.setAttribute('cy', geo.cyPercent + '%'); ell.setAttribute('rx', geo.rxPercent + '%'); ell.setAttribute('ry', geo.ryPercent + '%'); }
+        if (ell) { 
+            ell.setAttribute('cx', geo.cxPercent + '%'); 
+            ell.setAttribute('cy', geo.cyPercent + '%'); 
+            ell.setAttribute('rx', geo.rxPercent + '%'); 
+            ell.setAttribute('ry', geo.ryPercent + '%');
+        }
         if (txt) { 
-            const labelY = Math.max(geo.cyPercent - 6, 2);
             txt.setAttribute('x', geo.cxPercent + '%'); 
-            txt.setAttribute('y', labelY + '%');
+            txt.setAttribute('y', geo.cyPercent + '%');
+            txt.setAttribute('dy', `calc(${geo.radiusPx + 18}px * var(--topo-node-scale, 1))`);
         }
     });
 }
