@@ -819,6 +819,18 @@
                     </div>
                     <div id="alert-full" class="grid gap-2.5"></div>
                 </div>
+
+                <div class="card mt-5">
+                    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                        <h2 class="ctitle"><i data-lucide="shield-alert" class="w-4 h-4" style="color:var(--red)"></i>엔드포인트 프로세스 감시 (트로이목마 차단)<span class="credit">Python 연동</span></h2>
+                        <div id="eps-status" class="pill sm lv-warn"><span class="pdot"></span><span id="eps-status-text">🔌 백엔드 연결 대기 중</span></div>
+                    </div>
+                    <p class="text-xs t-dim mb-4">로컬 PC에서 실행되는 감시 프로그램(psutil 기반)이 의심 프로세스를 감지·차단하면, 그 기록이 FastAPI 백엔드를 거쳐 이 화면의 로그로 표시돼요. 지금은 백엔드가 아직 없어서 실시간 수신은 대기 중이고, 아래 버튼으로 화면 동작만 미리 확인할 수 있어요.</p>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <button class="btn primary" onclick="simulateEndpointEvent()"><i data-lucide="play" class="w-4 h-4"></i>데모 이벤트 발생시키기</button>
+                        <span class="text-xs t-dim">백엔드 연동 전, 화면이 어떻게 동작할지 미리 보여주는 버튼이에요</span>
+                    </div>
+                </div>
             </section>
 
             <!-- ───── VIEW: AI 가이드 ───── -->
@@ -2393,6 +2405,53 @@ function updateVlanZoneShapes(rect) {
             b.classList.toggle('hide', state.unread === 0);
         }
 
+        /* ═════════ 6-2. 엔드포인트 프로세스 감시 (Python 감시프로그램 → FastAPI 연동) ═════════ */
+        // 백엔드가 준비되면 이 URL만 실제 FastAPI 엔드포인트로 바꿔주면 돼요.
+        // 기대하는 응답(JSON 배열): [{ id, action: "block"|"allow", process_name, pid, time, reason }]
+        const ENDPOINT_SECURITY_API = '/api/endpoint-security/events';
+        let epsLastId = 0;
+        let epsConnected = false;
+
+        async function pollEndpointSecurity() {
+            try {
+                const res = await fetch(`${ENDPOINT_SECURITY_API}?since=${epsLastId}`, { cache: 'no-store' });
+                if (!res.ok) throw new Error('bad response');
+                const events = await res.json();
+                setEpsConnected(true);
+                events.forEach(handleEndpointEvent);
+            } catch (e) {
+                setEpsConnected(false); // 백엔드가 아직 없거나 응답이 없을 때
+            }
+        }
+
+        function setEpsConnected(ok) {
+            if (ok === epsConnected) return;
+            epsConnected = ok;
+            const pill = $('eps-status'), text = $('eps-status-text');
+            if (!pill || !text) return;
+            pill.className = ok ? 'pill sm lv-ok' : 'pill sm lv-warn';
+            text.textContent = ok ? '🟢 백엔드 연결됨 (실시간 수신 중)' : '🔌 백엔드 연결 대기 중';
+        }
+
+        function handleEndpointEvent(ev) {
+            epsLastId = Math.max(epsLastId, ev.id || 0);
+            const isBlock = ev.action === 'block';
+            pushAlert(
+                isBlock ? 'crit' : 'warn',
+                isBlock ? `프로세스 차단: ${ev.process_name}` : `프로세스 허용: ${ev.process_name}`,
+                ev.reason || (isBlock ? '의심스러운 실행 파일이 감지되어 강제 종료됐어요.' : '사용자가 실행을 허용했어요.'),
+                { cause: `PID ${ev.pid ?? '-'} · ${ev.time || clock()}`, action: isBlock ? '허용이 필요하면 알림에서 직접 승인하세요.' : '' }
+            );
+        }
+
+        // 백엔드 없이도 화면 동작을 미리 보여주기 위한 데모용 함수 (실제 exe/FastAPI 연동 전 임시)
+        function simulateEndpointEvent() {
+            const demo = Math.random() > 0.5
+                ? { id: ++epsLastId, action: 'block', process_name: 'unknown_updater.exe', pid: 4820 + epsLastId, reason: '[데모] 다운로드 폴더에서 미등록 프로세스가 실행되어 차단했어요.' }
+                : { id: ++epsLastId, action: 'allow', process_name: 'notepad.exe', pid: 5310 + epsLastId, reason: '[데모] 사용자가 안전하다고 판단해 실행을 허용했어요.' };
+            handleEndpointEvent(demo);
+        }
+
         /* ═════════ 7. 장애 시뮬레이션 ═════════ */
         const SIM_LABEL = { ddos: 'DDoS 진행 중', loss: '패킷 손실 진행 중', cpu: 'CPU 고부하 발생', down: '회선 다운 발생' };
 
@@ -2864,6 +2923,8 @@ function updateVlanZoneShapes(rect) {
         if (!restoreSession()) {
         }
         if (!IS_REAL_ENV) setInterval(tick, 1000);
+        pollEndpointSecurity();
+        setInterval(pollEndpointSecurity, 5000);
     </script>
 </body>
 </html>
