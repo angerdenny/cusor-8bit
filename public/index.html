@@ -287,6 +287,11 @@
         .tnode:hover { transform: translate(-50%, calc(-50% - 3px)); }
         .tnode.sel { box-shadow: 0 0 0 3px color-mix(in srgb, var(--lv) 28%, transparent), 0 10px 28px color-mix(in srgb, var(--lv) 24%, transparent); }
         .tnode b { font-size: 12px; } .tnode small { font-size: 10px; color: var(--muted); }
+        .topo.topo-admin .tnode { cursor: grab; touch-action: none; }
+        .tnode.dragging {
+            cursor: grabbing !important; z-index: 10; transition: transform .2s, box-shadow .2s !important;
+            box-shadow: 0 16px 34px rgba(0,0,0,.4); opacity: .96;
+        }
 
         /* 토폴로지 맵 우클릭 빠른 장비 등록 팝업 */
         .topo-ctx {
@@ -580,6 +585,7 @@
                             <div class="flex items-center gap-2 flex-wrap">
                                 <span class="text-xs t-dim">노드를 누르면 상세 진단이 열려요</span>
                                 <span id="topo-hint-admin" class="topo-hint-badge hide">🖱️ 빈 곳 우클릭 → 그 자리에 바로 등록</span>
+                                <span id="topo-hint-drag" class="topo-hint-badge hide">✋ 노드를 꾹 눌러서 자유롭게 이동</span>
                                 <span class="credit">양이수</span>
                             </div>
                         </div>
@@ -1050,6 +1056,8 @@
             const deviceFormCard = $('device-form-card'); if (deviceFormCard) deviceFormCard.classList.toggle('hide', !state.isAdmin);
             const linkForm = $('link-form'); if (linkForm) linkForm.classList.toggle('hide', !state.isAdmin); // 연결하기 폼 제어
             const topoHint = $('topo-hint-admin'); if (topoHint) topoHint.classList.toggle('hide', !state.isAdmin);
+            const topoDragHint = $('topo-hint-drag'); if (topoDragHint) topoDragHint.classList.toggle('hide', !state.isAdmin);
+            const topoEl = $('topo'); if (topoEl) topoEl.classList.toggle('topo-admin', state.isAdmin);
             const devSaveBtn = $('device-save-btn'); if (devSaveBtn) devSaveBtn.classList.toggle('hide', !state.isAdmin);
             const devReadonlyBadge = $('devices-readonly-badge'); if (devReadonlyBadge) devReadonlyBadge.classList.toggle('hide', state.isAdmin);
             const backupControls = $('backup-controls'); if (backupControls) backupControls.classList.toggle('hide', !state.isAdmin);
@@ -1256,11 +1264,12 @@
             const btns = NODE_KEYS.filter(k => NODES[k].x != null).map(k => {
                 const n = NODES[k];
                 const vc = (vlanById(n.vlan) || {}).color || 'var(--dim)';
-                return `<button class="tnode lv-ok" id="tn-${k}" style="left:${n.x}%;top:${n.y}%" onclick="selectNode('${k}')">
+                return `<button class="tnode lv-ok" id="tn-${k}" data-key="${k}" style="left:${n.x}%;top:${n.y}%" onclick="handleNodeClick('${k}', event)">
                     <span class="vlandot" style="background:${vc}" title="VLAN: ${(vlanById(n.vlan) || {}).name || ''}"></span>
                     <span class="tdot"></span><i data-lucide="${n.icon}" class="w-4 h-4 c-lv"></i><b>${n.name}</b><small class="mono">${n.ip}</small></button>`;
             }).join('');
             $('topo').innerHTML = `<svg>${lines}</svg>${btns}`;
+            $('topo').classList.toggle('topo-admin', state.isAdmin);
 
             renderNodeChips();
             renderNodeTable();
@@ -1269,6 +1278,82 @@
 
             $('roles-grid').innerHTML = ROLES.map(r => `<div class="role"><div class="avatar">${r.name[0]}</div><div><p class="text-sm font-bold">${r.name}</p><p class="text-xs t-muted">${r.role}</p></div></div>`).join('');
         }
+
+        /* ═════════ 5-3. 노드 드래그 배치(꾹 눌러서 자유 이동) ═════════ */
+        let nodeDragState = null;
+        let nodeDragMoved = false;
+
+        function handleNodeClick(key, e) {
+            if (nodeDragMoved) { nodeDragMoved = false; return; } // 드래그 직후 발생하는 클릭은 선택으로 취급하지 않음
+            selectNode(key);
+        }
+
+        function updateEdgesFor(key) {
+            EDGES.forEach(([a, b]) => {
+                if (a !== key && b !== key) return;
+                const line = document.getElementById(edgeId(a, b));
+                if (!line || !NODES[a] || !NODES[b]) return;
+                line.setAttribute('x1', NODES[a].x + '%');
+                line.setAttribute('y1', NODES[a].y + '%');
+                line.setAttribute('x2', NODES[b].x + '%');
+                line.setAttribute('y2', NODES[b].y + '%');
+            });
+        }
+
+        function onTopoPointerDown(e) {
+            if (!state.isAdmin) return; // 위치 이동은 관리자만 가능
+            if (e.button !== undefined && e.button !== 0 && e.pointerType === 'mouse') return;
+            const nodeEl = e.target.closest('.tnode');
+            const topoEl = $('topo');
+            if (!nodeEl || !topoEl || !topoEl.contains(nodeEl)) return;
+            const key = nodeEl.dataset.key;
+            if (!key || !NODES[key]) return;
+            nodeDragState = {
+                key, nodeEl, pointerId: e.pointerId,
+                rect: topoEl.getBoundingClientRect(),
+                startX: e.clientX, startY: e.clientY,
+                moved: false
+            };
+            document.addEventListener('pointermove', onTopoPointerMove);
+            document.addEventListener('pointerup', onTopoPointerUp);
+            document.addEventListener('pointercancel', onTopoPointerUp);
+        }
+
+        function onTopoPointerMove(e) {
+            const d = nodeDragState;
+            if (!d) return;
+            const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
+            if (!d.moved) {
+                if (Math.hypot(dx, dy) < 4) return; // 꾹 눌러 일정 거리 이상 움직여야 드래그로 인식
+                d.moved = true;
+                nodeDragMoved = true;
+                d.nodeEl.classList.add('dragging');
+                d.nodeEl.setPointerCapture && d.nodeEl.setPointerCapture(d.pointerId);
+            }
+            e.preventDefault();
+            let xPct = ((e.clientX - d.rect.left) / d.rect.width) * 100;
+            let yPct = ((e.clientY - d.rect.top) / d.rect.height) * 100;
+            xPct = Math.max(3, Math.min(97, xPct));
+            yPct = Math.max(4, Math.min(96, yPct));
+            NODES[d.key].x = xPct;
+            NODES[d.key].y = yPct;
+            d.nodeEl.style.left = xPct + '%';
+            d.nodeEl.style.top = yPct + '%';
+            updateEdgesFor(d.key);
+        }
+
+        function onTopoPointerUp(e) {
+            const d = nodeDragState;
+            document.removeEventListener('pointermove', onTopoPointerMove);
+            document.removeEventListener('pointerup', onTopoPointerUp);
+            document.removeEventListener('pointercancel', onTopoPointerUp);
+            if (!d) return;
+            d.nodeEl.classList.remove('dragging');
+            if (d.moved) toast(`${NODES[d.key].name} 위치를 옮겼어요.`);
+            nodeDragState = null;
+        }
+
+        $('topo').addEventListener('pointerdown', onTopoPointerDown);
 
         /* ═════════ 5-4. 장비 연결(선) 관리 ═════════ */
         function refreshLinkSelects() {
