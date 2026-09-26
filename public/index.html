@@ -292,6 +292,14 @@
             cursor: grabbing !important; z-index: 10; transition: transform .2s, box-shadow .2s !important;
             box-shadow: 0 16px 34px rgba(0,0,0,.4); opacity: .96;
         }
+        .tnode.unlinked { border-style: dashed; border-color: var(--amber); }
+        .tnode .unlinked-badge {
+            position: absolute; top: -7px; right: -7px; width: 16px; height: 16px; border-radius: 50%;
+            background: var(--amber); color: #1a1200; font-size: 10px; font-weight: 900; line-height: 1;
+            display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,.35);
+            animation: unlinkedPulse 1.6s ease-in-out infinite;
+        }
+        @keyframes unlinkedPulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--amber) 55%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
 
         /* 토폴로지 맵 우클릭 빠른 장비 등록 팝업 */
         .topo-ctx {
@@ -634,6 +642,17 @@
                                 <div class="flex justify-between gap-3"><span class="t-dim">담당자</span><span id="inspect-owner" class="c-indigo">admin (이지환)</span></div>
                                 <div class="flex justify-between gap-3"><span class="t-dim">종류</span><span id="inspect-type" class="t-muted">Core Network Router</span></div>
                                 <div class="flex justify-between gap-3"><span class="t-dim">상태</span><span id="inspect-status" class="font-semibold c-lv lv-ok">● 10 Gbps Link Normal</span></div>
+                            </div>
+                            <div id="inspect-connect-box" class="hide" style="padding:12px 14px;border-radius:14px;background:color-mix(in srgb, var(--amber) 10%, transparent);border:1px solid color-mix(in srgb, var(--amber) 35%, transparent);">
+                                <p class="text-xs font-semibold c-amber mb-2">⚠ 이 장비는 아직 연결된 회선이 없어요</p>
+                                <div class="flex gap-2 flex-wrap items-center">
+                                    <select id="inspect-connect-target" class="sel-input" style="flex:1;min-width:130px"></select>
+                                    <button type="button" class="btn primary" onclick="quickConnectFromInspector()">지금 연결하기</button>
+                                </div>
+                            </div>
+                            <div id="inspect-links-box" class="hide" style="padding:12px 14px;border-radius:14px;background:var(--input);border:1px solid var(--border)">
+                                <p class="text-xs font-semibold t-muted mb-2">🔗 연결된 장비</p>
+                                <div class="inspect-links-list"></div>
                             </div>
                         </div>
                     </div>
@@ -1253,23 +1272,91 @@
                 : t[1];
             if (name === 'logs') { state.unread = 0; updateBadge(); }
             if (name === 'devices') { renderDevices(); renderBackups(); }
+            if (name === 'topology') { buildNodeUI(); updateNodeUI(); lucide.createIcons(); } // 이 시점에야 실제 크기를 알 수 있어 구역 도형을 다시 계산
             window.scrollTo({ top: 0 });
             requestAnimationFrame(drawAll);
         }
         function openNode(key) { selectNode(key); switchView('topology'); }
 
         /* ═════════ 5. 토폴로지 · 장비 UI 생성 ═════════ */
+        function vlanMembers(vlanId, excludeKey) {
+            return NODE_KEYS.filter(k => NODES[k].x != null && NODES[k].vlan === vlanId && k !== excludeKey);
+        }
+
+        // VLAN 구역의 원형 영역을 픽셀 기준으로 계산 (컨테이너가 정사각형이 아니어도 시각적으로 둥글게 보이도록 rx/ry를 따로 계산)
+        function computeZoneGeometry(vlanId, rect, excludeKey) {
+            const members = vlanMembers(vlanId, excludeKey);
+            if (!members.length || !rect || !rect.width || !rect.height) return null;
+            const pts = members.map(k => ({ x: NODES[k].x / 100 * rect.width, y: NODES[k].y / 100 * rect.height }));
+            const cxPx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+            const cyPx = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+            let maxDist = 0;
+            pts.forEach(p => { const d = Math.hypot(p.x - cxPx, p.y - cyPx); if (d > maxDist) maxDist = d; });
+            const PADDING = 64, MIN_R = 80;
+            const radiusPx = Math.max(maxDist + PADDING, MIN_R);
+            return {
+                cxPx, cyPx, radiusPx,
+                cxPercent: cxPx / rect.width * 100,
+                cyPercent: cyPx / rect.height * 100,
+                rxPercent: radiusPx / rect.width * 100,
+                ryPercent: radiusPx / rect.height * 100
+            };
+        }
+
+        function buildVlanZoneMarkup(rect) {
+            return vlans.map(v => {
+                const geo = computeZoneGeometry(v.id, rect, null);
+                if (!geo) return '';
+                const labelY = Math.max(geo.cyPercent - geo.ryPercent + 3, 3);
+                return `<g class="vzone" id="vz-${v.id}" pointer-events="none">
+                    <ellipse cx="${geo.cxPercent}%" cy="${geo.cyPercent}%" rx="${geo.rxPercent}%" ry="${geo.ryPercent}%" fill="${v.color}" fill-opacity="0.10" stroke="${v.color}" stroke-opacity="0.55" stroke-width="1.5" stroke-dasharray="7 6"/>
+                    <text x="${geo.cxPercent}%" y="${labelY}%" fill="${v.color}" font-size="11" font-weight="700" text-anchor="middle" style="paint-order:stroke;stroke:var(--bg);stroke-width:3px;">${v.name}</text>
+                </g>`;
+            }).join('');
+        }
+
+        // 드래그 중 매 프레임 전체를 다시 그리지 않고 구역 도형만 가볍게 갱신
+        function updateVlanZoneShapes(rect) {
+            vlans.forEach(v => {
+                const g = document.getElementById('vz-' + v.id);
+                const geo = computeZoneGeometry(v.id, rect, null);
+                if (!g || !geo) return;
+                const ell = g.querySelector('ellipse'), txt = g.querySelector('text');
+                if (ell) { ell.setAttribute('cx', geo.cxPercent + '%'); ell.setAttribute('cy', geo.cyPercent + '%'); ell.setAttribute('rx', geo.rxPercent + '%'); ell.setAttribute('ry', geo.ryPercent + '%'); }
+                if (txt) { txt.setAttribute('x', geo.cxPercent + '%'); txt.setAttribute('y', Math.max(geo.cyPercent - geo.ryPercent + 3, 3) + '%'); }
+            });
+        }
+
+        // 드래그로 놓인 위치가 다른 VLAN 구역 안이면 그 구역 id를 반환 (여러 구역과 겹치면 중심에 가장 가까운 구역)
+        function findZoneAtPoint(xPercent, yPercent, rect, excludeVlan, excludeKey) {
+            const xPx = xPercent / 100 * rect.width, yPx = yPercent / 100 * rect.height;
+            let best = null, bestRatio = 1;
+            vlans.forEach(v => {
+                if (v.id === excludeVlan) return;
+                const geo = computeZoneGeometry(v.id, rect, excludeKey);
+                if (!geo) return;
+                const ratio = Math.hypot(xPx - geo.cxPx, yPx - geo.cyPx) / geo.radiusPx;
+                if (ratio <= bestRatio) { bestRatio = ratio; best = v.id; }
+            });
+            return best;
+        }
+
         function buildNodeUI() {
+            const topoRect = $('topo').getBoundingClientRect();
+            const zoneShapes = buildVlanZoneMarkup(topoRect);
             const lines = EDGES.filter(([a, b]) => NODES[a] && NODES[b]).map(([a, b]) => `<line id="${edgeId(a, b)}" x1="${NODES[a].x}%" y1="${NODES[a].y}%" x2="${NODES[b].x}%" y2="${NODES[b].y}%"/>`).join('');
             const btns = NODE_KEYS.filter(k => NODES[k].x != null).map(k => {
                 const n = NODES[k];
                 const vc = (vlanById(n.vlan) || {}).color || 'var(--dim)';
-                return `<button class="tnode lv-ok" id="tn-${k}" data-key="${k}" style="left:${n.x}%;top:${n.y}%" onclick="handleNodeClick('${k}', event)">
+                const unlinked = !EDGES.some(([a, b]) => a === k || b === k);
+                return `<button class="tnode lv-ok${unlinked ? ' unlinked' : ''}" id="tn-${k}" data-key="${k}" style="left:${n.x}%;top:${n.y}%" onclick="handleNodeClick('${k}', event)">
                     <span class="vlandot" style="background:${vc}" title="VLAN: ${(vlanById(n.vlan) || {}).name || ''}"></span>
+                    ${unlinked ? `<span class="unlinked-badge" title="연결된 회선이 없어요 — 눌러서 연결하세요">!</span>` : ''}
                     <span class="tdot"></span><i data-lucide="${n.icon}" class="w-4 h-4 c-lv"></i><b>${n.name}</b><small class="mono">${n.ip}</small></button>`;
             }).join('');
-            $('topo').innerHTML = `<svg>${lines}</svg>${btns}`;
+            $('topo').innerHTML = `<svg>${zoneShapes}${lines}</svg>${btns}`;
             $('topo').classList.toggle('topo-admin', state.isAdmin);
+            inspectConnectBuiltFor = null; // 장비 목록이 바뀌었으니 연결 대상 드롭다운도 다음에 새로 그림
 
             renderNodeChips();
             renderNodeTable();
@@ -1340,6 +1427,7 @@
             d.nodeEl.style.left = xPct + '%';
             d.nodeEl.style.top = yPct + '%';
             updateEdgesFor(d.key);
+            updateVlanZoneShapes(d.rect);
         }
 
         function onTopoPointerUp(e) {
@@ -1349,7 +1437,20 @@
             document.removeEventListener('pointercancel', onTopoPointerUp);
             if (!d) return;
             d.nodeEl.classList.remove('dragging');
-            if (d.moved) toast(`${NODES[d.key].name} 위치를 옮겼어요.`);
+            if (d.moved) {
+                const n = NODES[d.key];
+                const targetVlan = findZoneAtPoint(n.x, n.y, d.rect, n.vlan, d.key);
+                if (targetVlan && targetVlan !== n.vlan) {
+                    const zoneName = (vlanById(targetVlan) || {}).name || '';
+                    n.vlan = targetVlan;
+                    buildNodeUI(); updateNodeUI(); lucide.createIcons();
+                    if (state.selected) selectNode(state.selected);
+                    toast(`${n.name}이(가) '${zoneName}' 구역으로 자동 이동됐어요.`);
+                } else {
+                    updateVlanZoneShapes(d.rect);
+                    toast(`${n.name} 위치를 옮겼어요.`);
+                }
+            }
             nodeDragState = null;
         }
 
@@ -1382,6 +1483,7 @@
             if (edgeExists(a, b)) { toast('이미 연결되어 있는 장비예요.'); return; }
             EDGES.push([a, b]);
             buildNodeUI(); updateNodeUI(); lucide.createIcons();
+            if (state.selected) selectNode(state.selected);
             toast(`${NODES[a].name} ↔ ${NODES[b].name} 연결선이 추가됐어요.`);
         }
         function disconnectEdge(a, b) {
@@ -1389,6 +1491,7 @@
             const idx = EDGES.findIndex(([x, y]) => x === a && y === b);
             if (idx !== -1) EDGES.splice(idx, 1);
             buildNodeUI(); updateNodeUI(); lucide.createIcons();
+            if (state.selected) selectNode(state.selected);
             toast('연결이 해제됐어요.');
         }
 
@@ -1450,14 +1553,26 @@
             updateInspector();
         }
 
+        function nodeHasLink(key) { return EDGES.some(([a, b]) => a === key || b === key); }
+        function nodeEdges(key) { return EDGES.filter(([a, b]) => a === key || b === key); }
+
+        let inspectConnectBuiltFor = null; // 어떤 노드 기준으로 대상 목록을 마지막에 그렸는지 기억 (매 tick마다 다시 그리는 걸 방지)
+        let inspectLinksSignature = null;  // 연결 목록이 실제로 바뀌었을 때만 다시 그리기 위한 서명값
+
         function updateInspector() {
             const n = NODES[state.selected];
+            const box = $('inspect-connect-box');
+            const linksBox = $('inspect-links-box');
             if (!n) {
                 $('inspect-node-id').textContent = '등록된 장비 없음';
                 $('inspect-cpu-text').textContent = '-'; $('inspect-cpu-bar').style.width = '0%';
                 $('inspect-ram-text').textContent = '-'; $('inspect-ram-bar').style.width = '0%';
                 $('inspect-ip').textContent = '-'; $('inspect-owner').textContent = '-';
                 $('inspect-type').textContent = '-'; $('inspect-status').textContent = '아래 폼으로 장비를 등록해 보세요';
+                if (box) box.classList.add('hide');
+                if (linksBox) linksBox.classList.add('hide');
+                inspectConnectBuiltFor = null;
+                inspectLinksSignature = null;
                 return;
             }
             $('inspect-node-id').textContent = n.name;
@@ -1470,6 +1585,56 @@
             $('inspect-type').textContent = n.type;
             $('inspect-status').textContent = nodeStatus(n);
             setLv($('inspect-status'), n.lv);
+
+            const edges = nodeEdges(state.selected);
+
+            if (box) {
+                const showConnectBox = state.isAdmin && NODE_KEYS.length > 1 && edges.length === 0;
+                box.classList.toggle('hide', !showConnectBox);
+                if (showConnectBox) {
+                    const target = $('inspect-connect-target');
+                    const isBusy = document.activeElement === target; // 사용자가 드롭다운을 조작 중이면 건드리지 않음
+                    if (!isBusy && inspectConnectBuiltFor !== state.selected) {
+                        target.innerHTML = NODE_KEYS.filter(k => k !== state.selected).map(k => `<option value="${k}">${NODES[k].name}</option>`).join('');
+                        inspectConnectBuiltFor = state.selected;
+                    }
+                } else {
+                    inspectConnectBuiltFor = null;
+                }
+            }
+
+            if (linksBox) {
+                const showLinksBox = state.isAdmin && edges.length > 0;
+                linksBox.classList.toggle('hide', !showLinksBox);
+                if (showLinksBox) {
+                    const sig = state.selected + '|' + edges.map(([a, b]) => a + '-' + b).join(',');
+                    if (inspectLinksSignature !== sig) {
+                        linksBox.querySelector('.inspect-links-list').innerHTML = edges.map(([a, b]) => {
+                            const other = a === state.selected ? b : a;
+                            if (!NODES[other]) return '';
+                            return `<div class="flex items-center justify-between gap-2 text-xs" style="padding:6px 0;border-bottom:1px solid var(--border)">
+                                <span class="font-semibold">${NODES[other].name}</span>
+                                <button type="button" class="text-xs font-semibold" style="color:var(--red)" onclick="disconnectEdge('${a}','${b}')">해제</button>
+                            </div>`;
+                        }).join('');
+                        inspectLinksSignature = sig;
+                    }
+                } else {
+                    inspectLinksSignature = null;
+                }
+            }
+        }
+
+        function quickConnectFromInspector() {
+            if (!state.isAdmin) return;
+            const from = state.selected;
+            const to = $('inspect-connect-target').value;
+            if (!from || !to || !NODES[from] || !NODES[to] || from === to) return;
+            if (edgeExists(from, to)) { toast('이미 연결되어 있는 장비예요.'); return; }
+            EDGES.push([from, to]);
+            buildNodeUI(); updateNodeUI(); lucide.createIcons();
+            selectNode(from);
+            toast(`${NODES[from].name} ↔ ${NODES[to].name} 연결선이 추가됐어요.`);
         }
 
         function updateNodeUI() {
@@ -1571,7 +1736,10 @@
             if (!state.isAdmin) return;
             if (!NODES[key]) return;
             NODES[key].vlan = vlanId;
+            buildNodeUI();
+            updateNodeUI();
             renderVlanZones();
+            lucide.createIcons();
         }
 
         /* ═════════ 5-2. 신규 장비 등록 ═════════ */
@@ -2052,6 +2220,7 @@
         }
         function drawAll() { drawChart($('trafficCanvas')); drawChart($('analyticsCanvas')); }
         window.addEventListener('resize', drawAll);
+        window.addEventListener('resize', () => { if (state.view === 'topology') { buildNodeUI(); updateNodeUI(); lucide.createIcons(); } });
 
         ['trafficCanvas', 'analyticsCanvas'].forEach(id => {
             const cv = $(id);
