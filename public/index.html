@@ -883,7 +883,7 @@
 
                 <div class="card mt-5">
                     <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-                        <h2 class="ctitle"><i data-lucide="database-backup" class="w-4 h-4 c-cyan"></i>DB 백업 관리</h2>
+                        <h2 class="ctitle"><i data-lucide="database-backup" class="w-4 h-4 c-cyan"></i>DB 백업 관리<span class="credit">김민석</span></h2>
                         <span class="text-xs t-dim">저장 순간의 날짜 · 시간이 그대로 기록돼요</span>
                     </div>
                     <div id="backup-controls" class="flex flex-wrap items-end gap-3 mb-4">
@@ -1215,8 +1215,8 @@
         let vlanSeq = 0;
         const vlans = [
             { id: 'backbone', name: 'Backbone (백본)', color: '#22d3ee', cidr: '192.168.1.0/24' },
-            { id: 'dev', name: '개발팀', color: '#a78bfa', cidr: '10.0.0.0/24' },
-            { id: 'biz', name: '경영지원팀', color: '#fb923c', cidr: '192.168.1.0/25' }
+            { id: 'dev', name: 'VLAN1', color: '#a78bfa', cidr: '10.0.0.0/24' },
+            { id: 'biz', name: 'VLAN2', color: '#fb923c', cidr: '192.168.1.0/25' }
         ];
         function vlanById(id) { return vlans.find(v => v.id === id); }
 
@@ -1328,91 +1328,74 @@
             return NODE_KEYS.filter(k => NODES[k].x != null && NODES[k].vlan === vlanId && k !== excludeKey);
         }
 
-        // 확대/축소(zoom)는 CSS transform으로 시각적 크기만 바꾸는데, getBoundingClientRect()는
-        // 그 변환이 반영된 "화면상 크기"를 반환한다. 구역 원의 %는 SVG 자체의 고유 크기(변환 전) 기준으로
-        // 해석되므로, 화면상 크기로 %를 계산하면 확대율에 따라 이중으로 스케일이 적용돼 원이 커지거나 잘린다.
-        // 그래서 구역 도형 계산에는 항상 이 "변환 영향을 받지 않는" 고유 크기를 사용한다.
         function topoIntrinsicRect() {
             const el = $('topo');
             return { width: (el && el.offsetWidth) || 1, height: (el && el.offsetHeight) || 1 };
         }
 
         /* 1. 구역 원 반지름 계산 보정 (computeZoneGeometry) */
-function computeZoneGeometry(vlanId, rect, excludeKey) {
-    const members = vlanMembers(vlanId, excludeKey);
-    if (!members.length || !rect || !rect.width || !rect.height) return null;
-    const pts = members.map(k => ({ x: NODES[k].x / 100 * rect.width, y: NODES[k].y / 100 * rect.height }));
-    const cxPx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
-    const cyPx = pts.reduce((s, p) => s + p.y, 0) / pts.length;
-    let maxDist = 0;
-    pts.forEach(p => { const d = Math.hypot(p.x - cxPx, p.y - cyPx); if (d > maxDist) maxDist = d; });
+        function computeZoneGeometry(vlanId, rect, excludeKey) {
+            const members = vlanMembers(vlanId, excludeKey);
+            if (!members.length || !rect || !rect.width || !rect.height) return null;
+            const pts = members.map(k => ({ x: NODES[k].x / 100 * rect.width, y: NODES[k].y / 100 * rect.height }));
+            const cxPx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+            const cyPx = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+            let maxDist = 0;
+            pts.forEach(p => { const d = Math.hypot(p.x - cxPx, p.y - cyPx); if (d > maxDist) maxDist = d; });
 
-    // 캔버스를 축소(zoom out)하면 노드 박스는 --topo-node-scale(=1/topoZoom)만큼 화면에서 더 크게
-    // 그려지는데, 구역 원의 반지름은 그동안 고정 px였다. 그래서 축소된 상태(예: 50%)에서는
-    // 실제로 커진 노드 박스보다 원이 작아져 테두리가 아이콘·이름을 다시 관통하는 문제가 있었다.
-    // 원 반지름도 같은 배율(nodeScale)만큼 함께 키워서 항상 노드 박스를 여유 있게 감싸도록 한다.
-    const nodeScale = (typeof topoZoom === 'number' && topoZoom > 0) ? 1 / topoZoom : 1;
-    const PADDING = 46 * nodeScale;
-    const MIN_R = 60 * nodeScale;
-    // 장비가 1개일 때는 maxDist가 0이 되어 MIN_R로만 고정되는데, 그마저도 노드 박스보다
-    // 작을 수 있으니 노드 박스 자체의 대략적 반지름(68px, 배율 보정)만큼을 최소로 보정한다.
-    const NODE_HALF_PX = 68 * nodeScale;
-    if (members.length === 1) maxDist = Math.max(maxDist, NODE_HALF_PX);
-    const radiusPx = Math.max(maxDist + PADDING, MIN_R);
+            const nodeScale = (typeof topoZoom === 'number' && topoZoom > 0) ? 1 / topoZoom : 1;
+            const PADDING = 46 * nodeScale;
+            const MIN_R = 60 * nodeScale;
+            const NODE_HALF_PX = 68 * nodeScale;
+            if (members.length === 1) maxDist = Math.max(maxDist, NODE_HALF_PX);
+            const radiusPx = Math.max(maxDist + PADDING, MIN_R);
 
-    return {
-        cxPx, cyPx, radiusPx,
-        cxPercent: cxPx / rect.width * 100,
-        cyPercent: cyPx / rect.height * 100,
-        rxPercent: radiusPx / rect.width * 100,
-        ryPercent: radiusPx / rect.height * 100
-    };
-}
-
-/* 2. VLAN 텍스트 위치를 노드 중심점(cyPercent) 기준으로 일정 px만큼만 올리기 (buildVlanZoneMarkup) */
-function buildVlanZoneMarkup(rect) {
-    return vlans.map(v => {
-        const geo = computeZoneGeometry(v.id, rect, null);
-        if (!geo) return '';
-        // 장치 개수와 무관하게 항상 원 "아래"에 이름을 표시한다.
-        // (예전에는 장치 1개짜리 구역만 "원 위"에 표시했는데, 그 구역이 캔버스 상단 근처에
-        //  있으면 이름 텍스트가 화면 밖으로 밀려나 안 보이는 문제가 있었다. 아래쪽 배치는
-        //  구역 원 반지름이 이미 노드 박스보다 넉넉히 크기 때문에 장치 1개일 때도 겹치지 않는다.)
-        const offsetY = geo.radiusPx + 18;
-
-        return `<g class="vzone" id="vz-${v.id}" pointer-events="none">
-            <ellipse cx="${geo.cxPercent}%" cy="${geo.cyPercent}%" rx="${geo.rxPercent}%" ry="${geo.ryPercent}%" fill="${v.color}" fill-opacity="0.10" stroke="${v.color}" stroke-opacity="0.55" style="stroke-width:calc(1.5px * var(--topo-node-scale, 1));" stroke-dasharray="7 6"/>
-            <text x="${geo.cxPercent}%" y="${geo.cyPercent}%" dy="calc(${offsetY}px * var(--topo-node-scale, 1))" fill="${v.color}" font-weight="700" text-anchor="middle" style="font-size:calc(11px * var(--topo-node-scale, 1));paint-order:stroke;stroke:var(--bg);stroke-width:calc(3px * var(--topo-node-scale, 1));">${v.name}</text>
-        </g>`;
-    }).join('');
-}
-
-/* 3. 드래그 중 갱신 함수 (updateVlanZoneShapes) */
-function updateVlanZoneShapes(rect) {
-    vlans.forEach(v => {
-        const g = document.getElementById('vz-' + v.id);
-        const geo = computeZoneGeometry(v.id, rect, null);
-        if (!g || !geo) return;
-
-        // buildVlanZoneMarkup과 동일하게 항상 원 아래에 배치 (두 함수가 서로 다른 기준을
-        // 쓰면 드래그 도중에만 이름이 위로 튀어 화면 밖으로 사라지는 문제가 생긴다)
-        const offsetY = geo.radiusPx + 18;
-        const ell = g.querySelector('ellipse'), txt = g.querySelector('text');
-        if (ell) { 
-            ell.setAttribute('cx', geo.cxPercent + '%'); 
-            ell.setAttribute('cy', geo.cyPercent + '%'); 
-            ell.setAttribute('rx', geo.rxPercent + '%'); 
-            ell.setAttribute('ry', geo.ryPercent + '%');
+            return {
+                cxPx, cyPx, radiusPx,
+                cxPercent: cxPx / rect.width * 100,
+                cyPercent: cyPx / rect.height * 100,
+                rxPercent: radiusPx / rect.width * 100,
+                ryPercent: radiusPx / rect.height * 100
+            };
         }
-        if (txt) { 
-            txt.setAttribute('x', geo.cxPercent + '%'); 
-            txt.setAttribute('y', geo.cyPercent + '%');
-            txt.setAttribute('dy', `calc(${offsetY}px * var(--topo-node-scale, 1))`);
-        }
-    });
-}
 
-        // 드래그로 놓인 위치가 다른 VLAN 구역 안이면 그 구역 id를 반환 (여러 구역과 겹치면 중심에 가장 가까운 구역)
+        /* 2. VLAN 텍스트 위치 보정 */
+        function buildVlanZoneMarkup(rect) {
+            return vlans.map(v => {
+                const geo = computeZoneGeometry(v.id, rect, null);
+                if (!geo) return '';
+                const offsetY = geo.radiusPx + 18;
+
+                return `<g class="vzone" id="vz-${v.id}" pointer-events="none">
+                    <ellipse cx="${geo.cxPercent}%" cy="${geo.cyPercent}%" rx="${geo.rxPercent}%" ry="${geo.ryPercent}%" fill="${v.color}" fill-opacity="0.10" stroke="${v.color}" stroke-opacity="0.55" style="stroke-width:calc(1.5px * var(--topo-node-scale, 1));" stroke-dasharray="7 6"/>
+                    <text x="${geo.cxPercent}%" y="${geo.cyPercent}%" dy="calc(${offsetY}px * var(--topo-node-scale, 1))" fill="${v.color}" font-weight="700" text-anchor="middle" style="font-size:calc(11px * var(--topo-node-scale, 1));paint-order:stroke;stroke:var(--bg);stroke-width:calc(3px * var(--topo-node-scale, 1));">${v.name}</text>
+                </g>`;
+            }).join('');
+        }
+
+        /* 3. 드래그 중 갱신 함수 (updateVlanZoneShapes) */
+        function updateVlanZoneShapes(rect) {
+            vlans.forEach(v => {
+                const g = document.getElementById('vz-' + v.id);
+                const geo = computeZoneGeometry(v.id, rect, null);
+                if (!g || !geo) return;
+
+                const offsetY = geo.radiusPx + 18;
+                const ell = g.querySelector('ellipse'), txt = g.querySelector('text');
+                if (ell) { 
+                    ell.setAttribute('cx', geo.cxPercent + '%'); 
+                    ell.setAttribute('cy', geo.cyPercent + '%'); 
+                    ell.setAttribute('rx', geo.rxPercent + '%'); 
+                    ell.setAttribute('ry', geo.ryPercent + '%');
+                }
+                if (txt) { 
+                    txt.setAttribute('x', geo.cxPercent + '%'); 
+                    txt.setAttribute('y', geo.cyPercent + '%');
+                    txt.setAttribute('dy', `calc(${offsetY}px * var(--topo-node-scale, 1))`);
+                }
+            });
+        }
+
         function findZoneAtPoint(xPercent, yPercent, rect, excludeVlan, excludeKey) {
             const xPx = xPercent / 100 * rect.width, yPx = yPercent / 100 * rect.height;
             let best = null, bestRatio = 1;
@@ -1441,7 +1424,7 @@ function updateVlanZoneShapes(rect) {
             }).join('');
             $('topo').innerHTML = `<svg>${zoneShapes}${lines}</svg>${btns}`;
             $('topo').classList.toggle('topo-admin', state.isAdmin);
-            inspectConnectBuiltFor = null; // 장비 목록이 바뀌었으니 연결 대상 드롭다운도 다음에 새로 그림
+            inspectConnectBuiltFor = null;
 
             renderNodeChips();
             renderNodeTable();
@@ -1451,19 +1434,16 @@ function updateVlanZoneShapes(rect) {
             $('roles-grid').innerHTML = ROLES.map(r => `<div class="role"><div class="avatar">${r.name[0]}</div><div><p class="text-sm font-bold">${r.name}</p><p class="text-xs t-muted">${r.role}</p></div></div>`).join('');
         }
 
-        /* ═════════ 5-3. 노드 드래그 배치(꾹 눌러서 자유 이동) ═════════ */
-        // 100%보다 축소했을 때 화면에 보이는 여백도 실제로 장비를 놓을 수 있는 공간이 되도록,
-        // 배치 좌표는 0~100% 밖으로도 여유 있게 허용한다 (최소 축소 50% 기준 역산한 값).
+        /* ═════════ 5-3. 노드 드래그 배치 ═════════ */
         const NODE_POS_MIN = -50, NODE_POS_MAX = 150;
         let nodeDragState = null;
         let nodeDragMoved = false;
 
         function handleNodeClick(key, e) {
-            if (nodeDragMoved) { nodeDragMoved = false; return; } // 드래그 직후 발생하는 클릭은 선택으로 취급하지 않음
+            if (nodeDragMoved) { nodeDragMoved = false; return; }
             selectNode(key);
         }
 
-        // 드래그 중인 노드가 다른 노드와 너무 가까워지면(겹치면) 상대 노드를 밀어내서 겹침을 방지
         const MIN_NODE_GAP_PX = 96;
         function resolveNodeOverlaps(activeKey, rect) {
             const a = NODES[activeKey];
@@ -1502,7 +1482,7 @@ function updateVlanZoneShapes(rect) {
         }
 
         function onTopoPointerDown(e) {
-            if (!state.isAdmin) return; // 위치 이동은 관리자만 가능
+            if (!state.isAdmin) return;
             if (e.button !== undefined && e.button !== 0 && e.pointerType === 'mouse') return;
             const nodeEl = e.target.closest('.tnode');
             const topoEl = $('topo');
@@ -1525,25 +1505,19 @@ function updateVlanZoneShapes(rect) {
             if (!d) return;
             const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
             if (!d.moved) {
-                if (Math.hypot(dx, dy) < 4) return; // 꾹 눌러 일정 거리 이상 움직여야 드래그로 인식
+                if (Math.hypot(dx, dy) < 4) return;
                 d.moved = true;
                 nodeDragMoved = true;
                 d.nodeEl.classList.add('dragging');
                 d.nodeEl.setPointerCapture && d.nodeEl.setPointerCapture(d.pointerId);
             }
             e.preventDefault();
-            // 확대/축소 배율과 무관하게, 실제 화면에 "보이는" 캔버스 영역(topo-wrap) 밖으로 커서가
-            // 아무리 더 나아가도 장치는 그 경계까지만 따라가도록 커서 좌표를 먼저 그 경계 안으로 고정한다.
-            // (기존에는 고정 비율(-50%~150%)만 썼는데, 이 비율은 50% 축소를 기준으로 맞춘 값이라
-            //  그 외 배율에서는 커서가 화면 끝(wrap 경계)을 넘어가야 장치가 멈추거나, 반대로
-            //  장치가 먼저 멈춘 뒤에도 커서만 한참 더 나아가는 식으로 둘이 어긋났다.)
             const wrapEl = $('topo-wrap');
             const wrapRect = wrapEl ? wrapEl.getBoundingClientRect() : d.rect;
             const clampedClientX = Math.max(wrapRect.left, Math.min(wrapRect.right, e.clientX));
             const clampedClientY = Math.max(wrapRect.top, Math.min(wrapRect.bottom, e.clientY));
             let xPct = ((clampedClientX - d.rect.left) / d.rect.width) * 100;
             let yPct = ((clampedClientY - d.rect.top) / d.rect.height) * 100;
-            // 위 wrap 경계 계산이 실패하는 경우(레이아웃 이슈 등)를 대비한 안전장치로 기존 범위도 유지
             xPct = Math.max(NODE_POS_MIN, Math.min(NODE_POS_MAX, xPct));
             yPct = Math.max(NODE_POS_MIN, Math.min(NODE_POS_MAX, yPct));
             NODES[d.key].x = xPct;
@@ -1569,11 +1543,9 @@ function updateVlanZoneShapes(rect) {
                     const zoneName = (vlanById(targetVlan) || {}).name || '';
                     n.vlan = targetVlan;
                     buildNodeUI(); updateNodeUI(); lucide.createIcons();
-                    renderVlanZones(); // 지도에서 구역을 옮기면 아래 'VLAN 구역 관리' 표에도 즉시 반영
+                    renderVlanZones();
                     if (state.selected) selectNode(state.selected);
                     toast(`${n.name}이(가) '${zoneName}' 구역으로 자동 이동됐어요.`);
-                    // 구역이 바뀌면 IP 대역도 달라질 수 있으니, 새 구역에 맞는 주소를 추천해서
-                    // 장비 수정 팝업을 바로 띄워 확인/수정하도록 안내한다
                     if (state.isAdmin) {
                         const suggestedIp = nextAvailableIp(targetVlan);
                         openDeviceEditModal(d.key, suggestedIp);
@@ -1588,28 +1560,24 @@ function updateVlanZoneShapes(rect) {
 
         $('topo').addEventListener('pointerdown', onTopoPointerDown);
 
-        /* ═════════ 5-3-1. 토폴로지 자동 정렬(예쁘게 정렬) ═════════ */
+        /* ═════════ 5-3-1. 토폴로지 자동 정렬 ═════════ */
         function autoArrangeTopology() {
             if (!state.isAdmin) { toast('레이아웃 정렬은 관리자만 할 수 있어요.'); return; }
             if (NODE_KEYS.length === 0) return;
 
-            // 무방향 인접 리스트 구성
             const adj = {};
             NODE_KEYS.forEach(k => adj[k] = []);
             EDGES.forEach(([a, b]) => { if (adj[a] && adj[b]) { adj[a].push(b); adj[b].push(a); } });
 
-            // 회선이 하나도 없는 '미연결' 장비는 별도의 마지막 줄로 뺀다
             const linkedKeys = NODE_KEYS.filter(k => adj[k].length > 0);
             const unlinkedKeys = NODE_KEYS.filter(k => adj[k].length === 0);
 
-            // 상위 → 하위로 등록된 연결 방향을 기준으로 뿌리(최상단) 노드 추정
             const childSet = new Set(EDGES.map(([, b]) => b));
             let roots = linkedKeys.filter(k => !childSet.has(k));
             if (roots.length === 0 && linkedKeys.length) {
                 roots = [linkedKeys.slice().sort((a, b) => adj[b].length - adj[a].length)[0]];
             }
 
-            // BFS로 레벨(단계) 계산 — 뿌리에서 몇 단계 떨어져 있는지
             const level = {};
             const queue = [];
             roots.forEach(r => { level[r] = 0; queue.push(r); });
@@ -1618,7 +1586,7 @@ function updateVlanZoneShapes(rect) {
                 const cur = queue[qi++];
                 adj[cur].forEach(nb => { if (level[nb] === undefined) { level[nb] = level[cur] + 1; queue.push(nb); } });
             }
-            // 같은 연결망인데도 못 찾은 노드(뿌리에서 못 닿은 경우)는 남은 것들 중 하나를 새 뿌리로 잡아 이어서 계산
+
             linkedKeys.forEach(k => {
                 if (level[k] !== undefined) return;
                 level[k] = 0;
@@ -1637,13 +1605,10 @@ function updateVlanZoneShapes(rect) {
             const levelIdx = Object.keys(levels).map(Number).sort((a, b) => a - b);
             const totalLevels = levelIdx.length;
 
-            // 컨테이너가 커도 노드 사이 간격에 상한을 둬서, 단이 적을 땐 위쪽에 아담하게 모이고
-            // 단이 많아질 때만 전체 높이를 고르게 나눠 쓰도록 한다 (가장자리까지 억지로 늘리지 않음)
             const TOP_Y = 14, MAX_Y = 84, MAX_Y_STEP = 34;
             const TOP_X = 12, MAX_X = 88;
             const yStep = totalLevels > 1 ? Math.min(MAX_Y_STEP, (MAX_Y - TOP_Y) / (totalLevels - 1)) : 0;
 
-            // 위 단계(부모)의 x 위치 평균(barycenter)에 가깝게 정렬해서 선이 최대한 덜 꼬이게 배치
             const posX = {};
             levelIdx.forEach((lv, li) => {
                 const keysAtLevel = levels[lv];
@@ -1672,15 +1637,12 @@ function updateVlanZoneShapes(rect) {
 
         /* ═════════ 5-3-2. 토폴로지 확대 · 축소 ═════════ */
         let topoZoom = 1;
-        let topoPanX = 0, topoPanY = 0; // 화면 이동(팬) 오프셋 — 스크롤이 아니라 실제 좌표 이동값(px, 확대율과 무관하게 화면 픽셀 기준)
+        let topoPanX = 0, topoPanY = 0;
         const TOPO_ZOOM_MIN = 0.5, TOPO_ZOOM_MAX = 1.8;
         function applyTopoZoom() {
             const topoEl = $('topo');
             if (!topoEl) return;
-            // translate를 scale보다 앞에 적어야 팬 이동량이 확대율과 무관하게 항상 화면 픽셀 그대로 적용된다.
             topoEl.style.transform = `translate(${topoPanX}px, ${topoPanY}px) scale(${topoZoom})`;
-            // 캔버스는 축소되더라도 장비 박스(아이콘·이름·IP)는 계속 읽기 좋은 크기를 유지하도록
-            // 역보정 배율을 CSS 변수로 내려준다 (지도 앱의 핀이 확대·축소와 무관하게 일정한 크기로 보이는 것과 같은 원리).
             topoEl.style.setProperty('--topo-node-scale', (1 / topoZoom).toFixed(4));
             const label = $('topo-zoom-label');
             if (label) label.textContent = Math.round(topoZoom * 100) + '%';
@@ -1693,13 +1655,11 @@ function updateVlanZoneShapes(rect) {
         (function setupTopoZoomGestures() {
             const wrap = document.getElementById('topo-wrap');
             if (!wrap) return;
-            // 트랙패드 핀치 / Ctrl(⌘)+휠 확대축소
             wrap.addEventListener('wheel', (e) => {
-                if (!e.ctrlKey) return; // 일반 스크롤은 그대로 두고, 핀치 · Ctrl+휠일 때만 확대축소로 처리
+                if (!e.ctrlKey) return;
                 e.preventDefault();
                 topoZoomBy(e.deltaY > 0 ? -0.05 : 0.05);
             }, { passive: false });
-            // 모바일 두 손가락 핀치 확대축소
             let pinchStartDist = null, pinchStartZoom = 1;
             wrap.addEventListener('touchstart', (e) => {
                 if (e.touches.length === 2) {
@@ -1720,30 +1680,27 @@ function updateVlanZoneShapes(rect) {
             wrap.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinchStartDist = null; });
         })();
 
-        /* ═════════ 5-3-3. 빈 공간 꾹 눌러서 화면 이동(웹페이지 드래그 스크롤처럼) ═════════ */
-        // 스크롤이 아니라 화면 이동값(topoPanX/Y)을 직접 바꾸는 방식이라, 콘텐츠가 화면에
-        // 다 들어와서 스크롤할 여백이 없는 100% 화면에서도 상하좌우 어디로든 자유롭게 움직일 수 있다.
+        /* ═════════ 5-3-3. 빈 공간 꾹 눌러서 화면 이동 ═════════ */
         (function setupTopoPan() {
             const wrap = document.getElementById('topo-wrap');
             if (!wrap) return;
             let pan = null;
             wrap.addEventListener('pointerdown', (e) => {
-                if (e.button !== undefined && e.button !== 0 && e.pointerType === 'mouse') return; // 왼쪽 클릭 · 터치만
-                if (e.target.closest('.tnode')) return;       // 노드 위에서는 노드 드래그(꾹 눌러 이동)에게 양보
-                if (e.target.closest('#topo-ctx')) return;    // 우클릭 등록 팝업 위에서는 팬 시작 안 함
+                if (e.button !== undefined && e.button !== 0 && e.pointerType === 'mouse') return;
+                if (e.target.closest('.tnode')) return;
+                if (e.target.closest('#topo-ctx')) return;
                 pan = { startX: e.clientX, startY: e.clientY, panX: topoPanX, panY: topoPanY, moved: false, pointerId: e.pointerId };
             });
             wrap.addEventListener('pointermove', (e) => {
                 if (!pan) return;
                 const dx = e.clientX - pan.startX, dy = e.clientY - pan.startY;
                 if (!pan.moved) {
-                    if (Math.hypot(dx, dy) < 4) return; // 살짝 흔들리는 클릭까지 팬으로 인식하지 않도록
+                    if (Math.hypot(dx, dy) < 4) return;
                     pan.moved = true;
                     wrap.classList.add('panning');
                     wrap.setPointerCapture && wrap.setPointerCapture(pan.pointerId);
                 }
                 e.preventDefault();
-                // 화면 이동 최대 범위를 제한 (-400px ~ +400px)
                 const MAX_PAN = 400;
                 topoPanX = Math.max(-MAX_PAN, Math.min(MAX_PAN, pan.panX + dx));
                 topoPanY = Math.max(-MAX_PAN, Math.min(MAX_PAN, pan.panY + dy));
@@ -1757,7 +1714,7 @@ function updateVlanZoneShapes(rect) {
             wrap.addEventListener('pointercancel', endPan);
         })();
 
-        /* ═════════ 5-4. 장비 연결(선) 관리 ═════════ */
+        /* ═════════ 5-4. 장비 연결 관리 ═════════ */
         function refreshLinkSelects() {
             const opts = NODE_KEYS.map(k => `<option value="${k}">${NODES[k].name}</option>`).join('');
             const withNone = `<option value="">연결 안 함</option>` + opts;
@@ -1796,7 +1753,6 @@ function updateVlanZoneShapes(rect) {
             toast('연결이 해제됐어요.');
         }
 
-        /* 일반 사용자는 해제 컬럼 제거 및 연결 해제 버튼 숨김 */
         function renderConnections() {
             const body = $('link-body');
             const thead = $('link-thead');
@@ -1857,8 +1813,8 @@ function updateVlanZoneShapes(rect) {
         function nodeHasLink(key) { return EDGES.some(([a, b]) => a === key || b === key); }
         function nodeEdges(key) { return EDGES.filter(([a, b]) => a === key || b === key); }
 
-        let inspectConnectBuiltFor = null; // 어떤 노드 기준으로 대상 목록을 마지막에 그렸는지 기억 (매 tick마다 다시 그리는 걸 방지)
-        let inspectLinksSignature = null;  // 연결 목록이 실제로 바뀌었을 때만 다시 그리기 위한 서명값
+        let inspectConnectBuiltFor = null;
+        let inspectLinksSignature = null;
 
         function updateInspector() {
             const n = NODES[state.selected];
@@ -1901,7 +1857,7 @@ function updateVlanZoneShapes(rect) {
                         title.classList.toggle('c-amber', edges.length === 0);
                     }
                     const target = $('inspect-connect-target');
-                    const isBusy = document.activeElement === target; // 사용자가 드롭다운을 조작 중이면 건드리지 않음
+                    const isBusy = document.activeElement === target;
                     const sig = state.selected + ':' + availableTargets.join(',');
                     if (!isBusy && inspectConnectBuiltFor !== sig) {
                         target.innerHTML = availableTargets.map(k => `<option value="${k}">${NODES[k].name}</option>`).join('');
@@ -2186,15 +2142,13 @@ function updateVlanZoneShapes(rect) {
 
         function openTopoContextMenu(e) {
             if (!state.isAdmin) return;
-            if (e.target.closest('#topo-ctx')) return; // 팝업 폼 위 우클릭은 무시
+            if (e.target.closest('#topo-ctx')) return;
             e.preventDefault();
             const topo = $('topo');
             const wrap = topo.parentElement;
             const topoRect = topo.getBoundingClientRect();
             const wrapRect = wrap.getBoundingClientRect();
 
-            // 확대·축소로 #topo가 시각적으로 작아졌어도(예: 50%) wrap 전체 어디를 우클릭하든
-            // 같은 좌표 비율로 환산되도록, 클릭 지점을 축소된 topoRect 기준 %로 계산한다.
             const xPct = clamp((e.clientX - topoRect.left) / topoRect.width * 100, NODE_POS_MIN, NODE_POS_MAX);
             const yPct = clamp((e.clientY - topoRect.top) / topoRect.height * 100, NODE_POS_MIN, NODE_POS_MAX);
             pendingCtxPos = { x: +xPct.toFixed(1), y: +yPct.toFixed(1) };
@@ -2283,7 +2237,6 @@ function updateVlanZoneShapes(rect) {
             $('edit-device-owner').value = n.owner || '';
             const typeVal = Object.keys(DEVICE_TYPES).find(t => DEVICE_TYPES[t].icon === n.icon) || 'server';
             $('edit-device-type').value = typeVal;
-            // 드래그로 구역을 옮긴 직후 열렸을 때만(suggestedIp가 있을 때만) IP 확인 안내 문구를 보여준다
             const hint = $('edit-device-ip-hint');
             if (hint) hint.style.display = suggestedIp ? 'block' : 'none';
             $('device-edit-modal').classList.add('show');
@@ -2405,9 +2358,7 @@ function updateVlanZoneShapes(rect) {
             b.classList.toggle('hide', state.unread === 0);
         }
 
-        /* ═════════ 6-2. 엔드포인트 프로세스 감시 (Python 감시프로그램 → FastAPI 연동) ═════════ */
-        // 백엔드가 준비되면 이 URL만 실제 FastAPI 엔드포인트로 바꿔주면 돼요.
-        // 기대하는 응답(JSON 배열): [{ id, action: "block"|"allow", process_name, pid, time, reason }]
+        /* ═════════ 6-2. 엔드포인트 프로세스 감시 ═════════ */
         const ENDPOINT_SECURITY_API = '/api/endpoint-security/events';
         let epsLastId = 0;
         let epsConnected = false;
@@ -2420,7 +2371,7 @@ function updateVlanZoneShapes(rect) {
                 setEpsConnected(true);
                 events.forEach(handleEndpointEvent);
             } catch (e) {
-                setEpsConnected(false); // 백엔드가 아직 없거나 응답이 없을 때
+                setEpsConnected(false);
             }
         }
 
@@ -2444,7 +2395,6 @@ function updateVlanZoneShapes(rect) {
             );
         }
 
-        // 백엔드 없이도 화면 동작을 미리 보여주기 위한 데모용 함수 (실제 exe/FastAPI 연동 전 임시)
         function simulateEndpointEvent() {
             const demo = Math.random() > 0.5
                 ? { id: ++epsLastId, action: 'block', process_name: 'unknown_updater.exe', pid: 4820 + epsLastId, reason: '[데모] 다운로드 폴더에서 미등록 프로세스가 실행되어 차단했어요.' }
