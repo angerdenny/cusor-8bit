@@ -341,6 +341,102 @@
         .topo-zoom button:hover { background: var(--glass); }
         .topo-zoom span { font-size: 10.5px; font-weight: 700; color: var(--muted); min-width: 32px; text-align: center; font-variant-numeric: tabular-nums; }
 
+        /* 정렬 프리셋 (커스텀 모드 스타일) */
+        .preset-wrap { position: relative; }
+        .preset-btn .preset-cur { padding: 1px 7px; border-radius: 99px; font-size: 10px; background: color-mix(in srgb, var(--indigo) 22%, transparent); }
+        .preset-btn .preset-caret { font-size: 9px; transition: transform .2s; }
+        .preset-wrap.open .preset-caret { transform: rotate(180deg); }
+        .preset-menu {
+            position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; width: 320px; max-width: calc(100vw - 40px); padding: 10px; border-radius: 18px;
+            background: linear-gradient(var(--glass-strong), var(--glass-strong)), var(--bg); border: 1px solid var(--border); box-shadow: var(--shadow);
+            visibility: hidden; opacity: 0; transform: translateY(-6px); pointer-events: none; transition: opacity .16s, transform .16s, visibility .16s;
+        }
+        .preset-wrap.open .preset-menu { visibility: visible; opacity: 1; transform: none; pointer-events: auto; }
+        .preset-head { padding: 4px 8px 8px; font-size: 11px; font-weight: 700; color: var(--dim); letter-spacing: .02em; }
+        .preset-item {
+            display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 10px; margin-bottom: 4px; border-radius: 14px; text-align: left; cursor: pointer;
+            color: var(--text); background: transparent; border: 1px solid transparent; transition: background .15s, border-color .15s, transform .15s;
+        }
+        .preset-item:hover { background: var(--input); border-color: var(--border); transform: translateX(2px); }
+        .preset-item.on { background: color-mix(in srgb, var(--indigo) 13%, transparent); border-color: color-mix(in srgb, var(--indigo) 50%, transparent); }
+        .preset-thumb {
+            flex: none; width: 64px; height: 46px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+            color: var(--indigo); background: var(--input); border: 1px solid var(--border);
+        }
+        .preset-thumb svg { width: 56px; height: 40px; }
+        .preset-txt { flex: 1; min-width: 0; }
+        .preset-txt b { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
+        .preset-txt small { display: block; margin-top: 2px; font-size: 10.8px; line-height: 1.4; color: var(--dim); font-weight: 500; }
+        .preset-badge { font-style: normal; padding: 0 6px; border-radius: 99px; font-size: 9.5px; font-weight: 700; color: #fff; background: linear-gradient(135deg, #6366f1, #06b6d4); }
+        .preset-mark { flex: none; font-size: 10px; font-weight: 700; color: var(--indigo); }
+        .preset-foot { padding: 6px 8px 2px; font-size: 10.5px; line-height: 1.5; color: var(--dim); }
+
+        /* 사이드바 · 토폴로지 VLAN 구역 필터 (플라이아웃) */
+        .nav-group { position: relative; }
+        .nav-caret {
+            position: absolute; right: 2px; bottom: 2px; width: 14px; height: 14px; border-radius: 50%; pointer-events: none;
+            display: flex; align-items: center; justify-content: center; font-size: 8px; line-height: 1;
+            background: var(--glass-strong); border: 1px solid var(--border); color: var(--muted); transition: transform .2s;
+        }
+        .nav-group.open .nav-caret { transform: rotate(180deg); color: var(--indigo); }
+        .nav-group.open .nav-btn::after { display: none; }
+        .vfly {
+            position: absolute; left: calc(100% + 14px); top: -6px; z-index: 60; width: 252px; padding: 10px; border-radius: 18px;
+            background: linear-gradient(var(--glass-strong), var(--glass-strong)), var(--bg); border: 1px solid var(--border); box-shadow: var(--shadow);
+            visibility: hidden; opacity: 0; transform: translateX(-6px); pointer-events: none; transition: opacity .16s, transform .16s, visibility .16s;
+        }
+        .nav-group.open .vfly { visibility: visible; opacity: 1; transform: none; pointer-events: auto; }
+        .vfly-head { display: flex; align-items: center; gap: 6px; padding: 4px 8px 8px; font-size: 11px; font-weight: 700; color: var(--dim); letter-spacing: .02em; }
+        .vfly-list { display: flex; flex-direction: column; gap: 3px; max-height: 60vh; overflow-y: auto; }
+        .vfly-item {
+            --vzc: var(--indigo); display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 10px; border-radius: 12px;
+            border: 1px solid transparent; background: transparent; color: var(--text); font-size: 12.5px; font-weight: 600; text-align: left; cursor: pointer; transition: .15s;
+        }
+        .vfly-item:hover { background: var(--glass-strong); border-color: var(--border); }
+        .vfly-item.on { background: color-mix(in srgb, var(--vzc) 14%, transparent); border-color: color-mix(in srgb, var(--vzc) 45%, transparent); }
+        .vfly-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .vfly-sub { display: block; margin-top: 1px; font-size: 10px; font-weight: 500; color: var(--dim); }
+        .vfly-count { font-size: 11px; font-weight: 600; color: var(--dim); }
+        .vfly-sep { height: 1px; margin: 5px 4px; background: var(--border); }
+        .vfly-foot { padding: 8px 8px 2px; font-size: 10.5px; color: var(--dim); line-height: 1.5; }
+        @media (max-width: 767px) {
+            .nav-group { position: static; }
+            .nav-caret { transform: rotate(-90deg); }
+            .nav-group.open .nav-caret { transform: rotate(90deg); }
+            .vfly { left: 8px; right: 8px; top: auto; bottom: calc(100% + 8px); width: auto; transform: translateY(6px); }
+        }
+
+        /* VLAN 구역 전용 화면 */
+        .vv-head { --vzc: var(--indigo); border-left: 3px solid var(--vzc); }
+        .vv-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+        .vpill {
+            --vzc: var(--indigo); display: inline-flex; align-items: center; gap: 7px; padding: 6px 13px; border-radius: 999px; font-size: 12px; font-weight: 600;
+            color: var(--muted); border: 1px solid var(--border); background: transparent; cursor: pointer; transition: .2s;
+        }
+        .vpill:hover { color: var(--text); border-color: var(--vzc); }
+        .vpill.on { color: var(--text); background: color-mix(in srgb, var(--vzc) 16%, transparent); border-color: var(--vzc); }
+        .vv-stat { padding: 12px 14px; border-radius: 14px; background: var(--input); border: 1px solid var(--border); }
+        .vv-stat small { display: block; font-size: 11px; color: var(--dim); }
+        .vv-stat b { display: block; margin-top: 3px; font-size: 20px; font-weight: 800; }
+        .vv-stat .vv-stat-sm { font-size: 12.5px; font-weight: 700; line-height: 1.7; }
+        .vtopo-wrap { overflow-x: auto; overflow-y: hidden; border-radius: 18px; background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid var(--border); }
+        .vtopo {
+            --vzc: var(--indigo); position: relative; height: 480px; min-width: 560px;
+            background: radial-gradient(ellipse at center, color-mix(in srgb, var(--vzc) 9%, transparent), transparent 70%);
+        }
+        .vtopo svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+        .vtopo line { stroke-width: 2; stroke-dasharray: 5 6; opacity: .75; animation: flow 1s linear infinite; }
+        .vtopo .tnode { cursor: pointer; }
+        .vv-ext { position: absolute; bottom: -9px; left: 50%; transform: translateX(-50%); padding: 1px 7px; border-radius: 99px; font-size: 9.5px; font-weight: 700; white-space: nowrap; color: #fff; background: var(--indigo); }
+        .vv-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--dim); }
+        .vext {
+            --vzc: var(--indigo); display: inline-flex; align-items: center; gap: 7px; padding: 7px 11px; border-radius: 12px; font-size: 11.5px; cursor: pointer; color: var(--text);
+            background: var(--glass-strong); border: 1px solid var(--border); border-left: 3px solid var(--vzc); transition: border-color .15s, transform .15s;
+        }
+        .vext:hover { border-color: var(--vzc); transform: translateY(-2px); }
+        .vext-z { display: inline-flex; align-items: center; gap: 5px; margin-left: 4px; padding-left: 8px; border-left: 1px solid var(--border); color: var(--muted); }
+        .tbl tbody tr.vsel { background: color-mix(in srgb, var(--vzc, var(--indigo)) 10%, transparent); }
+
         /* VLAN 구역 관리 */
         .vlan-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
         .color-input { width: 42px; height: 38px; padding: 2px; border-radius: 10px; border: 1px solid var(--border); background: var(--input); cursor: pointer; flex: none; }
@@ -472,7 +568,16 @@
             <button type="button" id="env-toggle-btn" class="logo" data-label="8bit AI Pulse" onclick="toggleEnvironment()">8bit</button>
             <nav class="nav">
                 <button class="nav-btn active" data-nav="overview" data-label="대시보드" onclick="switchView('overview')"><i data-lucide="layout-dashboard" class="w-5 h-5"></i></button>
-                <button class="nav-btn" data-nav="topology" data-label="네트워크 토폴로지" onclick="switchView('topology')"><i data-lucide="network" class="w-5 h-5"></i></button>
+                <div class="nav-group" id="nav-topo-group">
+                    <button class="nav-btn" id="nav-topology" data-nav="topology" data-label="네트워크 토폴로지 · 구역 필터" aria-haspopup="true" aria-expanded="false" onclick="onTopoNavClick(event)">
+                        <i data-lucide="network" class="w-5 h-5"></i><span class="nav-caret">▸</span>
+                    </button>
+                    <div class="vfly" role="menu" aria-label="VLAN 구역 필터">
+                        <div class="vfly-head"><i data-lucide="filter" class="w-3.5 h-3.5"></i>구역별 보기</div>
+                        <div id="vfly-list" class="vfly-list"></div>
+                        <p class="vfly-foot">구역을 누르면 그 구역 장비만 모아서 볼 수 있어요.</p>
+                    </div>
+                </div>
                 <button class="nav-btn" data-nav="analytics" data-label="트래픽 · AI 분석" onclick="switchView('analytics')"><i data-lucide="activity" class="w-5 h-5"></i></button>
                 <button class="nav-btn" data-nav="logs" data-label="보안 로그" onclick="switchView('logs')">
                     <i data-lucide="bell" class="w-5 h-5"></i><span id="log-badge" class="nbadge hide">0</span>
@@ -616,7 +721,10 @@
                                 <span class="text-xs t-dim">노드를 누르면 상세 진단이 열려요</span>
                                 <span id="topo-hint-admin" class="topo-hint-badge hide">🖱️ 빈 곳 우클릭 → 그 자리에 바로 등록</span>
                                 <span id="topo-hint-drag" class="topo-hint-badge hide">✋ 노드를 꾹 눌러서 자유롭게 이동</span>
-                                <button type="button" id="topo-arrange-btn" class="topo-arrange-btn hide" onclick="autoArrangeTopology()"><i data-lucide="layout-grid" class="w-3.5 h-3.5"></i>예쁘게 정렬</button>
+                                <div id="topo-arrange-wrap" class="preset-wrap hide">
+                                    <button type="button" id="topo-arrange-btn" class="topo-arrange-btn preset-btn" aria-haspopup="true" aria-expanded="false" onclick="togglePresetMenu(event)"><i data-lucide="layout-grid" class="w-3.5 h-3.5"></i>정렬 프리셋<span id="topo-preset-label" class="preset-cur hide"></span><span class="preset-caret">▼</span></button>
+                                    <div id="topo-preset-menu" class="preset-menu" role="menu" aria-label="정렬 프리셋"></div>
+                                </div>
                                 <div class="topo-zoom">
                                     <button type="button" onclick="topoZoomBy(-0.1)" title="축소">−</button>
                                     <span id="topo-zoom-label">100%</span>
@@ -773,6 +881,81 @@
             </section>
 
             <!-- ───── VIEW: 트래픽 · AI 분석 ───── -->
+            <!-- ───── VIEW: VLAN 구역 전용 ───── -->
+            <section class="view" data-view="vlan">
+                <div id="vv-head" class="card vv-head">
+                    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                        <div class="flex items-center gap-3 flex-wrap">
+                            <button type="button" class="topo-arrange-btn" onclick="switchView('topology')"><i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>전체 토폴로지</button>
+                            <h2 class="ctitle"><span class="vzdot"></span><span id="vv-title">VLAN 구역</span></h2>
+                            <span id="vv-cidr" class="tag mono hide"></span>
+                        </div>
+                        <button type="button" id="vv-edit-btn" class="topo-arrange-btn hide" onclick="openVlanEditModal(state.vlanView)"><i data-lucide="pencil" class="w-3.5 h-3.5"></i>구역 수정</button>
+                    </div>
+                    <div id="vv-pills" class="vv-pills"></div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+                        <div class="vv-stat"><small>구역 장비</small><b id="vv-stat-count">0대</b></div>
+                        <div class="vv-stat"><small>평균 CPU</small><b id="vv-stat-cpu" class="c-cyan">0%</b></div>
+                        <div class="vv-stat"><small>평균 메모리</small><b id="vv-stat-ram" style="color:var(--blue)">0%</b></div>
+                        <div class="vv-stat"><small>장비 상태</small><div id="vv-stat-lv" class="vv-stat-sm"></div></div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 mt-5">
+                    <div class="card lg:col-span-8">
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                            <h2 class="ctitle"><i data-lucide="network" class="w-4 h-4 c-cyan"></i>구역 토폴로지</h2>
+                            <span class="text-xs t-dim">이 구역 장비만 보여줘요 · 노드를 누르면 상세 진단이 열려요</span>
+                        </div>
+                        <div class="vtopo-wrap"><div id="vtopo" class="vtopo"></div></div>
+                        <div class="mt-4">
+                            <p class="text-xs font-semibold t-muted mb-2">🔗 다른 구역과의 연결 <span class="t-dim font-normal">(누르면 그 구역으로 이동)</span></p>
+                            <div id="vv-ext-list" class="flex flex-wrap gap-2"></div>
+                        </div>
+                    </div>
+
+                    <div class="card lg:col-span-4 self-start">
+                        <div class="flex items-center justify-between pb-3 mb-4" style="border-bottom:1px solid var(--border)">
+                            <h2 class="ctitle"><i data-lucide="activity" class="w-4 h-4 c-indigo"></i>장비 진단</h2>
+                        </div>
+                        <p id="vv-insp-name" class="text-lg font-extrabold mb-4">-</p>
+                        <div id="vv-insp-body" class="grid gap-4">
+                            <div>
+                                <div class="flex justify-between text-xs mb-1.5"><span class="t-muted">CPU 사용률</span><span id="vv-insp-cpu-text" class="mono font-bold c-cyan">0%</span></div>
+                                <div class="bar"><i id="vv-insp-cpu-bar" class="cy" style="width:0%"></i></div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-xs mb-1.5"><span class="t-muted">메모리</span><span id="vv-insp-ram-text" class="mono font-bold" style="color:var(--blue)">0%</span></div>
+                                <div class="bar"><i id="vv-insp-ram-bar" class="bl" style="width:0%"></i></div>
+                            </div>
+                            <div class="grid gap-2.5 text-xs rounded-2xl p-4" style="background:var(--input);border:1px solid var(--border)">
+                                <div class="flex justify-between gap-3"><span class="t-dim">IP</span><span id="vv-insp-ip" class="mono font-semibold">-</span></div>
+                                <div class="flex justify-between gap-3"><span class="t-dim">담당자</span><span id="vv-insp-owner" class="c-indigo">-</span></div>
+                                <div class="flex justify-between gap-3"><span class="t-dim">종류</span><span id="vv-insp-type" class="t-muted">-</span></div>
+                                <div class="flex justify-between gap-3"><span class="t-dim">상태</span><span id="vv-insp-status" class="font-semibold c-lv lv-ok">-</span></div>
+                            </div>
+                            <div class="flex gap-2 flex-wrap">
+                                <button type="button" class="topo-arrange-btn" onclick="if (state.vvSelected) openNode(state.vvSelected)"><i data-lucide="network" class="w-3.5 h-3.5"></i>전체 토폴로지에서 보기</button>
+                                <button type="button" id="vv-insp-edit" class="topo-arrange-btn hide" onclick="if (state.vvSelected) openDeviceEditModal(state.vvSelected)"><i data-lucide="pencil" class="w-3.5 h-3.5"></i>장비 수정</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-5">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                        <h2 class="ctitle"><i data-lucide="server" class="w-4 h-4 c-purple"></i>구역 장비 목록</h2>
+                        <span class="text-xs t-dim">행을 누르면 오른쪽 진단창이 바뀌어요</span>
+                    </div>
+                    <div style="overflow-x:auto">
+                        <table class="tbl">
+                            <thead><tr><th>장비</th><th>IP</th><th>CPU</th><th>메모리</th><th>상태</th></tr></thead>
+                            <tbody id="vv-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
             <section class="view" data-view="analytics">
                 <div class="stats" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
                     <div class="card"><p class="text-xs t-muted">최근 40초 최고 트래픽</p><p id="an-peak" class="text-2xl font-extrabold mono mt-1 c-cyan">0 Mbps</p></div>
@@ -1120,7 +1303,7 @@
             const linkForm = $('link-form'); if (linkForm) linkForm.classList.toggle('hide', !state.isAdmin); // 연결하기 폼 제어
             const topoHint = $('topo-hint-admin'); if (topoHint) topoHint.classList.toggle('hide', !state.isAdmin);
             const topoDragHint = $('topo-hint-drag'); if (topoDragHint) topoDragHint.classList.toggle('hide', !state.isAdmin);
-            const topoArrangeBtn = $('topo-arrange-btn'); if (topoArrangeBtn) topoArrangeBtn.classList.toggle('hide', !state.isAdmin);
+            const topoArrangeBtn = $('topo-arrange-wrap'); if (topoArrangeBtn) topoArrangeBtn.classList.toggle('hide', !state.isAdmin);
             const topoEl = $('topo'); if (topoEl) topoEl.classList.toggle('topo-admin', state.isAdmin);
             const devSaveBtn = $('device-save-btn'); if (devSaveBtn) devSaveBtn.classList.toggle('hide', !state.isAdmin);
             const devReadonlyBadge = $('devices-readonly-badge'); if (devReadonlyBadge) devReadonlyBadge.classList.toggle('hide', state.isAdmin);
@@ -1295,6 +1478,7 @@
         const VIEWS = {
             overview:  ['안녕하세요', '지금 네트워크 상태를 한눈에 확인하세요'],
             topology:  ['네트워크 토폴로지', '장비 연결 구조와 상태를 확인하고, 노드를 눌러 진단하세요'],
+            vlan:      ['VLAN 구역', '선택한 구역의 장비만 모아서 상태를 확인하세요'],
             analytics: ['트래픽 · AI 분석', '최근 트래픽 흐름과 AI 위험도, 장비별 부하를 비교하세요'],
             logs:      ['보안 로그', 'AI가 예측한 장애 위험과 보안 경보 기록이에요'],
             guide:     ['AI 가이드', '시스템 사용법과 팀원 담당 역할을 확인하세요'],
@@ -1303,9 +1487,12 @@
 
         function switchView(name) {
             if (state.view === 'guide' && name !== 'guide') resetChat();
+            if (name === 'vlan' && !vlanById(state.vlanView)) state.vlanView = vlans[0] ? vlans[0].id : null;
+            if (name === 'vlan' && !state.vlanView) name = 'topology';
+            toggleVlanFlyout(false);
             state.view = name;
             document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.dataset.view === name));
-            document.querySelectorAll('.nav-btn[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === name));
+            document.querySelectorAll('.nav-btn[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === (name === 'vlan' ? 'topology' : name)));
             const t = VIEWS[name];
             $('page-title').textContent = name === 'overview' ? `안녕하세요, ${state.username} 님` : t[0];
             const wave = $('wave');
@@ -1315,13 +1502,205 @@
             $('page-sub').textContent = (name === 'devices' && !state.isAdmin)
                 ? '기기별 소유자 할당과 DB 백업 기록을 확인할 수 있어요 (보기 전용)'
                 : t[1];
+            if (name === 'vlan') { const zv = vlanById(state.vlanView); if (zv) $('page-title').textContent = `${zv.name} 구역`; }
             if (name === 'logs') { state.unread = 0; updateBadge(); }
             if (name === 'devices') { renderDevices(); renderBackups(); }
+            if (name === 'vlan') { renderVlanView(); }
             if (name === 'topology') { buildNodeUI(); updateNodeUI(); lucide.createIcons(); } // 이 시점에야 실제 크기를 알 수 있어 구역 도형을 다시 계산
             window.scrollTo({ top: 0 });
             requestAnimationFrame(drawAll);
         }
         function openNode(key) { selectNode(key); switchView('topology'); }
+
+        /* ═════════ 4-1. 사이드바 VLAN 구역 필터 · 구역 전용 화면 ═════════ */
+        state.vlanView = null;      // 구역 전용 화면에서 보고 있는 VLAN id
+        state.vvSelected = null;    // 구역 화면에서 선택된 장비 key
+        const escHtml = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        function zoneMembers(vlanId) { return NODE_KEYS.filter(k => NODES[k] && NODES[k].vlan === vlanId); }
+        function worstLv(keys) {
+            if (keys.some(k => NODES[k].lv === 'crit')) return 'crit';
+            if (keys.some(k => NODES[k].lv === 'warn')) return 'warn';
+            return 'ok';
+        }
+
+        function renderVlanFlyout() {
+            const box = $('vfly-list');
+            if (!box) return;
+            const allOn = state.view === 'topology';
+            const allItem = `<button type="button" class="vfly-item${allOn ? ' on' : ''}" role="menuitem" onclick="switchView('topology')">
+                    <i data-lucide="globe" class="w-4 h-4"></i>
+                    <span class="vfly-name">전체 토폴로지</span>
+                    <span class="vfly-count">${NODE_KEYS.length}대</span>
+                </button><div class="vfly-sep"></div>`;
+            const items = vlans.map(z => {
+                const mem = zoneMembers(z.id);
+                const on = state.view === 'vlan' && state.vlanView === z.id;
+                return `<button type="button" class="vfly-item${on ? ' on' : ''}" role="menuitem" style="--vzc:${escHtml(z.color)}" onclick="openVlanView('${escHtml(z.id)}')">
+                    <span class="vzdot"></span>
+                    <span class="vfly-name">${escHtml(z.name)}${z.cidr ? `<span class="vfly-sub mono">${escHtml(z.cidr)}</span>` : ''}</span>
+                    ${mem.length ? `<span class="ldot lv-${worstLv(mem)}" title="구역 내 가장 나쁜 상태"></span>` : ''}
+                    <span class="vfly-count">${mem.length}대</span>
+                </button>`;
+            }).join('');
+            box.innerHTML = allItem + items;
+            lucide.createIcons();
+        }
+
+        function toggleVlanFlyout(force) {
+            const g = $('nav-topo-group');
+            if (!g) return;
+            const open = typeof force === 'boolean' ? force : !g.classList.contains('open');
+            if (open) renderVlanFlyout();
+            g.classList.toggle('open', open);
+            const b = $('nav-topology'); if (b) b.setAttribute('aria-expanded', String(open));
+        }
+
+        function onTopoNavClick(e) {
+            if (e) e.stopPropagation();
+            const onTopo = state.view === 'topology' || state.view === 'vlan';
+            if (!onTopo) { switchView('topology'); toggleVlanFlyout(true); }
+            else toggleVlanFlyout();
+        }
+        document.addEventListener('click', e => { const g = $('nav-topo-group'); if (g && !g.contains(e.target)) toggleVlanFlyout(false); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') toggleVlanFlyout(false); });
+
+        function openVlanView(id) {
+            if (!vlanById(id)) return;
+            state.vlanView = id;
+            state.vvSelected = null;
+            switchView('vlan');
+        }
+
+        /* 구역 안 장비만 bounding box 기준으로 펼쳐서 배치 */
+        function vvLayout(keys) {
+            const pos = {};
+            const placed = keys.filter(k => NODES[k].x != null && NODES[k].y != null);
+            const unplaced = keys.filter(k => !placed.includes(k));
+            if (placed.length) {
+                const xs = placed.map(k => NODES[k].x), ys = placed.map(k => NODES[k].y);
+                const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+                placed.forEach(k => {
+                    pos[k] = {
+                        x: maxX - minX < 1 ? 50 : 14 + (NODES[k].x - minX) / (maxX - minX) * 72,
+                        y: maxY - minY < 1 ? 50 : 16 + (NODES[k].y - minY) / (maxY - minY) * 68
+                    };
+                });
+            }
+            unplaced.forEach((k, i) => { pos[k] = { x: 14 + (i + 1) / (unplaced.length + 1) * 72, y: 90 }; });
+            return pos;
+        }
+
+        function renderVlanView() {
+            const v = vlanById(state.vlanView);
+            if (!v) return;
+            const keys = zoneMembers(v.id);
+            if (!keys.includes(state.vvSelected)) state.vvSelected = keys[0] || null;
+            const inner = new Set(keys);
+
+            $('vv-head').style.setProperty('--vzc', v.color);
+            $('vtopo').style.setProperty('--vzc', v.color);
+            $('vv-title').textContent = `${v.name} 구역`;
+            const cidr = $('vv-cidr'); cidr.textContent = v.cidr || ''; cidr.classList.toggle('hide', !v.cidr);
+            $('vv-edit-btn').classList.toggle('hide', !state.isAdmin);
+            $('vv-insp-edit').classList.toggle('hide', !state.isAdmin);
+
+            // 구역 전환 필(pill)
+            $('vv-pills').innerHTML = vlans.map(z => `<button type="button" class="vpill${z.id === v.id ? ' on' : ''}" style="--vzc:${escHtml(z.color)}" onclick="openVlanView('${escHtml(z.id)}')">
+                <span class="vzdot"></span>${escHtml(z.name)}<span class="t-dim mono">${zoneMembers(z.id).length}</span></button>`).join('');
+
+            // 구역 전용 토폴로지
+            const pos = vvLayout(keys);
+            const lines = EDGES.filter(([a, b]) => inner.has(a) && inner.has(b))
+                .map(([a, b]) => `<line id="vl-${a}__${b}" x1="${pos[a].x}%" y1="${pos[a].y}%" x2="${pos[b].x}%" y2="${pos[b].y}%"/>`).join('');
+            const extCount = k => EDGES.filter(([a, b]) => (a === k && !inner.has(b)) || (b === k && !inner.has(a))).length;
+            const nodes = keys.map(k => {
+                const n = NODES[k], ec = extCount(k);
+                return `<button class="tnode lv-${n.lv}${k === state.vvSelected ? ' sel' : ''}" id="vn-${k}" style="left:${pos[k].x}%;top:${pos[k].y}%" onclick="selectVlanNode('${k}')">
+                    <span class="tdot"></span><i data-lucide="${n.icon}" class="w-4 h-4 c-lv"></i><b>${escHtml(n.name)}</b><small class="mono">${escHtml(n.ip)}</small>
+                    ${ec ? `<span class="vv-ext" title="다른 구역과 연결된 회선 ${ec}개">↗ ${ec}</span>` : ''}</button>`;
+            }).join('');
+            $('vtopo').innerHTML = `<svg>${lines}</svg>${nodes}${keys.length ? '' : '<div class="vv-empty">이 구역에 배치된 장비가 없어요.</div>'}`;
+
+            // 다른 구역과의 연결
+            const ext = EDGES.filter(([a, b]) => NODES[a] && NODES[b] && inner.has(a) !== inner.has(b));
+            $('vv-ext-list').innerHTML = ext.length ? ext.map(([a, b]) => {
+                const inside = inner.has(a) ? a : b, outside = inner.has(a) ? b : a;
+                const ov = vlanById(NODES[outside].vlan) || { name: '-', color: 'var(--dim)' };
+                return `<button type="button" class="vext" style="--vzc:${escHtml(ov.color)}" onclick="openVlanView('${escHtml(NODES[outside].vlan)}')" title="${escHtml(ov.name)} 구역 보기">
+                    <b>${escHtml(NODES[inside].name)}</b><span class="t-dim">↔</span><b>${escHtml(NODES[outside].name)}</b>
+                    <span class="vext-z"><span class="vzdot"></span>${escHtml(ov.name)}</span></button>`;
+            }).join('') : '<p class="text-xs t-dim">이 구역은 다른 구역과 직접 연결된 회선이 없어요.</p>';
+
+            // 장비 목록
+            $('vv-body').innerHTML = keys.length ? keys.map(k => {
+                const n = NODES[k];
+                return `<tr class="click lv-${n.lv}" id="vr-${k}" style="--vzc:${escHtml(v.color)}" onclick="selectVlanNode('${k}')">
+                    <td><div class="flex items-center gap-2"><span class="ldot"></span><b>${escHtml(n.name)}</b></div></td>
+                    <td class="mono t-muted">${escHtml(n.ip)}</td>
+                    <td style="min-width:140px"><div class="flex items-center gap-2"><div class="bar flex-1"><i id="vcb-${k}" style="width:0%"></i></div><span class="mono w-10 text-right" id="vct-${k}">0%</span></div></td>
+                    <td style="min-width:140px"><div class="flex items-center gap-2"><div class="bar flex-1"><i class="bl" id="vrb-${k}" style="width:0%"></i></div><span class="mono w-10 text-right" id="vrt-${k}">0%</span></div></td>
+                    <td class="c-lv font-semibold" id="vst-${k}"></td>
+                </tr>`;
+            }).join('') : '<tr><td colspan="5" class="t-dim" style="text-align:center;padding:24px">이 구역에 배치된 장비가 없어요.</td></tr>';
+
+            updateVlanView();
+            lucide.createIcons();
+        }
+
+        /* 1초마다 도는 값 갱신 (구조는 다시 그리지 않음) */
+        function updateVlanView() {
+            const v = vlanById(state.vlanView);
+            if (!v) return;
+            const keys = zoneMembers(v.id);
+            const avg = f => keys.length ? Math.round(keys.reduce((s, k) => s + NODES[k][f], 0) / keys.length) : 0;
+            $('vv-stat-count').textContent = `${keys.length}대`;
+            $('vv-stat-cpu').textContent = keys.length ? `${avg('lc')}%` : '-';
+            $('vv-stat-ram').textContent = keys.length ? `${avg('lr')}%` : '-';
+            const c = { ok: 0, warn: 0, crit: 0 };
+            keys.forEach(k => { c[NODES[k].lv]++; });
+            $('vv-stat-lv').innerHTML = `<span class="c-green">● 정상 ${c.ok}</span> &nbsp;<span class="c-amber">▲ 경고 ${c.warn}</span> &nbsp;<span style="color:var(--red)">✖ 위험 ${c.crit}</span>`;
+
+            keys.forEach(k => {
+                const n = NODES[k];
+                setLv($('vn-' + k), n.lv);
+                const vn = $('vn-' + k); if (vn) vn.classList.toggle('sel', k === state.vvSelected);
+                const tr = $('vr-' + k); setLv(tr, n.lv); if (tr) tr.classList.toggle('vsel', k === state.vvSelected);
+                const cb = $('vcb-' + k); if (cb) cb.style.width = n.lc + '%';
+                const ct = $('vct-' + k); if (ct) ct.textContent = Math.round(n.lc) + '%';
+                const rb = $('vrb-' + k); if (rb) rb.style.width = n.lr + '%';
+                const rt = $('vrt-' + k); if (rt) rt.textContent = Math.round(n.lr) + '%';
+                const st = $('vst-' + k); if (st) st.textContent = nodeStatus(n);
+            });
+            EDGES.forEach(([a, b]) => {
+                const ln = $(`vl-${a}__${b}`);
+                if (ln && NODES[b]) ln.style.stroke = LVC[NODES[b].lv];
+            });
+
+            const n = NODES[state.vvSelected];
+            if (!n) {
+                $('vv-insp-name').textContent = '선택된 장비 없음';
+                $('vv-insp-body').classList.add('hide');
+                return;
+            }
+            $('vv-insp-body').classList.remove('hide');
+            $('vv-insp-name').textContent = n.name;
+            $('vv-insp-cpu-text').textContent = `${Math.round(n.lc)}%`;
+            $('vv-insp-cpu-bar').style.width = `${n.lc}%`;
+            $('vv-insp-ram-text').textContent = `${Math.round(n.lr)}%`;
+            $('vv-insp-ram-bar').style.width = `${n.lr}%`;
+            $('vv-insp-ip').textContent = n.ip;
+            $('vv-insp-owner').textContent = n.owner;
+            $('vv-insp-type').textContent = n.type;
+            $('vv-insp-status').textContent = nodeStatus(n);
+            setLv($('vv-insp-status'), n.lv);
+        }
+
+        function selectVlanNode(key) {
+            if (!NODES[key]) return;
+            state.vvSelected = key;
+            selectNode(key);      // 전체 토폴로지 쪽 선택 상태도 같이 맞춰 둠
+            updateVlanView();
+        }
 
         /* ═════════ 5. 토폴로지 · 장비 UI 생성 ═════════ */
         function vlanMembers(vlanId, excludeKey) {
@@ -1537,6 +1916,7 @@
             if (!d) return;
             d.nodeEl.classList.remove('dragging');
             if (d.moved) {
+                state.topoPreset = null; renderPresetMenu();
                 const n = NODES[d.key];
                 const targetVlan = findZoneAtPoint(n.x, n.y, topoIntrinsicRect(), n.vlan, d.key);
                 if (targetVlan && targetVlan !== n.vlan) {
@@ -1561,10 +1941,8 @@
         $('topo').addEventListener('pointerdown', onTopoPointerDown);
 
         /* ═════════ 5-3-1. 토폴로지 자동 정렬 ═════════ */
-        function autoArrangeTopology() {
-            if (!state.isAdmin) { toast('레이아웃 정렬은 관리자만 할 수 있어요.'); return; }
-            if (NODE_KEYS.length === 0) return;
-
+        /* 그래프 분석: 인접 리스트 · 계층(level) 계산 (모든 프리셋이 공통으로 사용) */
+        function computeTopoGraph() {
             const adj = {};
             NODE_KEYS.forEach(k => adj[k] = []);
             EDGES.forEach(([a, b]) => { if (adj[a] && adj[b]) { adj[a].push(b); adj[b].push(a); } });
@@ -1586,7 +1964,6 @@
                 const cur = queue[qi++];
                 adj[cur].forEach(nb => { if (level[nb] === undefined) { level[nb] = level[cur] + 1; queue.push(nb); } });
             }
-
             linkedKeys.forEach(k => {
                 if (level[k] !== undefined) return;
                 level[k] = 0;
@@ -1603,37 +1980,188 @@
             const levels = {};
             NODE_KEYS.forEach(k => { (levels[level[k]] = levels[level[k]] || []).push(k); });
             const levelIdx = Object.keys(levels).map(Number).sort((a, b) => a - b);
+            return { adj, linkedKeys, unlinkedKeys, level, levels, levelIdx, maxLinkedLevel };
+        }
+
+        function topoLayoutRect() {
+            const r = topoIntrinsicRect();
+            return { width: r.width > 200 ? r.width : 900, height: r.height > 200 ? r.height : 560 };
+        }
+        function setNodePos(k, x, y) {
+            NODES[k].x = Math.round(Math.max(NODE_POS_MIN, Math.min(NODE_POS_MAX, x)) * 10) / 10;
+            NODES[k].y = Math.round(Math.max(NODE_POS_MIN, Math.min(NODE_POS_MAX, y)) * 10) / 10;
+        }
+
+        /* 프리셋 1 · 기본(계층형) 과 프리셋 4 · 가로 흐름형: 계층별 줄 세우기 (축만 다름) */
+        const TIER_VERTICAL   = { main: 'y', mainStart: 14, mainEnd: 84, maxStep: 34, crossMin: 12, crossMax: 88, single: 46 };
+        const TIER_HORIZONTAL = { main: 'x', mainStart: 12, mainEnd: 88, maxStep: 34, crossMin: 14, crossMax: 86, single: 50 };
+        function layoutTiers(g, o) {
+            const { adj, level, levels, levelIdx } = g;
             const totalLevels = levelIdx.length;
-
-            const TOP_Y = 14, MAX_Y = 84, MAX_Y_STEP = 34;
-            const TOP_X = 12, MAX_X = 88;
-            const yStep = totalLevels > 1 ? Math.min(MAX_Y_STEP, (MAX_Y - TOP_Y) / (totalLevels - 1)) : 0;
-
-            const posX = {};
+            const step = totalLevels > 1 ? Math.min(o.maxStep, (o.mainEnd - o.mainStart) / (totalLevels - 1)) : 0;
+            const crossPos = {};
             levelIdx.forEach((lv, li) => {
-                const keysAtLevel = levels[lv];
-                const order = keysAtLevel.slice().sort((ka, kb) => {
+                const order = levels[lv].slice().sort((ka, kb) => {
                     const bx = (k) => {
-                        const parents = adj[k].filter(nb => level[nb] < lv && posX[nb] !== undefined);
+                        const parents = adj[k].filter(nb => level[nb] < lv && crossPos[nb] !== undefined);
                         if (!parents.length) return 50;
-                        return parents.reduce((s, p) => s + posX[p], 0) / parents.length;
+                        return parents.reduce((s, q) => s + crossPos[q], 0) / parents.length;
                     };
                     return bx(ka) - bx(kb);
                 });
                 const n = order.length;
-                const y = totalLevels === 1 ? 46 : TOP_Y + li * yStep;
+                const main = totalLevels === 1 ? o.single : o.mainStart + li * step;
                 order.forEach((k, i) => {
-                    const x = n === 1 ? 50 : TOP_X + i * ((MAX_X - TOP_X) / (n - 1));
-                    posX[k] = x;
-                    NODES[k].x = Math.round(x * 10) / 10;
-                    NODES[k].y = Math.round(y * 10) / 10;
+                    const cross = n === 1 ? 50 : o.crossMin + i * ((o.crossMax - o.crossMin) / (n - 1));
+                    crossPos[k] = cross;
+                    if (o.main === 'y') setNodePos(k, cross, main); else setNodePos(k, main, cross);
                 });
             });
+        }
 
+        /* 프리셋 2 · 구역별 묶음: VLAN 구역마다 한 덩어리로 모으고, 상위 계층 구역을 위쪽 줄에 배치 */
+        function layoutZoneClusters(g) {
+            const { width: W, height: H } = topoLayoutRect();
+            const groups = {};
+            NODE_KEYS.forEach(k => { const id = vlanById(NODES[k].vlan) ? NODES[k].vlan : '__none'; (groups[id] = groups[id] || []).push(k); });
+            const zones = Object.keys(groups).map(id => {
+                const keys = groups[id].slice().sort((a, b) => (g.level[a] - g.level[b]) || String(a).localeCompare(String(b)));
+                const n = keys.length;
+                const r0 = n === 1 ? 0 : n === 2 ? 62 : Math.max(78, n * 104 / (2 * Math.PI));
+                return { id, keys, n, r0, tier: Math.min(...keys.map(k => g.level[k])) };
+            });
+            const tiers = [...new Set(zones.map(z => z.tier))].sort((a, b) => a - b);
+            const rows = tiers.map(tr => zones.filter(z => z.tier === tr));
+            const GAP_X = 36, GAP_Y = 30, AVAIL = W * 0.94;
+
+            // 한 줄이 너무 넓으면 그 줄의 원 반지름만 줄여서 맞춘다 (최소 간격은 유지)
+            rows.forEach(row => {
+                const width = (s) => row.reduce((sum, z) => sum + 2 * (z.r0 * s + 74), 0) + GAP_X * (row.length - 1);
+                let s = 1;
+                while (s > 0.62 && width(s) > AVAIL) s -= 0.04;
+                row.forEach(z => { z.r = z.n > 1 ? Math.max(z.r0 * s, 56) : 0; z.hw = z.r + 74; z.hh = z.r + 62; });
+            });
+            const rowH = rows.map(row => Math.max(...row.map(z => 2 * z.hh)));
+            const totalH = rowH.reduce((a, b) => a + b, 0) + GAP_Y * (rows.length - 1);
+            let y = Math.max(34, (H - totalH) / 2);
+            rows.forEach((row, ri) => {
+                const rowW = row.reduce((sum, z) => sum + 2 * z.hw, 0) + GAP_X * (row.length - 1);
+                let x = (W - rowW) / 2;
+                const cy = y + rowH[ri] / 2;
+                row.forEach(z => {
+                    const cx = x + z.hw;
+                    z.keys.forEach((k, i) => {
+                        if (z.n === 1) { setNodePos(k, cx / W * 100, cy / H * 100); return; }
+                        const ang = z.n === 2 ? (i === 0 ? Math.PI : 0) : -Math.PI / 2 + i * 2 * Math.PI / z.n;
+                        setNodePos(k, (cx + z.r * Math.cos(ang)) / W * 100, (cy + z.r * Math.sin(ang)) / H * 100);
+                    });
+                    x += 2 * z.hw + GAP_X;
+                });
+                y += rowH[ri] + GAP_Y;
+            });
+        }
+
+        /* 프리셋 3 · 방사형: 루트를 가운데 두고 계층마다 동심원으로 퍼뜨리기 */
+        function layoutRadial(g) {
+            const { width: W, height: H } = topoLayoutRect();
+            const { adj, level, linkedKeys, unlinkedKeys } = g;
+            const cx = W / 2, cy = H * 0.46;
+
+            const children = {}; linkedKeys.forEach(k => children[k] = []);
+            const treeRoots = [];
+            linkedKeys.forEach(k => {
+                if (level[k] === 0) { treeRoots.push(k); return; }
+                const par = adj[k].find(nb => level[nb] === level[k] - 1);
+                if (par) children[par].push(k); else treeRoots.push(k);
+            });
+            const leafCache = {};
+            const leaves = k => leafCache[k] !== undefined ? leafCache[k] : (leafCache[k] = children[k].length ? children[k].reduce((s, c) => s + leaves(c), 0) : 1);
+
+            const ringOf = {}, angleOf = {};
+            const ringOffset = treeRoots.length > 1 ? 1 : 0;   // 루트가 여러 개면 가운데를 비우고 루트도 고리에 배치
+            const place = (k, a0, a1, depth) => {
+                ringOf[k] = depth; angleOf[k] = (a0 + a1) / 2;
+                const total = leaves(k); let a = a0;
+                children[k].forEach(c => { const span = (a1 - a0) * leaves(c) / total; place(c, a, a + span, depth + 1); a += span; });
+            };
+            const A0 = -Math.PI / 2, A1 = A0 + 2 * Math.PI;
+            const totalLeaves = treeRoots.reduce((s, r) => s + leaves(r), 0) || 1;
+            if (treeRoots.length === 1) place(treeRoots[0], A0, A1, 0);
+            else { let a = A0; treeRoots.forEach(r => { const span = (A1 - A0) * leaves(r) / totalLeaves; place(r, a, a + span, ringOffset); a += span; }); }
+
+            const maxRing = linkedKeys.length ? Math.max(...linkedKeys.map(k => ringOf[k])) : 0;
+            const counts = {}; linkedKeys.forEach(k => { counts[ringOf[k]] = (counts[ringOf[k]] || 0) + 1; });
+            const gap = Math.max(118, Math.min(170, (Math.min(W, H) / 2 - 70) / Math.max(1, maxRing)));
+            const R = [];
+            for (let d = 0; d <= maxRing; d++) {
+                const need = (counts[d] || 0) * 104 / (2 * Math.PI);
+                R[d] = d === 0 ? (treeRoots.length === 1 ? 0 : need) : Math.max(R[d - 1] + gap, need);
+            }
+            linkedKeys.forEach(k => setNodePos(k, (cx + R[ringOf[k]] * Math.cos(angleOf[k])) / W * 100, (cy + R[ringOf[k]] * Math.sin(angleOf[k])) / H * 100));
+
+            // 연결 없는 장비는 맨 아래 한 줄
+            unlinkedKeys.forEach((k, i) => setNodePos(k, unlinkedKeys.length === 1 ? 50 : 12 + i * (76 / (unlinkedKeys.length - 1)), 94));
+        }
+
+        /* 프리셋 목록 (첫 번째가 기본 = 예전 '예쁘게 정렬' 배치) */
+        const svgPreset = body => `<svg viewBox="0 0 56 40" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">${body}</svg>`;
+        const dot = (x, y, r = 2.6) => `<circle cx="${x}" cy="${y}" r="${r}" fill="currentColor" stroke="none"/>`;
+        const TOPO_PRESETS = [
+            { id: 'hier', name: '기본 정렬', badge: '기본', desc: '위에서 아래로 계층별로 깔끔하게 줄 세워요',
+              thumb: svgPreset(`<path d="M28 8V15M28 15H14M28 15H42M14 15V22M42 15V22M14 22H8M14 22H20M42 22H36M42 22H48M8 22V31M20 22V31M36 22V31M48 22V31" opacity=".5"/>${dot(28, 7)}${dot(14, 21)}${dot(42, 21)}${dot(8, 32)}${dot(20, 32)}${dot(36, 32)}${dot(48, 32)}`),
+              layout: g => layoutTiers(g, TIER_VERTICAL) },
+            { id: 'zone', name: '구역별 묶음', desc: 'VLAN 구역마다 한 덩어리로 모아서 보여줘요',
+              thumb: svgPreset(`<ellipse cx="28" cy="9" rx="8" ry="6" stroke-dasharray="2.5 2.5" opacity=".6"/><ellipse cx="15" cy="29" rx="12" ry="9" stroke-dasharray="2.5 2.5" opacity=".6"/><ellipse cx="41" cy="29" rx="12" ry="9" stroke-dasharray="2.5 2.5" opacity=".6"/>${dot(28, 9)}${dot(15, 23)}${dot(9, 32)}${dot(21, 32)}${dot(41, 23)}${dot(35, 32)}${dot(47, 32)}`),
+              layout: layoutZoneClusters },
+            { id: 'radial', name: '방사형', desc: '중심 장비에서 동심원으로 퍼져나가요',
+              thumb: svgPreset(`<circle cx="28" cy="20" r="9" stroke-dasharray="2.5 2.5" opacity=".5"/><circle cx="28" cy="20" r="17" stroke-dasharray="2.5 2.5" opacity=".35"/><path d="M28 20L37 20M28 20L19 20M37 20L45 12M37 20L45 28" opacity=".5"/>${dot(28, 20, 3)}${dot(37, 20)}${dot(19, 20)}${dot(45, 12)}${dot(45, 28)}${dot(11, 20)}`),
+              layout: layoutRadial },
+            { id: 'flow', name: '가로 흐름형', desc: '왼쪽에서 오른쪽으로 흐르는 계층 구조예요',
+              thumb: svgPreset(`<path d="M8 20H15M15 20V12M15 20V28M15 12H28M15 28H28M28 12V8M28 12V16M28 28V24M28 28V32M28 8H44M28 16H44M28 24H44M28 32H44" opacity=".5"/>${dot(8, 20)}${dot(15, 12)}${dot(15, 28)}${dot(28, 8)}${dot(28, 16)}${dot(28, 24)}${dot(28, 32)}${dot(46, 8)}${dot(46, 16)}${dot(46, 24)}${dot(46, 32)}`),
+              layout: g => layoutTiers(g, TIER_HORIZONTAL) }
+        ];
+        state.topoPreset = null;
+
+        function renderPresetMenu() {
+            const menu = $('topo-preset-menu');
+            if (!menu) return;
+            menu.innerHTML = `<div class="preset-head">🎛 정렬 프리셋 고르기</div>` + TOPO_PRESETS.map(p => `
+                <button type="button" class="preset-item${state.topoPreset === p.id ? ' on' : ''}" role="menuitem" onclick="arrangeTopology('${p.id}')">
+                    <span class="preset-thumb">${p.thumb}</span>
+                    <span class="preset-txt"><b>${p.name}${p.badge ? `<em class="preset-badge">${p.badge}</em>` : ''}</b><small>${p.desc}</small></span>
+                    ${state.topoPreset === p.id ? '<span class="preset-mark">✓ 적용 중</span>' : ''}
+                </button>`).join('') + `<p class="preset-foot">노드를 직접 끌어서 옮기면 '직접 배치' 상태가 돼요. 언제든 프리셋을 다시 눌러 되돌릴 수 있어요.</p>`;
+            const cur = TOPO_PRESETS.find(p => p.id === state.topoPreset);
+            const lab = $('topo-preset-label');
+            if (lab) { lab.textContent = cur ? cur.name : ''; lab.classList.toggle('hide', !cur); }
+        }
+
+        function togglePresetMenu(e, force) {
+            if (e) e.stopPropagation();
+            const w = $('topo-arrange-wrap');
+            if (!w) return;
+            const open = typeof force === 'boolean' ? force : !w.classList.contains('open');
+            if (open) renderPresetMenu();
+            w.classList.toggle('open', open);
+            const b = $('topo-arrange-btn'); if (b) b.setAttribute('aria-expanded', String(open));
+        }
+        document.addEventListener('click', e => { const w = $('topo-arrange-wrap'); if (w && !w.contains(e.target)) togglePresetMenu(null, false); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') togglePresetMenu(null, false); });
+
+        function arrangeTopology(id) {
+            if (!state.isAdmin) { toast('레이아웃 정렬은 관리자만 할 수 있어요.'); return; }
+            if (NODE_KEYS.length === 0) return;
+            const preset = TOPO_PRESETS.find(p => p.id === id) || TOPO_PRESETS[0];
+            preset.layout(computeTopoGraph());
+            state.topoPreset = preset.id;
+            topoPanX = 0; topoPanY = 0; applyTopoZoom();
             buildNodeUI(); updateNodeUI(); lucide.createIcons();
             if (state.selected) selectNode(state.selected);
-            toast('토폴로지를 보기 좋게 정렬했어요.');
+            renderPresetMenu();
+            togglePresetMenu(null, false);
+            toast(`'${preset.name}' 프리셋으로 정렬했어요.`);
         }
+        function autoArrangeTopology() { arrangeTopology('hier'); }   // 예전 이름 호환
 
         /* ═════════ 5-3-2. 토폴로지 확대 · 축소 ═════════ */
         let topoZoom = 1;
@@ -1923,6 +2451,7 @@
                 if (ln && NODES[b]) ln.style.stroke = LVC[NODES[b].lv];
             });
             updateInspector();
+            if (state.view === 'vlan') updateVlanView();
         }
 
         /* ═════════ 5-1. VLAN 구역 관리 ═════════ */
@@ -1965,6 +2494,8 @@
                         <div class="vlan-chip-list">${chips}</div>
                     </div>`;
             }).join('');
+            renderVlanFlyout();
+            if (state.view === 'vlan') { if (vlanById(state.vlanView)) renderVlanView(); else switchView('topology'); }
             lucide.createIcons();
         }
 

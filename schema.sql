@@ -1,92 +1,200 @@
--- DB 생성 및 선택 (필요 시 주석 해제하여 사용)
--- CREATE DATABASE IF NOT EXISTS network_monitoring;
--- USE network_monitoring;
+-- =====================================================================
+--  8bit AI Pulse 통합 네트워크 관제 DB 스키마 (MySQL 8.0 기준)
+-- =====================================================================
 
--- 1. 기존 테이블이 존재할 경우 삭제 (순서 주의: 외래키 참조 역순)
-DROP TABLE IF EXISTS ai_alerts;
-DROP TABLE IF EXISTS network_logs;
+SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- ---------------------------------------------------------------------
+-- 0. 기존 테이블/뷰 삭제
+-- ---------------------------------------------------------------------
+DROP VIEW  IF EXISTS v_latest_telemetry;
+DROP TABLE IF EXISTS alert_devices;
+DROP TABLE IF EXISTS alerts;
+DROP TABLE IF EXISTS telemetry;
+DROP TABLE IF EXISTS links;
 DROP TABLE IF EXISTS devices;
+DROP TABLE IF EXISTS vlans;
 DROP TABLE IF EXISTS users;
 
--- =========================================================
--- 2. 사용자 테이블 (users)
--- 계정 정보 및 권한(관리자/일반 사용자) 구분
--- =========================================================
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- ---------------------------------------------------------------------
+-- 1. users : 사용자 계정 및 권한 관리
+-- ---------------------------------------------------------------------
 CREATE TABLE users (
-    user_id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) NOT NULL UNIQUE,
+    id            INT          NOT NULL AUTO_INCREMENT,
+    username      VARCHAR(50)  NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    role ENUM('admin', 'user') NOT NULL DEFAULT 'user',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+    role          VARCHAR(10)  NOT NULL DEFAULT 'user',          -- 'admin' 또는 'user'
+    created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
--- =========================================================
--- 3. 장비/기기 등록 테이블 (devices)
--- 수집 대상 장비 및 접속 기기 자동 등록 정보 저장
--- =========================================================
+    PRIMARY KEY (id),
+    UNIQUE KEY ux_users_username (username),
+    CONSTRAINT ck_users_role CHECK (role IN ('admin', 'user'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ---------------------------------------------------------------------
+-- 2. vlans : VLAN 구역
+-- ---------------------------------------------------------------------
+CREATE TABLE vlans (
+    id          INT          NOT NULL AUTO_INCREMENT,
+    name        VARCHAR(100) NOT NULL,
+    cidr        VARCHAR(50)  NULL,
+    color       CHAR(7)      NOT NULL DEFAULT '#a78bfa',
+    created_at  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (id),
+    UNIQUE KEY ux_vlans_name (name),
+    CONSTRAINT ck_vlans_color CHECK (LEFT(color, 1) = '#')
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ---------------------------------------------------------------------
+-- 3. devices : 관제 장비
+-- ---------------------------------------------------------------------
 CREATE TABLE devices (
-    device_id INT AUTO_INCREMENT PRIMARY KEY,
-    device_name VARCHAR(100) NOT NULL,
-    ip_address VARCHAR(45) NOT NULL UNIQUE,
-    device_type ENUM('router', 'switch', 'server', 'pc', 'mobile') NOT NULL DEFAULT 'pc',
-    status ENUM('online', 'warning', 'offline') NOT NULL DEFAULT 'online',
-    owner_id INT NULL,
-    registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (owner_id) REFERENCES users(user_id) ON DELETE SET NULL
-);
+    id          INT          NOT NULL AUTO_INCREMENT,
+    name        VARCHAR(100) NOT NULL,
+    ip          VARCHAR(45)  NOT NULL,
+    type        VARCHAR(20)  NOT NULL DEFAULT 'server',
+    owner_id    INT          NULL,                                -- users 테이블 참조
+    x           DOUBLE       NULL,                                -- 맵 X 좌표(%)
+    y           DOUBLE       NULL,                                -- 맵 Y 좌표(%)
+    vlan_id     INT          NOT NULL,
+    created_at  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
--- =========================================================
--- 4. 실시간 네트워크 트래픽 로그 테이블 (network_logs)
--- 파이썬 수집 모듈이 periodic하게 데이터를 삽입하는 공간
--- =========================================================
-CREATE TABLE network_logs (
-    log_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    device_id INT NOT NULL,
-    cpu_usage FLOAT NOT NULL DEFAULT 0.0,
-    memory_usage FLOAT NOT NULL DEFAULT 0.0,
-    traffic_in_mbps FLOAT NOT NULL DEFAULT 0.0,
-    traffic_out_mbps FLOAT NOT NULL DEFAULT 0.0,
-    packet_loss_rate FLOAT NOT NULL DEFAULT 0.0,
-    collected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (device_id) REFERENCES devices(device_id) ON DELETE CASCADE
-);
+    PRIMARY KEY (id),
+    UNIQUE KEY ux_devices_ip (ip),
+    KEY idx_devices_vlan (vlan_id),
+    KEY idx_devices_owner (owner_id),
 
--- =========================================================
--- 5. AI 장애 예측 알림 테이블 (ai_alerts)
--- AI 모델이 이상 징후 감지 시 알림 내역을 저장하는 공간
--- =========================================================
-CREATE TABLE ai_alerts (
-    alert_id INT AUTO_INCREMENT PRIMARY KEY,
-    device_id INT NOT NULL,
-    alert_level ENUM('info', 'warning', 'critical') NOT NULL DEFAULT 'warning',
-    failure_probability FLOAT NOT NULL, -- AI가 계산한 장애 발생 확률 (%)
-    message VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (device_id) REFERENCES devices(device_id) ON DELETE CASCADE
-);
+    CONSTRAINT fk_devices_vlan FOREIGN KEY (vlan_id) REFERENCES vlans (id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_devices_owner FOREIGN KEY (owner_id) REFERENCES users (id)
+        ON UPDATE CASCADE ON DELETE SET NULL,
 
--- =========================================================
--- 6. 초기 테스트 데이터 (기초 데이터 삽입)
--- =========================================================
+    CONSTRAINT ck_devices_type CHECK (type IN ('router', 'switch', 'server', 'app', 'pc', 'mobile')),
+    CONSTRAINT ck_devices_x    CHECK (x IS NULL OR x BETWEEN -50 AND 150),
+    CONSTRAINT ck_devices_y    CHECK (y IS NULL OR y BETWEEN -50 AND 150),
+    CONSTRAINT ck_devices_xy   CHECK ((x IS NULL) = (y IS NULL))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- 초기 계정 추가 (비밀번호는 추후 해시화 처리 예정)
-INSERT INTO users (username, password_hash, role) VALUES 
+-- ---------------------------------------------------------------------
+-- 4. links : 장비 연결 (토폴로지 선)
+--    ※ MySQL은 외래키(CASCADE) 컬럼에 CHECK를 걸 수 없어서
+--      "자기 자신과 연결 금지", "A-B / B-A 중복 금지"는 FastAPI에서 검사합니다.
+-- ---------------------------------------------------------------------
+CREATE TABLE links (
+    source_id   INT         NOT NULL,
+    target_id   INT         NOT NULL,
+    created_at  DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (source_id, target_id),
+    KEY idx_links_target (target_id),
+
+    CONSTRAINT fk_links_source FOREIGN KEY (source_id) REFERENCES devices (id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_links_target FOREIGN KEY (target_id) REFERENCES devices (id)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ---------------------------------------------------------------------
+-- 5. telemetry : 실시간 텔레메트리/로그
+-- ---------------------------------------------------------------------
+CREATE TABLE telemetry (
+    id               BIGINT      NOT NULL AUTO_INCREMENT,
+    device_id        INT         NOT NULL,
+    cpu_usage        DOUBLE      NOT NULL,
+    ram_usage        DOUBLE      NOT NULL,
+    traffic_in_mbps  DOUBLE      NOT NULL DEFAULT 0,
+    packet_loss      DOUBLE      NOT NULL DEFAULT 0,
+    `timestamp`      DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (id),
+    KEY idx_telemetry_ts (`timestamp` DESC),
+    KEY idx_telemetry_device_ts (device_id, `timestamp` DESC),
+
+    CONSTRAINT fk_telemetry_device FOREIGN KEY (device_id) REFERENCES devices (id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT ck_telemetry_cpu  CHECK (cpu_usage BETWEEN 0 AND 100),
+    CONSTRAINT ck_telemetry_ram  CHECK (ram_usage BETWEEN 0 AND 100),
+    CONSTRAINT ck_telemetry_in   CHECK (traffic_in_mbps >= 0),
+    CONSTRAINT ck_telemetry_loss CHECK (packet_loss BETWEEN 0 AND 100)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ---------------------------------------------------------------------
+-- 6. alerts : 보안 및 AI 장애 로그
+-- ---------------------------------------------------------------------
+CREATE TABLE alerts (
+    id          INT          NOT NULL AUTO_INCREMENT,
+    lv          VARCHAR(10)  NOT NULL DEFAULT 'info',
+    title       VARCHAR(200) NOT NULL,
+    msg         TEXT         NOT NULL,
+    cause       VARCHAR(500) NOT NULL DEFAULT '',
+    action      VARCHAR(500) NOT NULL DEFAULT '',
+    `timestamp` DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (id),
+    KEY idx_alerts_ts (`timestamp` DESC),
+    KEY idx_alerts_lv_ts (lv, `timestamp` DESC),
+
+    CONSTRAINT ck_alerts_lv CHECK (lv IN ('ok', 'warn', 'crit', 'info'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE alert_devices (
+    alert_id    INT NOT NULL,
+    device_id   INT NOT NULL,
+
+    PRIMARY KEY (alert_id, device_id),
+    KEY idx_alert_devices_device (device_id),
+
+    CONSTRAINT fk_alert_devices_alert  FOREIGN KEY (alert_id)  REFERENCES alerts  (id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_alert_devices_device FOREIGN KEY (device_id) REFERENCES devices (id)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ---------------------------------------------------------------------
+-- 7. 편의 뷰 : 장비별 최신 텔레메트리
+-- ---------------------------------------------------------------------
+CREATE VIEW v_latest_telemetry AS
+SELECT t.device_id, t.cpu_usage, t.ram_usage, t.traffic_in_mbps, t.packet_loss, t.`timestamp`
+FROM devices d
+JOIN telemetry t
+  ON t.id = (SELECT t2.id
+               FROM telemetry t2
+              WHERE t2.device_id = d.id
+              ORDER BY t2.`timestamp` DESC, t2.id DESC
+              LIMIT 1);
+
+-- ---------------------------------------------------------------------
+-- 8. 초기 기본 데이터 삽입
+--    ※ password_hash는 임시로 평문입니다. 로그인 API 만들 때 해시로 교체합니다.
+-- ---------------------------------------------------------------------
+INSERT INTO users (username, password_hash, role) VALUES
 ('admin', '8bit', 'admin'),
 ('user1', '1234', 'user');
 
--- 초기 관제 대상 핵심 네트워크 장비 추가
-INSERT INTO devices (device_name, ip_address, device_type, status, owner_id) VALUES 
-('Core Router', '192.168.1.1', 'router', 'online', 1),
-('Distribution SW', '192.168.1.2', 'switch', 'warning', 1),
-('Access SW', '192.168.1.10', 'switch', 'online', 1);
+INSERT INTO vlans (id, name, cidr, color) VALUES
+(1, 'Backbone (백본)', '192.168.1.0/24', '#22d3ee'),
+(2, 'VLAN1 (Dev)', '10.0.0.0/24', '#a78bfa'),
+(3, 'VLAN2 (Biz)', '192.168.1.0/25', '#fb923c');
 
--- 테스트용 초기 네트워크 수집 로그 데이터
-INSERT INTO network_logs (device_id, cpu_usage, memory_usage, traffic_in_mbps, traffic_out_mbps) VALUES 
-(1, 45.2, 60.1, 120.5, 95.2),
-(2, 82.0, 75.4, 450.0, 380.1),
-(3, 22.1, 40.0, 15.2, 10.1);
+INSERT INTO devices (id, name, ip, type, owner_id, x, y, vlan_id) VALUES
+(1, 'Core Router 01', '192.168.1.1', 'router', 1, 50, 12, 1),
+(2, 'Dist-SW-01', '192.168.1.10', 'switch', 1, 30, 44, 2),
+(3, 'Dist-SW-02', '192.168.1.11', 'switch', 2, 70, 44, 3);
 
--- 테스트용 AI 장애 경고 데이터
-INSERT INTO ai_alerts (device_id, alert_level, failure_probability, message) VALUES 
-(2, 'critical', 87.0, 'Distribution SW 인터페이스 트래픽 급증 (AI 예측 장애 확률 87%)'),
-(1, 'warning', 65.0, 'Core Router CPU 사용량 80% 달성');
+INSERT INTO links (source_id, target_id) VALUES
+(1, 2),
+(1, 3);
+
+INSERT INTO telemetry (device_id, cpu_usage, ram_usage, traffic_in_mbps, packet_loss) VALUES
+(1, 45.2, 60.1, 120.5, 0.01),
+(2, 82.0, 75.4, 450.0, 0.05),
+(3, 22.1, 40.0, 15.2, 0.00);
+
+INSERT INTO alerts (id, lv, title, msg, cause, action) VALUES
+(1, 'crit', '[CRITICAL] 장애 위험 감지', 'Distribution SW 트래픽 급증 (AI 예측 확률 87.4%)', '분산 스위치 구간 트래픽 급증', '상위 링크 대역폭 점검');
+
+INSERT INTO alert_devices (alert_id, device_id) VALUES (1, 2);
