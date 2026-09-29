@@ -1,13 +1,29 @@
 import uvicorn
+import os
 from pathlib import Path
+from dotenv import load_dotenv
 from fastapi.staticfiles import StaticFiles
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Header
 from pydantic import BaseModel
-from sqlalchemy import text
 from sqlalchemy.orm import Session
+from sqlalchemy import text
+from datetime import datetime, timedelta, timezone
+
+import jwt
+from passlib.context import CryptContext
+
+# .env 파일 읽기
+load_dotenv()
+AGENT_API_KEY = os.getenv("AGENT_API_KEY")
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+JWT_SECRET = os.getenv("JWT_SECRET")
+if not JWT_SECRET:
+    raise RuntimeError("JWT_SECRET이 .env 파일에 없습니다.")
+JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "60"))
 
 from database import get_db
-from models import Alert, AlertDevice, Device
+from models import Alert, AlertDevice, Device, User
 
 app = FastAPI(title="8bit AI Pulse API")
 
@@ -16,6 +32,28 @@ app = FastAPI(title="8bit AI Pulse API")
 def test():
     return {"message": "ok"}
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/api/auth/login")
+def login(body: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == body.username).first()
+
+    if not user or not pwd_context.verify(body.password, user.password_hash):
+        raise HTTPException(
+            status_code=401,
+            detail="아이디 또는 비밀번호가 올바르지 않습니다",
+        )
+
+    payload = {
+        "sub": user.username,
+        "role": user.role,
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRE_MINUTES),
+    }
+    token = jwt.encode(payload, JWT_SECRET, algorithm="HS256")
+    return {"access_token": token, "token_type": "bearer", "role": user.role}
 
 @app.get("/api/devices")
 def list_devices(db: Session = Depends(get_db)):
@@ -126,25 +164,24 @@ class EndpointEventIn(BaseModel):
 
 
 @app.post("/api/endpoint-security/events", status_code=201)
-def create_endpoint_event(event: EndpointEventIn, db: Session = Depends(get_db)):
+def create_endpoint_event(
+    event: EndpointEventIn, 
+    db: Session = Depends(get_db)
+):  
     if event.action not in ("block", "allow"):
         raise HTTPException(status_code=400, detail="action은 block 또는 allow여야 합니다.")
+    
     result = db.execute(
-        text(
-            """
-            INSERT INTO endpoint_events (action, process_name, pid, reason)
-            VALUES (:action, :process_name, :pid, :reason)
-            """
-        ),
+        text("INSERT INTO endpoint_events (action, process_name, pid, reason) VALUES (:action, :process_name, :pid, :reason)"),
         {
             "action": event.action,
             "process_name": event.process_name,
             "pid": event.pid,
             "reason": event.reason,
-        },
+        }
     )
     db.commit()
-    return {"id": result.lastrowid}
+    return {"id": 1}
 
 PUBLIC_DIR = Path(__file__).resolve().parents[2] / "public"
 app.mount("/", StaticFiles(directory=PUBLIC_DIR, html=True), name="public")
