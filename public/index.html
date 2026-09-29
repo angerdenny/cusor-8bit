@@ -1239,56 +1239,73 @@
         /* ═════════ 2. 로그인 · 잠금 로직 ═════════ */
         let failCount = 0;
         const lockDurations = { 5: 30, 6: 60, 7: 180, 8: 600, 9: 1200 };
+        async function apiFetch(url, options = {}) {
+    const token = sessionStorage.getItem('token');
+    const headers = { ...(options.headers || {}) };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(url, { ...options, headers });
+    if (res.status === 401) { logout(); throw new Error('세션이 만료되었습니다'); }
+    return res;
+}
+        async function handleLogin(e) {
+    e.preventDefault();
+    const pwd = $('password-input');
+    if (pwd.disabled) return;
+    const name = $('username-input').value.trim();
+    const pw = pwd.value;
 
-        function handleLogin(e) {
-            e.preventDefault();
-            const pwd = $('password-input');
-            if (pwd.disabled) return;
-            const name = $('username-input').value.trim();
-            const pw = pwd.value;
+    let res, data;
+    try {
+        res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: name, password: pw })
+        });
+        data = await res.json().catch(() => ({}));
+    } catch (err) {
+        // 서버 연결 실패는 로그인 실패 횟수에 포함하지 않음
+        $('error-msg').textContent = '⚠️ 서버에 연결할 수 없습니다.';
+        $('error-msg').classList.remove('hide');
+        return;
+    }
 
-            const isAdminName = (name === '이지환' || name === '8bit');
+    // 로그인 성공
+    if (res.ok && data.access_token) {
+        sessionStorage.setItem('token', data.access_token);
+        failCount = 0;
+        $('fail-count').textContent = 0;
+        $('error-msg').classList.add('hide');
+        $('fail-count-msg').classList.add('hide');
 
-            if (isAdminName && pw === 'admin') {
-                failCount = 0;
-                $('fail-count').textContent = 0;
-                $('error-msg').classList.add('hide'); 
-                $('fail-count-msg').classList.add('hide');
-                
-                state.isAdmin = true;
-                state.username = name;
-                saveSession();
-                showDashboard();
-                return;
-            }
+        state.isAdmin = (data.role === 'admin');
+        state.username = name;
+        saveSession();
+        showDashboard();
+        return;
+    }
 
-            if (!isAdminName && pw === '8bit') {
-                failCount = 0;
-                $('fail-count').textContent = 0;
-                $('error-msg').classList.add('hide'); 
-                $('fail-count-msg').classList.add('hide');
-                
-                state.isAdmin = false;
-                state.username = name;
-                saveSession();
-                showDashboard();
-                return;
-            }
+    // 401 외의 오류(500 등)는 실패 횟수에 포함하지 않음
+    if (res.status !== 401) {
+        $('error-msg').textContent = '⚠️ 서버 오류가 발생했습니다. 잠시 후 다시 시도하세요.';
+        $('error-msg').classList.remove('hide');
+        return;
+    }
 
-            failCount++;
-            $('fail-count').textContent = failCount;
-            $('fail-count-msg').classList.remove('hide');
-            
-            $('error-msg').textContent = '⚠️ 로그인 정보가 올바르지 않습니다.';
-            $('error-msg').classList.remove('hide');
+    // 로그인 실패 (기존 로직 유지)
+    failCount++;
+    $('fail-count').textContent = failCount;
+    $('fail-count-msg').classList.remove('hide');
 
-            if (failCount >= 10) {
-                $('login-form').classList.add('hide');
-                $('banned-screen').classList.remove('hide');
-            } else if (failCount >= 5) {
-                startLockout(lockDurations[failCount] || 1200);
-            }
-        }
+    $('error-msg').textContent = '⚠️ 로그인 정보가 올바르지 않습니다.';
+    $('error-msg').classList.remove('hide');
+
+    if (failCount >= 10) {
+        $('login-form').classList.add('hide');
+        $('banned-screen').classList.remove('hide');
+    } else if (failCount >= 5) {
+        startLockout(lockDurations[failCount] || 1200);
+    }
+}
 
         function showDashboard() {
             if (orbAnimationId) { cancelAnimationFrame(orbAnimationId); orbAnimationId = null; }
@@ -1320,6 +1337,7 @@
             $('dashboard-screen').classList.remove('show');
             $('login-screen').classList.remove('hide');
             $('password-input').value = '';
+            sessionStorage.removeItem('token');
             clearSession();
             if (!orbAnimationId) animate3DOrb();
         }
@@ -1331,17 +1349,19 @@
             try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
         }
         function restoreSession() {
-            try {
-                const raw = localStorage.getItem(SESSION_KEY);
-                if (!raw) return false;
-                const s = JSON.parse(raw);
-                if (!s || !s.username) return false;
-                state.isAdmin = !!s.isAdmin;
-                state.username = s.username;
-                showDashboard();
-                return true;
-            } catch (e) { return false; }
-        }
+    try {
+        // 토큰이 없으면 세션 정보가 남아 있어도 무효 처리
+        if (!sessionStorage.getItem('token')) { clearSession(); return false; }
+        const raw = localStorage.getItem(SESSION_KEY);
+        if (!raw) return false;
+        const s = JSON.parse(raw);
+        if (!s || !s.username) return false;
+        state.isAdmin = !!s.isAdmin;
+        state.username = s.username;
+        showDashboard();
+        return true;
+    } catch (e) { return false; }
+}
 
         /* ═════════ 3. 데이터 모델 ═════════ */
         const state = {
@@ -2896,7 +2916,7 @@
 
         async function pollEndpointSecurity() {
             try {
-                const res = await fetch(`${ENDPOINT_SECURITY_API}?since=${epsLastId}`, { cache: 'no-store' });
+                const res = await apiFetch(`${ENDPOINT_SECURITY_API}?since=${epsLastId}`, { cache: 'no-store' });
                 if (!res.ok) throw new Error('bad response');
                 const events = await res.json();
                 setEpsConnected(true);
