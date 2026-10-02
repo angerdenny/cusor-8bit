@@ -57,6 +57,32 @@
             background: rgba(255,255,255,.05); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
             border: 1px solid rgba(255,255,255,.1); box-shadow: 0 20px 50px rgba(0,0,0,.5);
         }
+        /* 로그인 1, 2단계 동그라미 배지 스타일 */
+        .step-dot {
+           width: 1.8rem;
+           height: 1.8rem;
+           border-radius: 50%;
+           background: rgba(255,255,255,0.08);
+           border: 1px solid rgba(255,255,255,0.2);
+           display: flex;
+           align-items: center;
+           justify-content: center;
+           font-size: 0.75rem;
+           font-weight: bold;
+           color: var(--muted);
+           transition: all 0.3s;
+        }
+        .step-dot.active {
+            background: linear-gradient(135deg, #6366f1, #06b6d4);
+            border-color: transparent;
+            color: white;
+            box-shadow: 0 0 12px rgba(99,102,241,0.5);
+        }
+        .step-dot.completed {
+            background: rgba(52,211,153,0.2);
+            border-color: var(--green);
+            color: var(--green);
+        }
 
         /* ───────── 앱 레이아웃 ───────── */
         .app { display: none; min-height: 100vh; }
@@ -509,22 +535,33 @@
 </head>
 <body class="antialiased selection:bg-indigo-500 selection:text-white">
 
-    <!-- ═════════ 1. 로그인 화면 ═════════ -->
+    <!-- ═════════ 1. 로그인 화면 (2단계 인증 연동) ═════════ -->
     <div id="login-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#070913] p-4 overflow-y-auto text-slate-100">
+        
+        <!-- 원본 3D Orb Canvas -->
         <div class="mb-3 relative flex items-center justify-center">
             <canvas id="networkOrbCanvas" width="180" height="180" class="drop-shadow-[0_0_40px_rgba(99,102,241,0.5)]"></canvas>
             <span class="absolute text-2xl font-black text-white tracking-widest pointer-events-none drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] z-10">8bit</span>
         </div>
 
         <div class="text-center mb-6 px-4">
-            <h1 class="text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-snug">AI 기반 네트워크 관제 시스템에 오신 것을 환영합니다</h1>
+            <h1 class="text-lg sm:text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-snug break-keep">
+                AI 기반 네트워크 관제 시스템에 오신 것을 환영합니다
+            </h1>
             <p class="text-xs md:text-sm text-slate-400 mt-1">AI 기반 네트워크 장애 예측 및 통합관제 시스템</p>
         </div>
 
-        <div class="login-card rounded-2xl p-7 max-w-sm w-full relative">
-            <div class="mb-5 text-left">
-                <h2 class="text-lg font-bold text-slate-100">로그인</h2>
-                <p class="text-xs text-slate-400 mt-0.5">시스템 이용을 위해 계정정보를 입력해주세요</p>
+        <!-- ════ STEP 1: 기본 계정 로그인 ════ -->
+        <div id="login-step-1" class="login-card rounded-2xl p-7 max-w-sm w-full relative">
+            <div class="flex items-center justify-between mb-4">
+                <div class="text-left">
+                    <h2 class="text-lg font-bold text-slate-100">로그인</h2>
+                    <p class="text-xs text-slate-400 mt-0.5">시스템 이용을 위해 계정정보를 입력해주세요</p>
+                </div>
+                <div class="flex gap-1">
+                    <div class="step-dot active">1</div>
+                    <div class="step-dot">2</div>
+                </div>
             </div>
 
             <div id="banned-screen" class="hide py-3 space-y-2">
@@ -534,7 +571,7 @@
                 </div>
             </div>
 
-            <form id="login-form" class="space-y-4" onsubmit="handleLogin(event)">
+            <form id="login-form" class="space-y-4" onsubmit="handleStep1Login(event)">
                 <div class="text-left">
                     <label class="block text-[11px] font-semibold text-slate-400 mb-1">이름</label>
                     <input type="text" id="username-input" placeholder="이름 입력" required
@@ -554,12 +591,46 @@
                 </div>
                 <button type="submit" id="login-btn"
                     class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow-lg shadow-indigo-600/30 transition duration-200 disabled:opacity-50 text-sm flex items-center justify-center gap-1 mt-2">
-                    <span>로그인</span><span>→</span>
+                    <span>다음 (구역 선택)</span><span>→</span>
                 </button>
             </form>
         </div>
-    </div>
 
+        <!-- ════ STEP 2: VLAN 구역 코드 입력 ════ -->
+        <div id="login-step-2" class="hide login-card rounded-2xl p-7 max-w-sm w-full relative">
+            <div class="flex items-center justify-between mb-4">
+                <div class="text-left">
+                    <h2 class="text-lg font-bold text-slate-100">접근 구역 선택</h2>
+                    <p class="text-xs text-slate-400 mt-0.5">접속할 네트워크 구역(VLAN)을 입력하세요</p>
+                </div>
+                <div class="flex gap-1">
+                    <div class="step-dot completed">✓</div>
+                    <div class="step-dot active">2</div>
+                </div>
+            </div>
+
+            <div class="space-y-3 text-left">
+                <div class="p-2.5 bg-slate-800/50 border border-slate-700/50 rounded-lg text-xs text-slate-300">
+                    로그인 계정: <span id="step2-username" class="font-bold text-indigo-400"></span>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-400 mb-1">구역 코드 입력</label>
+                    <input type="text" id="vlan-code-input" placeholder="예: backbone, dev, biz 또는 VLAN 코드"
+                        class="w-full px-3.5 py-2.5 bg-[#1a2035]/80 border border-slate-700/70 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition text-sm">
+                </div>
+                <p id="step2-error-msg" class="text-xs text-rose-400 font-medium hide">⚠️ 올바른 구역 코드를 입력해주세요.</p>
+                <div class="flex gap-2 pt-1">
+                    <button type="button" onclick="backToStep1()" class="w-1/3 py-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg text-xs transition">
+                        ← 뒤로
+                    </button>
+                    <button type="button" onclick="handleStep2Submit()" class="w-2/3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow-lg shadow-indigo-600/30 text-xs transition">
+                        시스템 진입 →
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
     <!-- ═════════ 2. 통합관제 앱 ═════════ -->
     <div id="dashboard-screen" class="app">
 
@@ -1247,65 +1318,108 @@
     if (res.status === 401) { logout(); throw new Error('세션이 만료되었습니다'); }
     return res;
 }
-        async function handleLogin(e) {
-    e.preventDefault();
-    const pwd = $('password-input');
-    if (pwd.disabled) return;
-    const name = $('username-input').value.trim();
-    const pw = pwd.value;
+// 1단계: 아이디/비밀번호 검증 (실패 횟수 및 잠금 로직 완벽 연동)
+async function handleStep1Login(e) {
+            e.preventDefault();
+            const pwd = $('password-input');
+            if (pwd.disabled) return;
+            const name = $('username-input').value.trim();
+            const pw = pwd.value;
 
-    let res, data;
-    try {
-        res = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: name, password: pw })
-        });
-        data = await res.json().catch(() => ({}));
-    } catch (err) {
-        // 서버 연결 실패는 로그인 실패 횟수에 포함하지 않음
-        $('error-msg').textContent = '⚠️ 서버에 연결할 수 없습니다.';
-        $('error-msg').classList.remove('hide');
-        return;
-    }
+            let res, data;
+            try {
+                res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: name, password: pw })
+                });
+                data = await res.json().catch(() => ({}));
+            } catch (err) {
+                $('error-msg').textContent = '⚠️ 서버에 연결할 수 없습니다.';
+                $('error-msg').classList.remove('hide');
+                return;
+            }
 
-    // 로그인 성공
-    if (res.ok && data.access_token) {
-        sessionStorage.setItem('token', data.access_token);
-        failCount = 0;
-        $('fail-count').textContent = 0;
-        $('error-msg').classList.add('hide');
-        $('fail-count-msg').classList.add('hide');
+            // 1단계 인증 성공 -> 2단계(구역 선택)로 이동
+            if (res.ok) {
+                failCount = 0;
+                $('fail-count').textContent = 0;
+                $('error-msg').classList.add('hide');
+                $('fail-count-msg').classList.add('hide');
 
-        state.isAdmin = (data.role === 'admin');
-        state.username = name;
-        saveSession();
-        showDashboard();
-        return;
-    }
+                state.isAdmin = (data.role === 'admin');
+                state.username = name;
+                if ($('step2-username')) $('step2-username').textContent = name;
 
-    // 401 외의 오류(500 등)는 실패 횟수에 포함하지 않음
-    if (res.status !== 401) {
-        $('error-msg').textContent = '⚠️ 서버 오류가 발생했습니다. 잠시 후 다시 시도하세요.';
-        $('error-msg').classList.remove('hide');
-        return;
-    }
+                // 화면 전환 (Step 1 숨기고 Step 2 표시)
+                $('login-step-1').classList.add('hide');
+                $('login-step-2').classList.remove('hide');
+                return;
+            }
 
-    // 로그인 실패 (기존 로직 유지)
-    failCount++;
-    $('fail-count').textContent = failCount;
-    $('fail-count-msg').classList.remove('hide');
+            // 401 외의 오류(500 등) 처리
+            if (res.status !== 401) {
+                $('error-msg').textContent = '⚠️ 서버 오류가 발생했습니다. 잠시 후 다시 시도하세요.';
+                $('error-msg').classList.remove('hide');
+                return;
+            }
 
-    $('error-msg').textContent = '⚠️ 로그인 정보가 올바르지 않습니다.';
-    $('error-msg').classList.remove('hide');
+            // 비밀번호 오류 처리 (5회/10회 차단 기능 보존)
+            failCount++;
+            $('fail-count').textContent = failCount;
+            $('fail-count-msg').classList.remove('hide');
 
-    if (failCount >= 10) {
-        $('login-form').classList.add('hide');
-        $('banned-screen').classList.remove('hide');
-    } else if (failCount >= 5) {
-        startLockout(lockDurations[failCount] || 1200);
-    }
-}
+            $('error-msg').textContent = '⚠️ 로그인 정보가 올바르지 않습니다.';
+            $('error-msg').classList.remove('hide');
+
+            if (failCount >= 10) {
+                $('login-step-1').classList.add('hide');
+                $('banned-screen').classList.remove('hide');
+            } else if (failCount >= 5) {
+                if (typeof startLockout === 'function') {
+                    startLockout(typeof lockDurations !== 'undefined' ? lockDurations[failCount] || 1200 : 1200);
+                }
+            }
+        }
+
+        // 1단계로 돌아가기
+        function backToStep1() {
+            $('login-step-2').classList.add('hide');
+            $('login-step-1').classList.remove('hide');
+        }
+
+        // 2단계: VLAN 구역 코드 검증 및 최종 로그인 토큰 발급
+        async function handleStep2Submit() {
+            const vlanCode = $('vlan-code-input').value.trim();
+            if (!vlanCode) {
+                $('step2-error-msg').textContent = '⚠️ 구역 코드를 입력해주세요.';
+                $('step2-error-msg').classList.remove('hide');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/auth/validate-vlan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: state.username, vlan_code: vlanCode })
+                });
+                const data = await res.json().catch(() => ({}));
+
+                if (res.ok && data.access_token) {
+                    sessionStorage.setItem('token', data.access_token);
+                    state.vlanView = vlanCode;
+                    if (typeof saveSession === 'function') saveSession();
+                    if (typeof showDashboard === 'function') showDashboard();
+                    return;
+                }
+
+                $('step2-error-msg').textContent = '⚠️ ' + (data.detail || '유효하지 않은 구역 코드입니다.');
+                $('step2-error-msg').classList.remove('hide');
+            } catch (err) {
+                $('step2-error-msg').textContent = '⚠️ 서버 통신 오류가 발생했습니다.';
+                $('step2-error-msg').classList.remove('hide');
+            }
+        }        
 
         function showDashboard() {
             if (orbAnimationId) { cancelAnimationFrame(orbAnimationId); orbAnimationId = null; }
@@ -2937,7 +3051,7 @@
 
         function handleEndpointEvent(ev) {
             epsLastId = Math.max(epsLastId, ev.id || 0);
-            const isBlock = ev.action === 'block';
+            const isBlock = ev.action === 'block' || ev.action === 'blocked';
             pushAlert(
                 isBlock ? 'crit' : 'warn',
                 isBlock ? `프로세스 차단: ${ev.process_name}` : `프로세스 허용: ${ev.process_name}`,
@@ -3423,7 +3537,56 @@
         drawAll();
         if (!restoreSession()) {
         }
+        async function pollTelemetry() {
+            try {
+                const res = await apiFetch('/api/telemetry/latest', { cache: 'no-store' });
+                if (!res.ok) throw new Error('bad response');
+                const rows = (await res.json()).telemetry || [];
+                if (!rows.length) return;
+
+                // 장비별 최신 1건만 사용 (응답은 최신순)
+                const latest = {};
+                rows.forEach(r => { if (!(r.device_id in latest)) latest[r.device_id] = r; });
+                const list = Object.values(latest);
+
+                const traffic = list.reduce((a, r) => a + (r.traffic_in_mbps || 0), 0);
+                const cpu = list.reduce((a, r) => a + (r.cpu_usage || 0), 0) / list.length;
+                 const ram = list.reduce((a, r) => a + (r.ram_usage || 0), 0) / list.length;
+                const loss = Math.max(...list.map(r => r.packet_loss || 0));
+                // 임시 위험도: AI 분석 연동 전까지 CPU/RAM/손실률로 단순 계산
+                const risk = clamp(cpu * 0.5 + ram * 0.2 + loss * 0.3, 1, 99.9);
+
+                state.ingress = +traffic.toFixed(1);
+                state.loss = +loss.toFixed(2);
+                state.risk = +risk.toFixed(1);
+
+                trafficHistory.push(state.ingress); trafficHistory.shift();
+                riskHistory.push(state.risk); riskHistory.shift();
+                lossHistory.push(state.loss); lossHistory.shift();
+                timeHistory.push(clock()); timeHistory.shift();
+
+                $('stat-traffic-in').textContent = `${state.ingress} Mbps`;
+                $('stat-traffic-trend').textContent = `실시간 수집 중 · 장비 ${list.length}대`;
+                $('stat-packet-loss').textContent = `${state.loss}%`;
+                $('stat-ai-risk').textContent = `${state.risk}%`;
+                $('stat-ai-bar').style.width = `${state.risk}%`;
+                $('stat-devices').textContent = `${list.length} / ${list.length} Online`;
+
+                const aiLv = state.risk > 80 ? 'crit' : state.risk > 50 ? 'warn' : 'ok';
+                const lossLv = state.loss >= 5 ? 'crit' : state.loss >= 1.5 ? 'warn' : 'ok';
+                setLv($('ai-score-card'), aiLv); setLv($('loss-card'), lossLv); setLv($('sys-pill'), aiLv);
+                $('stat-ai-badge').textContent = aiLv === 'crit' ? '심각 (경보)' : aiLv === 'warn' ? '주의 (상승)' : '안전 (낮음)';
+                $('system-status-text').textContent = '실시간 텔레메트리 수신 중';
+
+                $('an-peak').textContent = `${Math.max(...trafficHistory)} Mbps`;
+                $('an-risk').textContent = `${(riskHistory.reduce((a, b) => a + b, 0) / maxPoints).toFixed(1)}%`;
+                $('an-loss').textContent = `${Math.max(...lossHistory).toFixed(2)}%`;
+                drawAll();
+            } catch (e) { /* 서버 연결 대기 */ }
+        }
+
         if (!IS_REAL_ENV) setInterval(tick, 1000);
+        else { pollTelemetry(); setInterval(pollTelemetry, 5000); }
         pollEndpointSecurity();
         setInterval(pollEndpointSecurity, 5000);
     </script>
