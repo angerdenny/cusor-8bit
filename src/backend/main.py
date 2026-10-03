@@ -12,6 +12,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 # ========================
@@ -85,6 +86,17 @@ class UserResponse(BaseModel):
     username: str
     role: str
     created_at: datetime | None = None
+    vlan_code: str | None = None
+    vlan_name: str | None = None
+
+class DeviceCreate(BaseModel):
+    name: str
+    ip: str
+    type: str
+    vlan_id: int
+    owner_id: int | None = None
+    x: float = 0
+    y: float = 0
 
 
 # ========================
@@ -133,7 +145,12 @@ def get_current_user(authorization: str = Header(None)):
     if user_id is None or username is None:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    return {"user_id": user_id, "username": username, "role": payload.get("role")}
+    return {
+        "user_id": user_id,
+        "username": username,
+        "role": payload.get("role"),
+        "vlan": payload.get("vlan"),
+    }
 
 
 def require_admin(current_user: dict = Depends(get_current_user)):
@@ -190,9 +207,9 @@ def login(payload: LoginRequest, http_request: Request, db: Session = Depends(ge
 
 @app.get("/api/auth/me", response_model=UserResponse)
 def get_current_user_info(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Get info of the logged-in user"""
+    """Get info of the logged-in user (includes VLAN zone from token)"""
     result = db.execute(
-        text("SELECT * FROM users WHERE id = :user_id"),
+        text("SELECT id, username, role, created_at FROM users WHERE id = :user_id"),
         {"user_id": current_user["user_id"]},
     ).fetchone()
 
@@ -200,37 +217,52 @@ def get_current_user_info(current_user: dict = Depends(get_current_user), db: Se
         raise HTTPException(status_code=404, detail="User not found")
 
     data = result._mapping
+    vlan_code = current_user.get("vlan")
+    vlan_name = None
+    if vlan_code:
+        v = db.execute(
+            text("SELECT name FROM vlans WHERE code = :code"), {"code": vlan_code}
+        ).fetchone()
+        vlan_name = v[0] if v else None
+
     return UserResponse(
         id=data["id"],
         username=data["username"],
         role=data["role"],
-        created_at=data.get("created_at"),
+        created_at=data["created_at"],
+        vlan_code=vlan_code,
+        vlan_name=vlan_name,
     )
-
-# ========================
-# 1-1. VLAN 2-Step Authentication
-# ========================
-class ValidateVLANRequest(BaseModel):
-    username: str
-    vlan_code: str
 
 
 @app.post("/api/auth/validate-vlan")
-def validate_vlan(request: ValidateVLANRequest, current_user: dict = Depends(get_current_user)):
-    """Reissue JWT token containing VLAN zone info after selection"""
+def validate_vlan(
+    request: ValidateVLANRequest,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Verify the zone code against the vlans table and reissue JWT with the zone."""
+    vlan = db.execute(
+        text("SELECT id, name, code FROM vlans WHERE code = :code"),
+        {"code": request.vlan_code},
+    ).fetchone()
+    if vlan is None:
+        raise HTTPException(status_code=403, detail="Invalid zone code")
+
     token = create_access_token({
         "user_id": current_user["user_id"],
         "username": current_user["username"],
         "role": current_user["role"],
-        "vlan": request.vlan_code
+        "vlan": vlan.code,
     })
     return {
-        "message": f"Successfully entered zone {request.vlan_code}.",
+        "message": f"Successfully entered zone {vlan.code}.",
         "access_token": token,
         "token_type": "bearer",
         "username": current_user["username"],
-        "vlan_code": request.vlan_code,
-        "role": current_user["role"]
+        "vlan_code": vlan.code,
+        "vlan_name": vlan.name,
+        "role": current_user["role"],
     }
     
 
@@ -245,24 +277,29 @@ def get_devices(current_user: dict = Depends(get_current_user), db: Session = De
 
 
 @app.post("/api/devices")
-def create_device(device: dict, current_user: dict = Depends(require_admin), db: Session = Depends(get_db)):
+def create_device(device: DeviceCreate, current_user: dict = Depends(require_admin), db: Session = Depends(get_db)):
     """Add a new network device (admin only)"""
-    db.execute(
-        text("""
-            INSERT INTO devices (ip_address, device_name, device_type, vlan, owner, status)
-            VALUES (:ip, :name, :type, :vlan, :owner, :status)
-        """),
-        {
-            "ip": device.get("ip_address"),
-            "name": device.get("device_name"),
-            "type": device.get("device_type"),
-            "vlan": device.get("vlan"),
-            "owner": device.get("owner"),
-            "status": device.get("status", "active"),
-        },
-    )
-    db.commit()
-    return {"message": "Device added successfully"}
+    try:
+        result = db.execute(
+            text("""
+                INSERT INTO devices (name, ip, type, owner_id, x, y, vlan_id)
+                VALUES (:name, :ip, :type, :owner_id, :x, :y, :vlan_id)
+            """),
+            {
+                "name": device.name,
+                "ip": device.ip,
+                "type": device.type,
+                "owner_id": device.owner_id or current_user["user_id"],
+                "x": device.x,
+                "y": device.y,
+                "vlan_id": device.vlan_id,
+            },
+        )
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Invalid vlan_id or owner_id")
+    return {"id": result.lastrowid, "message": "Device added successfully"}
 
 
 # ========================
