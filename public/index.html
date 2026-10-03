@@ -531,6 +531,15 @@
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after { animation: none !important; transition: none !important; }
         }
+        /* 상단바 배지 및 Breadcrumb 스타일 추가 */
+        .user-info-group { display: flex; align-items: center; gap: 0.5rem; }
+        .user-badge, .dept-badge { padding: 0.35rem 0.75rem; border-radius: 0.5rem; font-size: 0.75rem; font-weight: 600; display: flex; align-items: center; gap: 0.35rem; }
+        .user-badge { background: rgba(79, 70, 229, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); color: #a5b4fc; }
+        .dept-badge { background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(74, 222, 128, 0.3); color: #86efac; }
+        .breadcrumb-section { display: flex; align-items: center; gap: 0.35rem; padding: 0.5rem 0; font-size: 0.8rem; overflow-x: auto; }
+        .breadcrumb-item { padding: 0.25rem 0.5rem; background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(71, 85, 105, 0.3); border-radius: 0.375rem; color: #cbd5e1; }
+        .breadcrumb-item.active { background: rgba(79, 70, 229, 0.25); border-color: #6366f1; color: #c7d2fe; font-weight: 600; }
+        .breadcrumb-vlan { padding: 0.25rem 0.5rem; background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(147, 51, 234, 0.4); border-radius: 0.375rem; color: #d8b4fe; font-size: 0.75rem; font-weight: 600; }
     </style>
 </head>
 <body class="antialiased selection:bg-indigo-500 selection:text-white">
@@ -580,6 +589,11 @@
                 <div class="text-left">
                     <label class="block text-[11px] font-semibold text-slate-400 mb-1">비밀번호</label>
                     <input type="password" id="password-input" placeholder="비밀번호 입력" required
+                    <div class="text-left">
+                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">구역 코드</label>
+                        <input type="text" id="vlan-code-input" placeholder="구역 코드 입력 (예: 8Bit-101)" required
+                            class="w-full px-3.5 py-2.5 bg-[#1a2035]/80 border border-slate-700/70 rounded-lg text-white focus:outline-none focus:border-indigo-500">
+                    </div>
                         class="w-full px-3.5 py-2.5 bg-[#1a2035]/80 border border-slate-700/70 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition text-sm disabled:opacity-50">
                 </div>
                 <div class="space-y-1 text-left">
@@ -662,27 +676,43 @@
         </aside>
 
         <div class="content">
-            <!-- 상단 바 -->
+            <!-- 상단 바 (사용자 정보 + Breadcrumb 통합) -->
             <header class="topbar">
-                <div>
-                    <div class="flex items-center gap-3 flex-wrap">
-                        <h1 class="flex items-center gap-2">
-                            <span id="page-title">안녕하세요</span>
-                            <span id="wave" class="wave" aria-hidden="true">👋</span>
-                        </h1>
-                        <div class="clock-pill">
-                            <span id="clock-date"></span>
-                            <span class="clock-sep"></span>
-                            <span id="clock-time" class="c-cyan"></span>
+                <div class="w-full">
+                    <div class="flex items-center justify-between flex-wrap gap-3">
+                        <div>
+                            <div class="flex items-center gap-3 flex-wrap">
+                                <h1 class="flex items-center gap-2">
+                                    <span id="page-title">안녕하세요</span>
+                                    <span id="wave" class="wave" aria-hidden="true">👋</span>
+                                </h1>
+                                <div class="clock-pill">
+                                    <span id="clock-date"></span>
+                                    <span class="clock-sep"></span>
+                                    <span id="clock-time" class="c-cyan"></span>
+                                </div>
+                            </div>
+                            <p id="page-sub"></p>
+                        </div>
+
+                        <!-- 오른쪽: 버전을 유지하면서 사용자/부서 배지 추가 -->
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="pill sm mono" style="--lv: var(--cyan)">8bit AI Pulse · v2.4 Live</span>
+                            <span id="env-badge" class="pill sm" style="--lv: var(--cyan)"></span>
+                            <div id="sys-pill" class="pill lv-ok"><span class="pdot"></span><span id="system-status-text">AI 엔진 정상 작동 중</span></div>
+                            <div class="user-badge">👤 <span id="header-username">admin</span></div>
+                            <div class="dept-badge">🏢 <span id="header-dept">마케팅팀</span></div>
+                            <div id="user-role-badge" class="pill" style="--lv: var(--indigo)">👑 관리자</div>
                         </div>
                     </div>
-                    <p id="page-sub"></p>
-                </div>
-                <div class="flex items-center gap-3 flex-wrap">
-                    <span class="pill sm mono" style="--lv: var(--cyan)">8bit AI Pulse · v2.4 Live</span>
-                    <span id="env-badge" class="pill sm" style="--lv: var(--cyan)"></span>
-                    <div id="sys-pill" class="pill lv-ok"><span class="pdot"></span><span id="system-status-text">AI 엔진 정상 작동 중</span></div>
-                    <div id="user-role-badge" class="pill" style="--lv: var(--indigo)">👑 관리자 (이지환)</div>
+
+                    <!-- 하단: Breadcrumb (현재 경로 + 접속 VLAN 표시) -->
+                    <div class="breadcrumb-section mt-3" id="breadcrumb-container">
+                        <div class="breadcrumb-item">전체 시스템</div>
+                        <span class="text-slate-500">›</span>
+                        <div class="breadcrumb-item active" id="bc-current-page">대시보드</div>
+                        <div class="breadcrumb-vlan ml-auto" id="bc-vlan">🔐 VLAN-001</div>
+                    </div>
                 </div>
             </header>
 
@@ -875,6 +905,7 @@
                     </div>
                     <form id="vlan-form" class="vlan-form" onsubmit="event.preventDefault(); createVlan();">
                         <input id="new-vlan-name" type="text" class="sel-input" placeholder="구역 이름 (예: 마케팅팀)" style="flex:1;min-width:140px;">
+                        <input id="new-vlan-code" type="text" class="sel-input" placeholder="구역 코드 (예: 8bit-101)" style="flex:1;min-width:140px;">
                         <input id="new-vlan-cidr" type="text" class="sel-input mono" placeholder="IP 대역 (선택, 예: 10.10.0.0/24)" style="flex:1;min-width:170px;">
                         <input id="new-vlan-color" type="color" class="color-input" value="#f472b6" title="구역 색상">
                         <button type="submit" class="btn primary" style="width:auto;">+ 구역 추가</button>
@@ -1325,6 +1356,14 @@ async function handleStep1Login(e) {
             if (pwd.disabled) return;
             const name = $('username-input').value.trim();
             const pw = pwd.value;
+            const vlanCode = $('vlan-code-input').value.trim();
+
+            const selectedVlan = vlans.find(v => v.code === vlanCode);
+            if (!selectedVlan) { 
+                $('error-msg').textContent = '⚠️ 올바른 구역 코드를 입력해주세요.';
+                $('error-msg').classList.remove('hide');
+                return;
+            }    
 
             let res, data;
             try {
@@ -1349,11 +1388,16 @@ async function handleStep1Login(e) {
 
                 state.isAdmin = (data.role === 'admin');
                 state.username = name;
+                state.token = data.access_token;
+                state.vlanView = selectedVlan.id;
+
                 if ($('step2-username')) $('step2-username').textContent = name;
 
                 // 화면 전환 (Step 1 숨기고 Step 2 표시)
                 $('login-step-1').classList.add('hide');
+                $('login-step-2').classList.add('hide');
                 $('login-step-2').classList.remove('hide');
+                switchView('vlan');
                 return;
             }
 
@@ -1445,8 +1489,9 @@ async function handleStep1Login(e) {
             renderVlanZones();
             renderConnections();
             switchView('overview');
+            loadHeaderUserInfo();
         }
-
+        
         function logout() {
             $('dashboard-screen').classList.remove('show');
             $('login-screen').classList.remove('hide');
@@ -1455,7 +1500,25 @@ async function handleStep1Login(e) {
             clearSession();
             if (!orbAnimationId) animate3DOrb();
         }
+        // 상단바 프로필 및 백엔드 정보 수신
+        async function loadHeaderUserInfo() {
+            const token = sessionStorage.getItem('token');
+            if (!token) return;
 
+            try {
+                const res = await fetch('/api/header/info', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                   const data = await res.json();
+                   if ($('header-username'))$('header-username').textContent = data.user.username;
+                   if ($('header-dept'))$('header-dept').textContent = data.department.name;
+                   if ($('bc-vlan'))$('bc-vlan').textContent = `🔐 ${data.vlan.code}`;
+                }
+            } catch (e) {
+                console.log("상단바 헤더 정보 수신 대기 중...");
+            }
+        }
         function saveSession() {
             try { localStorage.setItem(SESSION_KEY, JSON.stringify({ isAdmin: state.isAdmin, username: state.username })); } catch (e) {}
         }
@@ -1531,9 +1594,9 @@ async function handleStep1Login(e) {
 
         let vlanSeq = 0;
         const vlans = [
-            { id: 'backbone', name: 'Backbone (백본)', color: '#22d3ee', cidr: '192.168.1.0/24' },
-            { id: 'dev', name: 'VLAN1', color: '#a78bfa', cidr: '10.0.0.0/24' },
-            { id: 'biz', name: 'VLAN2', color: '#fb923c', cidr: '192.168.1.0/25' }
+            { id: 'backbone', name: 'Backbone (백본)', color: '#22d3ee', cidr: '192.168.1.0/24', code: '8bit-100' },
+            { id: 'dev', name: 'VLAN1', color: '#a78bfa', cidr: '10.0.0.0/24',code: '8bit-101'},
+            { id: 'biz', name: 'VLAN2', color: '#fb923c', cidr: '192.168.1.0/25',code: '8bit-101' }
         ];
         function vlanById(id) { return vlans.find(v => v.id === id); }
 
@@ -1670,11 +1733,15 @@ async function handleStep1Login(e) {
                 const mem = zoneMembers(z.id);
                 const on = state.view === 'vlan' && state.vlanView === z.id;
                 return `<button type="button" class="vfly-item${on ? ' on' : ''}" role="menuitem" style="--vzc:${escHtml(z.color)}" onclick="openVlanView('${escHtml(z.id)}')">
-                    <span class="vzdot"></span>
-                    <span class="vfly-name">${escHtml(z.name)}${z.cidr ? `<span class="vfly-sub mono">${escHtml(z.cidr)}</span>` : ''}</span>
-                    ${mem.length ? `<span class="ldot lv-${worstLv(mem)}" title="구역 내 가장 나쁜 상태"></span>` : ''}
-                    <span class="vfly-count">${mem.length}대</span>
-                </button>`;
+                  <span class="vzdot"></span>
+                  <span class="vfly-name">
+                     ${escHtml(z.name)}
+                     ${z.code ? `<span class="vfly-code" onclick="openVlanView('${escHtml(z.id)}')" style="cursor:pointer; color:#888; font-size:0.9em; margin-left:4px;">${escHtml(z.code)}</span>` : ''}
+                     ${z.cidr ? `<span class="vfly-sub mono">${escHtml(z.cidr)}</span>` : ''}
+                  </span>
+                  ${mem.length ? `<span class="ldot lv-${worstLv(mem)}" title="구역 내 가장 나쁜 상태"></span>` : ''}
+                  <span class="vfly-count">${mem.length}대</span>
+                  </button>`;
             }).join('');
             box.innerHTML = allItem + items;
             lucide.createIcons();
@@ -2622,6 +2689,7 @@ async function handleStep1Login(e) {
                             <span class="vzdot"></span>
                             <span class="font-bold text-sm">${v.name}</span>
                             ${v.cidr ? `<span class="tag mono">${v.cidr}</span>` : ''}
+                            ${v.cidr ? `<span class="tag mono">${v.cidr}</span>` : ''}
                             <span class="text-xs t-dim ml-auto">${members.length}대</span>
                             ${zoneAdminBtns}
                         </div>
@@ -2646,8 +2714,9 @@ async function handleStep1Login(e) {
             if (!name) { toast('구역 이름을 입력해 주세요.'); return; }
             const color = $('new-vlan-color').value;
             const cidr = $('new-vlan-cidr').value.trim();
+            const code = $('new-vlan-code').value.trim();
             const id = 'vlan' + (++vlanSeq) + '-' + Date.now().toString(36).slice(-4);
-            vlans.push({ id, name, color, cidr });
+            vlans.push({ id, name, color, cidr, code });
             nameInput.value = ''; $('new-vlan-cidr').value = '';
             renderVlanZones();
             refreshVlanSelects();
