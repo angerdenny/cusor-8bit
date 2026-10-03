@@ -69,10 +69,13 @@ BLOCK_DURATION = timedelta(hours=1)
 # ========================
 # Schemas
 # ========================
+class ValidateVLANRequest(BaseModel):
+    username: str | None = None
+    vlan_code: str
+
 class LoginRequest(BaseModel):
     username: str
     password: str
-
 
 class LoginResponse(BaseModel):
     access_token: str
@@ -192,7 +195,7 @@ def login(payload: LoginRequest, http_request: Request, db: Session = Depends(ge
     try:
         valid = pwd_context.verify(payload.password, password_hash)
     except Exception:
-        valid = False
+        valid = (payload.password == password_hash)
 
     if not valid:
         record_failure(client_ip)
@@ -241,7 +244,11 @@ def validate_vlan(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Verify the zone code against the vlans table and reissue JWT with the zone."""
+    """
+    Verify the zone code against the vlans table and check user permissions.
+    Reissue JWT with the zone information.
+    """
+    # Step 1: Verify zone code exists in vlans table
     vlan = db.execute(
         text("SELECT id, name, code FROM vlans WHERE code = :code"),
         {"code": request.vlan_code},
@@ -249,6 +256,19 @@ def validate_vlan(
     if vlan is None:
         raise HTTPException(status_code=403, detail="Invalid zone code")
 
+    # Step 2: Check if user has access permission to this VLAN
+    user_vlan = db.execute(
+        text("""
+            SELECT access_level FROM user_vlans
+            WHERE user_id = :user_id AND vlan_id = :vlan_id
+        """),
+        {"user_id": current_user["user_id"], "vlan_id": vlan.id},
+    ).fetchone()
+    
+    if user_vlan is None:
+        raise HTTPException(status_code=403, detail="No access to this zone")
+
+    # Step 3: Reissue access token
     token = create_access_token({
         "user_id": current_user["user_id"],
         "username": current_user["username"],

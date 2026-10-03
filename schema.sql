@@ -39,12 +39,14 @@ CREATE TABLE users (
 -- ---------------------------------------------------------------------
 CREATE TABLE vlans (
     id          INT          NOT NULL AUTO_INCREMENT,
+    code        VARCHAR(20)  NOT NULL,     
     name        VARCHAR(100) NOT NULL,
     cidr        VARCHAR(50)  NULL,
     color       CHAR(7)      NOT NULL DEFAULT '#a78bfa',
     created_at  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
     PRIMARY KEY (id),
+    UNIQUE KEY ux_vlans_code (code),  
     UNIQUE KEY ux_vlans_name (name),
     CONSTRAINT ck_vlans_color CHECK (LEFT(color, 1) = '#')
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -175,7 +177,7 @@ INSERT INTO users (username, password_hash, role) VALUES
 ('admin', '8bit', 'admin'),
 ('user1', '1234', 'user');
 
-INSERT INTO vlans (id, name, cidr, color) VALUES
+INSERT INTO vlans (id, code, name, cidr, color) VALUES
 (1, 'Backbone (백본)', '192.168.1.0/24', '#22d3ee'),
 (2, 'VLAN1 (Dev)', '10.0.0.0/24', '#a78bfa'),
 (3, 'VLAN2 (Biz)', '192.168.1.0/25', '#fb923c');
