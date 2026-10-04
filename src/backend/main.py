@@ -96,7 +96,7 @@ class DeviceCreate(BaseModel):
     name: str
     ip: str
     type: str
-    vlan_id: int
+    vlan_code: str
     owner_id: int | None = None
     x: float = 0
     y: float = 0
@@ -192,12 +192,7 @@ def login(payload: LoginRequest, http_request: Request, db: Session = Depends(ge
     user_id, username, password_hash, role = result
 
     # Verify password
-    try:
-        valid = pwd_context.verify(payload.password, password_hash)
-    except Exception:
-        valid = (payload.password == password_hash)
-
-    if not valid:
+    if not pwd_context.verify(payload.password, password_hash):
         record_failure(client_ip)
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
@@ -292,33 +287,42 @@ def validate_vlan(
 @app.get("/api/devices")
 def get_devices(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """List all network devices (auth required)"""
-    rows = db.execute(text("SELECT * FROM devices ORDER BY id")).fetchall()
+    rows = db.execute(text("""
+        SELECT d.id, d.name, d.ip, d.type, d.owner_id, d.x, d.y, d.vlan_id,
+               v.code AS vlan_code, u.username AS owner_name
+        FROM devices d
+        LEFT JOIN vlans v ON v.id = d.vlan_id
+        LEFT JOIN users u ON u.id = d.owner_id
+        ORDER BY d.id
+    """)).fetchall()
     return {"devices": [row_to_dict(r) for r in rows]}
 
 
 @app.post("/api/devices")
 def create_device(device: DeviceCreate, current_user: dict = Depends(require_admin), db: Session = Depends(get_db)):
     """Add a new network device (admin only)"""
+    vlan = db.execute(
+        text("SELECT id FROM vlans WHERE code = :code"), {"code": device.vlan_code}
+    ).fetchone()
+    if vlan is None:
+        raise HTTPException(status_code=400, detail="Unknown vlan_code")
     try:
         result = db.execute(
             text("""
                 INSERT INTO devices (name, ip, type, owner_id, x, y, vlan_id)
                 VALUES (:name, :ip, :type, :owner_id, :x, :y, :vlan_id)
             """),
-            {
-                "name": device.name,
-                "ip": device.ip,
-                "type": device.type,
-                "owner_id": device.owner_id or current_user["user_id"],
-                "x": device.x,
-                "y": device.y,
-                "vlan_id": device.vlan_id,
-            },
+            {"name": device.name, "ip": device.ip, "type": device.type,
+             "owner_id": device.owner_id or current_user["user_id"],
+             "x": device.x, "y": device.y, "vlan_id": vlan[0]},
         )
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=400, detail="Invalid vlan_id or owner_id")
+        msg = str(e.orig)
+        if "ux_devices_ip" in msg or "Duplicate" in msg:
+            raise HTTPException(status_code=400, detail="이미 등록된 IP입니다")
+        raise HTTPException(status_code=400, detail="소유자 정보가 올바르지 않습니다")
     return {"id": result.lastrowid, "message": "Device added successfully"}
 
 
