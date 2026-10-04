@@ -4864,6 +4864,10 @@
         }
 
         function commitNewDevice({ name, ip, typeVal, vlanId, owner, x, y, linkTo }) {
+            const autoVlanCode = getVlanByIp(ip);
+            if (autoVlanCode) {
+                vlanId = vlans.find(v => v.code === autoVlanCode)?.id || vlanId;
+            }
             const dt = DEVICE_TYPES[typeVal] || DEVICE_TYPES.server;
             const key = 'dev-' + (++deviceSeq) + '-' + Date.now().toString(36).slice(-4);
             const cpu = Math.round(10 + Math.random() * 20);
@@ -4895,8 +4899,9 @@
             toast(`${name} 장비가 등록되어 토폴로지 맵에 나타났어요.${linkNote}`);
             return key;
         }
-
-        function createDevice() {
+        
+        /* ───────────── [2] createDevice 교체본 ───────────── */
+        async function createDevice() {
             if (!state.isAdmin) return;
             const nameInput = $('new-device-name');
             const ipInput = $('new-device-ip');
@@ -4907,13 +4912,14 @@
             const linkTo = $('new-device-link').value;
             const ownerInput = $('new-device-owner');
             const owner = ownerInput.value.trim();
-
+ 
             if (!name || !ip) { toast('장비 이름과 IP 주소를 입력해 주세요.'); return; }
             if (!isValidIp(ip)) { showIpError(ipInput); return; }
             clearIpError(ipInput);
-
-            commitNewDevice({ name, ip, typeVal, vlanId, owner, linkTo });
-
+ 
+            const key = await commitNewDevice({ name, ip, typeVal, vlanId, owner, linkTo });
+            if (!key) return;   // 실패하면 입력값을 그대로 둠
+ 
             nameInput.value = ''; ipInput.value = ''; ownerInput.value = ''; $('new-device-link').value = '';
         }
 
@@ -4921,11 +4927,11 @@
         let pendingCtxPos = null;
 
         function refreshCtxVlanSelect() {
-            const sel = $('ctx-device-vlan');
+            const sel = document.getElementById('ctx-device-vlan');
             if (sel) sel.innerHTML = vlans.map(v => `<option value="${v.id}">${v.name}</option>`).join('');
         }
         function refreshCtxLinkSelect() {
-            const sel = $('ctx-device-link');
+            const sel = document.getElementById('ctx-device-link');
             if (sel) sel.innerHTML = `<option value="">연결 안 함</option>` + NODE_KEYS.map(k => `<option value="${k}">${NODES[k].name}</option>`).join('');
         }
 
@@ -4966,25 +4972,96 @@
             pendingCtxPos = null;
         }
 
-        function quickCreateDevice() {
+        /* ───────────── [3] quickCreateDevice 교체본 ───────────── */
+        async function quickCreateDevice() {
             if (!pendingCtxPos) return;
+            const pos = { ...pendingCtxPos };   // await 중에 팝업이 닫혀도 좌표 유지
             const nameInput = $('ctx-device-name');
             const name = nameInput.value.trim();
-            if (!name) { toast('장비 이름을 입력해 주세요.'); nameInput.focus(); return; }
-
-            const typeVal = $('ctx-device-type').value;
-            const vlanId = $('ctx-device-vlan').value;
-            const linkTo = $('ctx-device-link').value;
-            const ipInput = $('ctx-device-ip');
-            let ip = ipInput.value.trim();
-            if (ip && !isValidIp(ip)) { showIpError(ipInput); return; }
-            clearIpError(ipInput);
-            if (!ip) ip = nextAvailableIp(vlanId);
-
-            commitNewDevice({ name, ip, typeVal, vlanId, owner: '', x: pendingCtxPos.x, y: pendingCtxPos.y, linkTo });
-            closeTopoContextMenu();
+        if (!name) { toast('장비 이름을 입력해 주세요.'); nameInput.focus(); return; }
+ 
+        const typeVal = $('ctx-device-type').value;
+        const vlanId = $('ctx-device-vlan').value;
+        const linkTo = $('ctx-device-link').value;
+        const ipInput = $('ctx-device-ip');
+        let ip = ipInput.value.trim();
+        if (ip && !isValidIp(ip)) { showIpError(ipInput); return; }
+        clearIpError(ipInput);
+        if (!ip) ip = nextAvailableIp(vlanId);  
         }
-
+        
+        /* ───────────── [1] commitNewDevice 교체본 ───────────── */
+        async function commitNewDevice({ name, ip, typeVal, vlanId, owner, x, y, linkTo }) {
+            const dt = DEVICE_TYPES[typeVal] || DEVICE_TYPES.server;
+            const pos = (x != null && y != null)
+                ? { x: clamp(x, NODE_POS_MIN, NODE_POS_MAX), y: clamp(y, NODE_POS_MIN, NODE_POS_MAX) }
+                : autoLayoutPosition();
+ 
+            let key, dbId = null;
+            if (IS_REAL_ENV) {
+                const v = vlanById(vlanId);
+                if (!v) { toast('소속 구역을 선택해 주세요.'); return null; }
+                try {
+                     const res = await apiFetch('/api/devices', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name, ip, type: typeVal, vlan_code: v.code, x: pos.x, y: pos.y })
+                    });
+                    if (!res.ok) {
+                        const err = await res.json().catch(() => ({}));
+                        toast(`등록 실패: ${formatApiError(err.detail)}`);
+                        return null;
+                    }
+                    dbId = (await res.json()).id;
+                } catch (e) {
+                    toast(`등록 실패: ${e.message}`);
+                    return null;
+                }
+                key = 'd' + dbId;   // loadDevices() 와 같은 키 규칙
+            } else {
+                key = 'dev-' + (++deviceSeq) + '-' + Date.now().toString(36).slice(-4);
+            }
+ 
+            const cpu = Math.round(10 + Math.random() * 20);
+            const ram = Math.round(15 + Math.random() * 25);
+            NODES[key] = {
+                dbId, name, short: name.length > 10 ? name.slice(0, 9) + '…' : name, ip,
+                type: dt.typeLabel,
+                owner: owner || (IS_REAL_ENV ? state.username : `${state.username} (등록)`),
+                cpu, ram, lc: cpu, lr: ram, lv: 'ok', status: '● Online', icon: dt.icon, vlan: vlanId,
+                x: pos.x, y: pos.y
+            };
+            NODE_KEYS.push(key);
+ 
+            // 연결선: 서버 저장에 성공했을 때만 화면에 그림
+            let linked = false;
+            if (linkTo && NODES[linkTo] && linkTo !== key) {
+            if (await syncLink('add', linkTo, key)) { EDGES.push([linkTo, key]); linked = true; }
+            }
+ 
+            relaxLayout();
+            // relaxLayout 이 새 장비를 밀어냈다면 밀린 위치를 다시 저장
+            if (IS_REAL_ENV && dbId && NODES[key] && (NODES[key].x !== pos.x || NODES[key].y !== pos.y)) {
+                syncDevice(key, { x: +NODES[key].x.toFixed(1), y: +NODES[key].y.toFixed(1) });
+            }
+ 
+            buildNodeUI();
+            renderVlanZones();
+            if (state.isAdmin) renderDevices();
+            updateNodeUI();
+            lucide.createIcons();
+ 
+            const linkNote = linked ? ` '${NODES[linkTo].name}'과(와) 연결됐어요.` : '';
+            pushAlert('info', '신규 장비 등록됨', `${name} (${ip}) 장비가 '${(vlanById(vlanId) || {}).name || vlanId}' 구역에 추가되어 토폴로지 맵에 반영됐어요.${linkNote}`, {
+                cause: '관리자가 토폴로지 화면에서 새 장비를 직접 등록했어요.',
+                action: IS_REAL_ENV
+                    ? '장비 정보가 DB에 저장됐어요. 실제 장비와의 통신 확인(핑·SNMP 등)은 collector.py 단계에서 연동돼요.'
+                    : '시뮬레이션 모드라 화면에만 등록돼요. 실제 환경(?env=real)에서는 DB에 저장돼요.'
+            });
+            toast(`${name} 장비가 등록되어 토폴로지 맵에 나타났어요.${linkNote}`);
+            return key;
+        }
+        /* ───────────── [2]지우면 안댐 ───────────── */
         document.addEventListener('click', (e) => {
             const menu = $('topo-ctx');
             if (!menu || menu.classList.contains('hide')) return;
@@ -5823,6 +5900,46 @@
                 select.appendChild(option);
             });
         }
+        function setupAddDeviceForm() {
+            const ipInput = $('add-device-ip');
+            if (ipInput) {
+                ipInput.addEventListener('change', (e) => {
+                    const autoVlanCode = getVlanByIp(e.target.value);
+                    if (autoVlanCode) {
+                        $('add-device-vlan').value = autoVlanCode;
+                    }
+                });
+            }
+        }
+        // 페이지 로드 시 실행
+        document.addEventListener('DOMContentLoaded', () => {
+            setupAddDeviceForm();
+        });
+
+        function ipToNumber(ip) {
+            const parts = ip.split('.');
+            return parts.reduce((acc, part, i) => {
+                return acc + (parseInt(part) << (8 * (3 - i)));
+            }, 0);
+        }     
+        function ipInCidr(ip, cidr) {
+            const [network, bits] = cidr.split('/');
+            const ipNum = ipToNumber(ip);
+            const networkNum = ipToNumber(network);
+            const maskBits = 32 - parseInt(bits);
+            const mask = (0xffffffff << maskBits) >>> 0;
+    
+            return (ipNum & mask) === (networkNum & mask);
+        }
+        function getVlanByIp(ip) {
+            for (let v of vlans) {
+                if (v.cidr && ipInCidr(ip, v.cidr)) {
+                return v.code;
+                }
+            }
+            return state.currentVlan.code || '';
+        }
+
         function formatApiError(detail) {
             if (!detail) return '알 수 없는 오류';
             if (typeof detail === 'string') return detail;
@@ -6011,7 +6128,7 @@
                 $('add-device-name').value = '';
                 $('add-device-ip').value = '';
                 $('add-device-type').value = '';
-                $('add-device-vlan').value = '';
+                $('add-device-vlan').value = state.currentVlan.code || '';
                 closeModal('device-add-modal');
                 await loadDevices();
                 
@@ -6020,8 +6137,11 @@
             }
         }
 
+        document.addEventListener('DOMContentLoaded', () => {
+            setupAddDeviceForm();
+        });
+
         
-    </script>
     </script>
 </body>
 
