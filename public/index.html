@@ -2394,15 +2394,9 @@
                 </div>
                 <div class="text-left">
                     <label class="block text-[11px] font-semibold text-slate-400 mb-1">비밀번호</label>
-                    <input type="password" id="password-input" placeholder="비밀번호 입력" required <div class="text-left">
-                    <label class="block text-[11px] font-semibold text-slate-400 mb-1">구역 코드</label>
-                    <input type="text" id="vlan-code-input" placeholder="구역 코드 입력 (예: 8Bit-101)" required
-                        class="w-full px-3.5 py-2.5 bg-[#1a2035]/80 border border-slate-700/70 rounded-lg text-white focus:outline-none focus:border-indigo-500">
+                    <input type="password" id="password-input" placeholder="비밀번호 입력" required
+                        class="w-full px-3.5 py-2.5 bg-[#1a2035]/80 border border-slate-700/70 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition text-sm disabled:opacity-50">
                 </div>
-                class="w-full px-3.5 py-2.5 bg-[#1a2035]/80 border border-slate-700/70 rounded-lg text-white
-                placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500
-                transition text-sm disabled:opacity-50">
-        </div>
         <div class="space-y-1 text-left">
             <p id="error-msg" class="text-xs text-rose-400 font-medium hide">⚠️ 비밀번호가 올바르지 않습니다.</p>
             <p id="fail-count-msg" class="text-xs text-slate-400 hide">실패 횟수: <span id="fail-count"
@@ -2423,7 +2417,7 @@
         <div class="flex items-center justify-between mb-4">
             <div class="text-left">
                 <h2 class="text-lg font-bold text-slate-100">접근 구역 선택</h2>
-                <p class="text-xs text-slate-400 mt-0.5">접속할 네트워크 구역(VLAN)을 입력하세요</p>
+                <p class="text-xs text-slate-400 mt-0.5">접속할 네트워크 구역(VLAN)을 선택하세요</p>
             </div>
             <div class="flex gap-1">
                 <div class="step-dot completed">✓</div>
@@ -2435,20 +2429,12 @@
             <div class="p-2.5 bg-slate-800/50 border border-slate-700/50 rounded-lg text-xs text-slate-300">
                 로그인 계정: <span id="step2-username" class="font-bold text-indigo-400"></span>
             </div>
-            <div>
-                <label class="block text-[11px] font-semibold text-slate-400 mb-1">구역 코드 입력</label>
-                <input type="text" id="vlan-code-input" placeholder="예: backbone, dev, biz 또는 VLAN 코드"
-                    class="w-full px-3.5 py-2.5 bg-[#1a2035]/80 border border-slate-700/70 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition text-sm">
-            </div>
+            <div id="step2-zone-list" class="space-y-2"></div>
             <p id="step2-error-msg" class="text-xs text-rose-400 font-medium hide">⚠️ 올바른 구역 코드를 입력해주세요.</p>
             <div class="flex gap-2 pt-1">
                 <button type="button" onclick="backToStep1()"
-                    class="w-1/3 py-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg text-xs transition">
+                    class="w-full py-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg text-xs transition">
                     ← 뒤로
-                </button>
-                <button type="button" onclick="handleStep2Submit()"
-                    class="w-2/3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow-lg shadow-indigo-600/30 text-xs transition">
-                    시스템 진입 →
                 </button>
             </div>
         </div>
@@ -3088,6 +3074,11 @@
                         <h2 class="ctitle"><i data-lucide="server" class="w-4 h-4 c-indigo"></i>접속 기기 할당 및 권한 관리
                             <span id="devices-readonly-badge" class="tag hide" style="margin-left:8px">보기 전용</span>
                         </h2>
+                        <button onclick="openModal('device-add-modal'); refreshAddDeviceVlans();"
+                                class="btn primary" style="margin-right: 0.5rem;">
+                           + 기기 추가
+                        </button>
+
                         <button id="device-save-btn" class="btn primary" onclick="saveAssignments()">변경사항 저장</button>
                     </div>
                     <div class="overflow-x-auto">
@@ -3160,7 +3151,52 @@
             <div id="modal-body"></div>
         </div>
     </div>
-
+    <!-- 기기 추가 모달 -->
+<div id="device-add-modal" class="modal-overlay hide" onclick="if (event.target === this) closeModal('device-add-modal')">
+    <div class="card modal-card">
+      <button class="modal-close" onclick="closeModal('device-add-modal')" aria-label="닫기">×</button>
+      <h3 class="text-lg font-semibold mb-4">새 기기 추가</h3>
+      <form onsubmit="event.preventDefault(); submitAddDevice(event);" class="grid gap-3">
+        <div>
+          <label class="block text-[11px] font-semibold t-muted mb-1">기기 이름 *</label>
+          <input id="add-device-name" type="text" class="sel-input" placeholder="예: Router-01" style="width:100%" required>
+        </div>
+  
+        <div>
+          <label class="block text-[11px] font-semibold t-muted mb-1">IP 주소 *</label>
+          <input id="add-device-ip" type="text" class="sel-input mono" placeholder="192.168.1.1" style="width:100%" 
+                 pattern="\d+\.\d+\.\d+\.\d+" required>
+        </div>
+  
+        <div>
+          <label class="block text-[11px] font-semibold t-muted mb-1">기기 종류 *</label>
+          <select id="add-device-type" class="sel-input" style="width:100%" required>
+            <option value="">-- 선택 --</option>
+            <option value="server">Server</option>
+            <option value="router">Router</option>
+            <option value="firewall">Firewall</option>
+            <option value="switch">Switch</option>
+            <option value="pc">PC</option>
+            <option value="printer">Printer</option>
+            <option value="access-point">Access Point</option>
+          </select>
+        </div>
+  
+        <div>
+          <label class="block text-[11px] font-semibold t-muted mb-1">VLAN 구역 *</label>
+          <select id="add-device-vlan" class="sel-input" style="width:100%" required>
+            <option value="">-- 선택 --</option>
+          </select>
+        </div>
+  
+        <div class="flex gap-2 mt-4">
+          <button type="button" class="flex-1 px-3 py-2 text-sm rounded bg-slate-700 hover:bg-slate-600 text-white" 
+                  onclick="closeModal('device-add-modal')">취소</button>
+          <button type="submit" class="flex-1 px-3 py-2 text-sm rounded bg-indigo-600 hover:bg-indigo-700 text-white font-semibold">추가</button>
+        </div>
+      </form>
+    </div>
+  </div>
     <!-- 장비 수정 팝업 -->
     <div id="device-edit-modal" class="modal-overlay" onclick="if (event.target === this) closeDeviceEditModal()">
         <div class="card modal-card">
@@ -3313,14 +3349,6 @@
             if (pwd.disabled) return;
             const name = $('username-input').value.trim();
             const pw = pwd.value;
-            const vlanCode = $('vlan-code-input').value.trim();
-
-            const selectedVlan = vlans.find(v => v.code === vlanCode);
-            if (!selectedVlan) {
-                $('error-msg').textContent = '⚠️ 올바른 구역 코드를 입력해주세요.';
-                $('error-msg').classList.remove('hide');
-                return;
-            }
 
             let res, data;
             try {
@@ -3346,40 +3374,14 @@
                 state.isAdmin = (data.role === 'admin');
                 state.role = data.role;
                 state.username = name;
-
-                // Server-side zone code verification, then swap to the zone-scoped token
-                let vres, vdata;
-                try {
-                    vres = await fetch('/api/auth/validate-vlan', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'Bearer ' + data.access_token
-                        },
-                        body: JSON.stringify({ username: name, vlan_code: vlanCode })
-                    });
-                    vdata = await vres.json().catch(() => ({}));
-                } catch (err) {
-                    $('error-msg').textContent = '⚠️ 서버에 연결할 수 없습니다.';
-                    $('error-msg').classList.remove('hide');
-                    return;
-                }
-                if (!vres.ok) {
-                    $('error-msg').textContent = '⚠️ ' + (vdata.detail || '구역 코드가 올바르지 않습니다.');
-                    $('error-msg').classList.remove('hide');
-                    return;
-                }
-                state.token = vdata.access_token;
-                state.vlanView = selectedVlan.id;
+                state.token = data.access_token;
 
                 if ($('step2-username')) $('step2-username').textContent = name;
 
                 // Skip step 2, go straight to the main screen
                 $('login-step-1').classList.add('hide');
-                $('login-step-2').classList.add('hide');
-                $('main-container').classList.remove('hide');
-                loadHeaderUserInfo();
-                switchView('vlan');
+                $('login-step-2').classList.remove('hide');
+                renderStep2Zones();
                 return;
             }
 
@@ -3410,41 +3412,65 @@
 
         // 1단계로 돌아가기
         function backToStep1() {
+            state.token = null;
+            sessionStorage.removeItem('token');
+            $('step2-error-msg').classList.add('hide');
             $('login-step-2').classList.add('hide');
             $('login-step-1').classList.remove('hide');
         }
 
-        // 2단계: VLAN 구역 코드 검증 및 최종 로그인 토큰 발급
-        async function handleStep2Submit() {
-            const vlanCode = $('vlan-code-input').value.trim();
-            if (!vlanCode) {
-                $('step2-error-msg').textContent = '⚠️ 구역 코드를 입력해주세요.';
-                $('step2-error-msg').classList.remove('hide');
+        // 2단계: 구역 목록 그리기
+        function renderStep2Zones() {
+            const box = $('step2-zone-list');
+            if (!box) return;
+            box.innerHTML = vlans.map(z => `
+                <button type="button" onclick="selectZoneAtLogin('${escHtml(z.id)}')"
+                    class="w-full flex items-center justify-between px-3.5 py-2.5 bg-[#1a2035]/80 border border-slate-700/70 rounded-lg text-white hover:border-indigo-500 transition text-sm">
+                    <span>${escHtml(z.name)}</span>
+                    <span class="mono text-slate-400 text-xs">${escHtml(z.code)}</span>
+                </button>`).join('');
+        }
+
+        // 2단계: 구역 선택 -> 서버 검증 -> 구역 토큰 발급 -> 대시보드
+        async function selectZoneAtLogin(zoneId) {
+            const z = vlanById(zoneId);
+            const errBox = $('step2-error-msg');
+            if (!z) return;
+            errBox.classList.add('hide');
+
+            let res, data;
+            try {
+                res = await fetch('/api/auth/validate-vlan', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + state.token
+                    },
+                    body: JSON.stringify({
+                        username: String(state.username || ''),
+                        vlan_code: String(z.code)
+                    })
+                });
+                data = await res.json().catch(() => ({}));
+            } catch (err) {
+                errBox.textContent = '⚠️ 서버에 연결할 수 없습니다.';
+                errBox.classList.remove('hide');
+                return;
+            }
+            if (!res.ok) {
+                const d = data.detail;
+                const msg = typeof d === 'string' ? d : JSON.stringify(d);
+                errBox.textContent = '⚠️ ' + (msg || '구역 진입에 실패했습니다.');
+                errBox.classList.remove('hide');
                 return;
             }
 
-            try {
-                const res = await fetch('/api/auth/validate-vlan', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: state.username, vlan_code: vlanCode })
-                });
-                const data = await res.json().catch(() => ({}));
-
-                if (res.ok && data.access_token) {
-                    sessionStorage.setItem('token', data.access_token);
-                    state.vlanView = vlanCode;
-                    if (typeof saveSession === 'function') saveSession();
-                    if (typeof showDashboard === 'function') showDashboard();
-                    return;
-                }
-
-                $('step2-error-msg').textContent = '⚠️ ' + (data.detail || '유효하지 않은 구역 코드입니다.');
-                $('step2-error-msg').classList.remove('hide');
-            } catch (err) {
-                $('step2-error-msg').textContent = '⚠️ 서버 통신 오류가 발생했습니다.';
-                $('step2-error-msg').classList.remove('hide');
-            }
+            state.token = data.access_token;
+            sessionStorage.setItem('token', data.access_token);
+            state.vlanView = z.id;
+            if (typeof saveSession === 'function') saveSession();
+            showDashboard();
+            switchView('vlan');
         }
 
         function showDashboard() {
@@ -3472,6 +3498,7 @@
             renderConnections();
             switchView('overview');
             loadHeaderUserInfo();
+            if (IS_REAL_ENV) loadDevices();
         }
 
         function logout() {
@@ -3576,9 +3603,9 @@
 
         let vlanSeq = 0;
         const vlans = [
-            { id: 'backbone', name: 'Backbone (백본)', color: '#22d3ee', cidr: '192.168.1.0/24', code: '8bit-100' },
-            { id: 'dev', name: 'VLAN1', color: '#a78bfa', cidr: '10.0.0.0/24', code: '8bit-101' },
-            { id: 'biz', name: 'VLAN2', color: '#fb923c', cidr: '192.168.1.0/25', code: '8bit-101' }
+            { id: 'backbone', name: 'Backbone (백본)', color: '#22d3ee', cidr: '192.168.1.0/24', code: '100' },
+            { id: 'dev', name: 'VLAN1', color: '#a78bfa', cidr: '10.0.0.0/24', code: '101' },
+            { id: 'biz', name: 'VLAN2', color: '#fb923c', cidr: '192.168.1.0/25', code: '102' }
         ];
         function vlanById(id) { return vlans.find(v => v.id === id); }
 
@@ -3588,7 +3615,10 @@
             server: { icon: 'database', typeLabel: 'Server' },
             app: { icon: 'cpu', typeLabel: 'Application Server' },
             pc: { icon: 'monitor', typeLabel: 'Workstation' },
-            mobile: { icon: 'smartphone', typeLabel: 'Mobile Endpoint' }
+            mobile: { icon: 'smartphone', typeLabel: 'Mobile Endpoint' },
+            firewall: { icon: 'shield', typeLabel: 'Firewall' },
+            printer: { icon: 'printer', typeLabel: 'Printer' },
+            'access-point': { icon: 'wifi', typeLabel: 'Access Point' }
         };
         let deviceSeq = 0;
 
@@ -5094,6 +5124,7 @@
         let epsConnected = false;
 
         async function pollEndpointSecurity() {
+            if (!sessionStorage.getItem('token')) return;
             try {
                 const res = await apiFetch(`${ENDPOINT_SECURITY_API}?since=${epsLastId}`, { cache: 'no-store' });
                 if (!res.ok) throw new Error('bad response');
@@ -5659,6 +5690,7 @@
         if (!restoreSession()) {
         }
         async function pollTelemetry() {
+            if (!sessionStorage.getItem('token')) return;
             try {
                 const res = await apiFetch('/api/telemetry/latest', { cache: 'no-store' });
                 if (!res.ok) throw new Error('bad response');
@@ -5710,6 +5742,90 @@
         else { pollTelemetry(); setInterval(pollTelemetry, 5000); }
         pollEndpointSecurity();
         setInterval(pollEndpointSecurity, 5000);
+        
+        /* ═════════ 기기 추가 기능 ═════════ */
+        function openModal(modalId) {
+            const modal = $(modalId);
+            if (!modal) return;
+            modal.classList.remove('hide');
+            requestAnimationFrame(() => modal.classList.add('show'));
+        }
+
+        function closeModal(modalId) {
+            const modal = $(modalId);
+            if (!modal) return;
+            modal.classList.remove('show');
+            setTimeout(() => { if (!modal.classList.contains('show')) modal.classList.add('hide'); }, 200);
+        }
+
+        function refreshAddDeviceVlans() {
+            const select = $('add-device-vlan');
+            if (!select) return;
+            select.innerHTML = '<option value="">-- 선택 --</option>';
+            vlans.forEach(vlan => {
+                const option = document.createElement('option');
+                option.value = vlan.code;
+                option.textContent = `${vlan.name} (${vlan.code})`;
+                select.appendChild(option);
+            });
+        }
+
+        async function submitAddDevice(e) {
+            e.preventDefault();
+            if (!state.isAdmin) {
+                toast('관리자만 기기를 추가할 수 있습니다.');
+                return;
+            }
+
+            const name = $('add-device-name').value.trim();
+            const ip = $('add-device-ip').value.trim();
+            const type = $('add-device-type').value;
+            const vlanCode = $('add-device-vlan').value;
+
+            if (!name || !ip || !type || !vlanCode) {
+                toast('모든 필드를 입력해주세요.');
+                return;
+            }
+
+            try {
+                const res = await apiFetch('/api/devices', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        ip,
+                        type,
+                        vlan_code: vlanCode,
+                        x: 0,
+                        y: 0
+                    })
+                });
+
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    const d = err.detail;
+                    const msg = Array.isArray(d)
+                        ? d.map(x => `${(x.loc || []).slice(1).join('.')}: ${x.msg}`).join(', ')
+                        : (d || '기기 추가 실패');
+                    toast(`오류: ${msg}`);
+                    return;
+                }
+
+                toast(`${name}이(가) 추가되었습니다.`);
+                $('add-device-name').value = '';
+                $('add-device-ip').value = '';
+                $('add-device-type').value = '';
+                $('add-device-vlan').value = '';
+                closeModal('device-add-modal');
+                await loadDevices();
+                
+            } catch (e) {
+                toast(`오류: ${e.message}`);
+            }
+        }
+
+        
+    </script>
     </script>
 </body>
 
