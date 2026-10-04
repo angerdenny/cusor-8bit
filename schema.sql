@@ -75,7 +75,7 @@ CREATE TABLE devices (
     CONSTRAINT fk_devices_owner FOREIGN KEY (owner_id) REFERENCES users (id)
         ON UPDATE CASCADE ON DELETE SET NULL,
 
-    CONSTRAINT ck_devices_type CHECK (type IN ('router', 'switch', 'server', 'app', 'pc', 'mobile')),
+    CONSTRAINT ck_devices_type CHECK (type IN ('router','switch','server','app','pc','mobile','firewall','printer','access-point'))
     CONSTRAINT ck_devices_x    CHECK (x IS NULL OR x BETWEEN -50 AND 150),
     CONSTRAINT ck_devices_y    CHECK (y IS NULL OR y BETWEEN -50 AND 150),
     CONSTRAINT ck_devices_xy   CHECK ((x IS NULL) = (y IS NULL))
