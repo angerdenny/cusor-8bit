@@ -1,14 +1,23 @@
+# Web framework
 fastapi==0.141.1
 uvicorn==0.54.0
 python-multipart==0.0.32
+
+# Database
 SQLAlchemy==2.1.1
 PyMySQL==1.2.3
-python-dotenv==1.2.3
+
+# Auth and security
 python-jose==3.5.0
 passlib==1.7.4
 bcrypt==4.0.1
 cryptography==50.0.1
+
+# Config and validation
+python-dotenv==1.2.3
 pydantic==2.13.5
 pydantic-settings==2.15.0
+
+# Collector and agent
 psutil==7.2.2
 requests==2.34.2
