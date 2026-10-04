@@ -3347,6 +3347,7 @@
             if (res.status === 401) { logout(); throw new Error('세션이 만료되었습니다'); }
             return res;
         }
+        window.apiFetch = apiFetch;  
         // 1단계: 아이디/비밀번호 검증 (실패 횟수 및 잠금 로직 완벽 연동)
         async function handleStep1Login(e) {
             e.preventDefault();
@@ -6083,6 +6084,30 @@
            $('stat-devices').textContent = `${NODE_KEYS.length} / ${NODE_KEYS.length} Online`;
            lucide.createIcons();
         }
+
+        async function updateTelemetry() {
+            const data = await apiFetch('/api/telemetry/latest').then(r => r.json());
+            
+            const latest = {};
+            for (let row of data.telemetry) {
+                if (!latest[row.device_id]) {
+                    latest[row.device_id] = row;
+                }
+            }
+
+            // NODES 업데이트
+            for (let [key, node] of Object.entries(NODES)) {
+                 if (node.dbId && latest[node.dbId]) {
+                    const t = latest[node.dbId];
+                    node.lc.cpu = Math.round(t.cpu_usage);
+                    node.lc.lrr = Math.round(t.ram_usage);
+                }
+            }
+        }
+
+        setInterval(updateTelemetry, 5000);
+        
+    redrawNetwork();
         async function submitAddDevice(e) {
             e.preventDefault();
             if (!state.isAdmin) {
