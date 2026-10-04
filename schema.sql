@@ -171,7 +171,7 @@ JOIN telemetry t
 
 -- ---------------------------------------------------------------------
 -- 8. 초기 기본 데이터 삽입
---    ※ password_hash는 임시로 평문입니다. 로그인 API 만들 때 해시로 교체합니다.
+--    ※ password_hash는 bcrypt 해시입니다 (데모 계정 전용: test/user1).
 -- ---------------------------------------------------------------------
 INSERT INTO users (username, password_hash, role) VALUES
 ('test', '$2b$12$tieX7hrBCCNbt8R/VeclOOD.LNQKGprulmGP3kY9OJOTOKdwodhEW', 'admin'),
@@ -200,3 +200,51 @@ INSERT INTO alerts (id, lv, title, msg, cause, action) VALUES
 (1, 'crit', '[CRITICAL] 장애 위험 감지', 'Distribution SW 트래픽 급증 (AI 예측 확률 87.4%)', '분산 스위치 구간 트래픽 급증', '상위 링크 대역폭 점검');
 
 INSERT INTO alert_devices (alert_id, device_id) VALUES (1, 2);
+-- ------------------------------------------------------------
+-- 9. user_vlans: 사용자별 VLAN 접근 권한
+-- ------------------------------------------------------------
+CREATE TABLE user_vlans (
+    id           INT NOT NULL AUTO_INCREMENT,
+    user_id      INT NOT NULL,
+    vlan_id      INT NOT NULL,
+    access_level VARCHAR(20) DEFAULT 'view',
+    created_at   DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3),
+    PRIMARY KEY (id),
+    UNIQUE KEY ux_user_vlans (user_id, vlan_id),
+    KEY vlan_id (vlan_id),
+    CONSTRAINT user_vlans_ibfk_1 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT user_vlans_ibfk_2 FOREIGN KEY (vlan_id) REFERENCES vlans (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ------------------------------------------------------------
+-- 10. endpoint_events: EDR 엔드포인트 보안 이벤트
+-- ------------------------------------------------------------
+CREATE TABLE endpoint_events (
+    id           BIGINT NOT NULL AUTO_INCREMENT,
+    action       VARCHAR(20)  NOT NULL,
+    process_name VARCHAR(255) NOT NULL,
+    pid          INT DEFAULT NULL,
+    reason       VARCHAR(500) NOT NULL DEFAULT '',
+    created_at   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    PRIMARY KEY (id),
+    KEY idx_endpoint_events_created (created_at DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- ------------------------------------------------------------
+-- 11. v_latest_telemetry: 장비별 최신 텔레메트리 1건
+-- ------------------------------------------------------------
+CREATE OR REPLACE VIEW v_latest_telemetry AS
+SELECT t.device_id       AS device_id,
+       t.cpu_usage       AS cpu_usage,
+       t.ram_usage       AS ram_usage,
+       t.traffic_in_mbps AS traffic_in_mbps,
+       t.packet_loss     AS packet_loss,
+       t.timestamp       AS timestamp
+FROM devices d
+JOIN telemetry t
+  ON t.id = (
+       SELECT t2.id
+       FROM telemetry t2
+       WHERE t2.device_id = d.id
+       ORDER BY t2.timestamp DESC, t2.id DESC
+       LIMIT 1
+     );
