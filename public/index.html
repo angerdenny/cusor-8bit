@@ -3520,14 +3520,18 @@
             if (!token) return;
 
             try {
-                const res = await fetch('/api/header/info', {
+                const res = await fetch('/api/auth/me', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
+                if (res.status === 401) {
+                    clearSession();
+                    return;
+                }
                 if (res.ok) {
                     const data = await res.json();
-                    if ($('header-username')) $('header-username').textContent = data.user.username;
-                    if ($('header-dept')) $('header-dept').textContent = data.department.name;
-                    if ($('bc-vlan')) $('bc-vlan').textContent = `🔐 ${data.vlan.code}`;
+                    if ($('header-username')) $('header-username').textContent = data.username;
+                    if ($('header-dept')) $('header-dept').textContent = data.role === 'admin' ? '관리자' : '일반 사용자';
+                    if ($('bc-vlan')) $('bc-vlan').textContent = `구역 ${data.vlan_code ?? '-'}`;
                 }
             } catch (e) {
                 console.log("상단바 헤더 정보 수신 대기 중...");
