@@ -174,8 +174,8 @@ JOIN telemetry t
 --    ※ password_hash는 임시로 평문입니다. 로그인 API 만들 때 해시로 교체합니다.
 -- ---------------------------------------------------------------------
 INSERT INTO users (username, password_hash, role) VALUES
-('admin', '8bit', 'admin'),
-('user1', '1234', 'user');
+('test', '$2b$12$tieX7hrBCCNbt8R/VeclOOD.LNQKGprulmGP3kY9OJOTOKdwodhEW', 'admin'),
+('user1', '$2b$12$jNurpDAw6liuAT5j5yDhJeNy2T0.5dnXbtkD4CIR.vZCpECQ6yJWi', 'user');
 
 INSERT INTO vlans (id, code, name, cidr, color) VALUES
 (1, 'Backbone (백본)', '192.168.1.0/24', '#22d3ee'),
