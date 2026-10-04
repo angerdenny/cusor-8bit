@@ -15,6 +15,9 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
+import ipaddress
+from sqlalchemy import bindparam 
+
 # ========================
 # Environment variables (.env must be next to main.py)
 # ========================
@@ -284,48 +287,279 @@ def validate_vlan(
 # ========================
 # 2. Devices
 # ========================
+ALLOWED_DEVICE_TYPES = {
+    "router", "switch", "server", "app", "pc",
+    "mobile", "firewall", "printer", "access-point",
+}
+POS_MIN, POS_MAX = -50, 150  # schema.sql 의 ck_devices_x / ck_devices_y 범위와 동일
+
+
+class DeviceUpdate(BaseModel):
+    name: str | None = None
+    ip: str | None = None
+    type: str | None = None
+    vlan_code: str | None = None
+    owner_id: int | None = None
+    x: float | None = None
+    y: float | None = None
+
+
+def _clean_ip(ip: str) -> str:
+    try:
+        return str(ipaddress.ip_address(ip.strip()))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="IP 형식이 올바르지 않습니다")
+
+
+def _clean_type(device_type: str) -> str:
+    if device_type not in ALLOWED_DEVICE_TYPES:
+        raise HTTPException(status_code=400, detail="지원하지 않는 장비 종류입니다")
+    return device_type
+
+
+def _check_xy(x, y):
+    if (x is None) != (y is None):
+        raise HTTPException(status_code=400, detail="x와 y는 함께 지정해야 합니다")
+    for v in (x, y):
+        if v is not None and not (POS_MIN <= v <= POS_MAX):
+            raise HTTPException(status_code=400, detail=f"좌표는 {POS_MIN}~{POS_MAX} 범위여야 합니다")
+
+
+def _integrity_detail(e: IntegrityError) -> str:
+    msg = str(e.orig)
+    if "ux_devices_ip" in msg or "Duplicate" in msg:
+        return "이미 등록된 IP입니다"
+    if "fk_devices_owner" in msg or "foreign key" in msg.lower():
+        return "소유자 정보가 올바르지 않습니다"
+    return "장비 정보가 올바르지 않습니다"
+
+
 @app.get("/api/devices")
 def get_devices(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
-    """List all network devices (auth required)"""
-    rows = db.execute(text("""
-        SELECT d.id, d.name, d.ip, d.type, d.owner_id, d.x, d.y, d.vlan_id,
-               v.code AS vlan_code, u.username AS owner_name
-        FROM devices d
-        LEFT JOIN vlans v ON v.id = d.vlan_id
-        LEFT JOIN users u ON u.id = d.owner_id
-        ORDER BY d.id
-    """)).fetchall()
-    return {"devices": [row_to_dict(r) for r in rows]}
+    """
+    Frontend loadDevices() 용: {vlans, devices, links}.
+    admin = 전체, 일반 사용자 = user_vlans 에 등록된 구역의 데이터만.
+    """
+    if current_user.get("role") == "admin":
+        vlan_rows = db.execute(text(
+            "SELECT id, code, name, cidr, color FROM vlans ORDER BY id"
+        )).fetchall()
+    else:
+        vlan_rows = db.execute(
+            text("""
+                SELECT v.id, v.code, v.name, v.cidr, v.color
+                FROM vlans v
+                JOIN user_vlans uv ON uv.vlan_id = v.id
+                WHERE uv.user_id = :uid
+                ORDER BY v.id
+            """),
+            {"uid": current_user["user_id"]},
+        ).fetchall()
+
+    vlan_ids = [r.id for r in vlan_rows]
+    if not vlan_ids:
+        return {"vlans": [], "devices": [], "links": []}
+
+    device_rows = db.execute(
+        text("""
+            SELECT d.id, d.name, d.ip, d.type, d.owner_id, d.x, d.y, d.vlan_id,
+                   v.code AS vlan_code, u.username AS owner
+            FROM devices d
+            JOIN vlans v ON v.id = d.vlan_id
+            LEFT JOIN users u ON u.id = d.owner_id
+            WHERE d.vlan_id IN :vlan_ids
+            ORDER BY d.id
+        """).bindparams(bindparam("vlan_ids", expanding=True)),
+        {"vlan_ids": vlan_ids},
+    ).fetchall()
+
+    device_ids = [r.id for r in device_rows]
+    link_rows = []
+    if device_ids:
+        link_rows = db.execute(
+            text("""
+                SELECT source_id, target_id FROM links
+                WHERE source_id IN :ids AND target_id IN :ids
+            """).bindparams(bindparam("ids", expanding=True)),
+            {"ids": device_ids},
+        ).fetchall()
+
+    return {
+        "vlans": [row_to_dict(r) for r in vlan_rows],
+        "devices": [row_to_dict(r) for r in device_rows],
+        "links": [row_to_dict(r) for r in link_rows],
+    }
 
 
 @app.post("/api/devices")
 def create_device(device: DeviceCreate, current_user: dict = Depends(require_admin), db: Session = Depends(get_db)):
     """Add a new network device (admin only)"""
+    name = device.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="장비 이름을 입력해 주세요")
+    ip = _clean_ip(device.ip)
+    dtype = _clean_type(device.type)
+    _check_xy(device.x, device.y)
+
     vlan = db.execute(
         text("SELECT id FROM vlans WHERE code = :code"), {"code": device.vlan_code}
     ).fetchone()
     if vlan is None:
         raise HTTPException(status_code=400, detail="Unknown vlan_code")
+
     try:
         result = db.execute(
             text("""
                 INSERT INTO devices (name, ip, type, owner_id, x, y, vlan_id)
                 VALUES (:name, :ip, :type, :owner_id, :x, :y, :vlan_id)
             """),
-            {"name": device.name, "ip": device.ip, "type": device.type,
+            {"name": name, "ip": ip, "type": dtype,
              "owner_id": device.owner_id or current_user["user_id"],
              "x": device.x, "y": device.y, "vlan_id": vlan[0]},
         )
         db.commit()
-    except IntegrityError:
+    except IntegrityError as e:
         db.rollback()
-        msg = str(e.orig)
-        if "ux_devices_ip" in msg or "Duplicate" in msg:
-            raise HTTPException(status_code=400, detail="이미 등록된 IP입니다")
-        raise HTTPException(status_code=400, detail="소유자 정보가 올바르지 않습니다")
+        raise HTTPException(status_code=400, detail=_integrity_detail(e))
     return {"id": result.lastrowid, "message": "Device added successfully"}
 
 
+@app.put("/api/devices/{device_id}")
+def update_device(
+    device_id: int,
+    payload: DeviceUpdate,
+    current_user: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Update a device (admin only). 보낸 필드만 수정됩니다."""
+    data = payload.model_dump(exclude_unset=True) if hasattr(payload, "model_dump") \
+        else payload.dict(exclude_unset=True)
+    if not data:
+        raise HTTPException(status_code=400, detail="변경할 내용이 없습니다")
+
+    if db.execute(text("SELECT id FROM devices WHERE id = :id"), {"id": device_id}).fetchone() is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    sets, params = [], {"id": device_id}
+
+    if "name" in data:
+        name = (data["name"] or "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="장비 이름을 입력해 주세요")
+        sets.append("name = :name"); params["name"] = name
+    if "ip" in data:
+        sets.append("ip = :ip"); params["ip"] = _clean_ip(data["ip"] or "")
+    if "type" in data:
+        sets.append("type = :type"); params["type"] = _clean_type(data["type"] or "")
+    if "vlan_code" in data:
+        vlan = db.execute(
+            text("SELECT id FROM vlans WHERE code = :code"), {"code": data["vlan_code"]}
+        ).fetchone()
+        if vlan is None:
+            raise HTTPException(status_code=400, detail="Unknown vlan_code")
+        sets.append("vlan_id = :vlan_id"); params["vlan_id"] = vlan[0]
+    if "owner_id" in data:
+        sets.append("owner_id = :owner_id"); params["owner_id"] = data["owner_id"]
+    if "x" in data or "y" in data:
+        x, y = data.get("x"), data.get("y")
+        _check_xy(x, y)
+        sets.append("x = :x"); params["x"] = x
+        sets.append("y = :y"); params["y"] = y
+
+    try:
+        db.execute(text(f"UPDATE devices SET {', '.join(sets)} WHERE id = :id"), params)
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=_integrity_detail(e))
+    return {"id": device_id, "message": "Device updated successfully"}
+
+
+@app.delete("/api/devices/{device_id}")
+def delete_device(
+    device_id: int,
+    current_user: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Delete a device (admin only). links / telemetry / alert_devices 는 FK CASCADE 로 함께 삭제됩니다."""
+    if db.execute(text("SELECT id FROM devices WHERE id = :id"), {"id": device_id}).fetchone() is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+    db.execute(text("DELETE FROM devices WHERE id = :id"), {"id": device_id})
+    db.commit()
+    return {"id": device_id, "message": "Device deleted successfully"}
+
+# ========================
+# 2-1. Links (device connections)
+# ========================
+class LinkPayload(BaseModel):
+    source_id: int
+    target_id: int
+ 
+ 
+@app.post("/api/links")
+def create_link(
+    payload: LinkPayload,
+    current_user: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Connect two devices (admin only). schema.sql 주석대로 자기 자신/중복(A-B, B-A)은 여기서 검사."""
+    a, b = payload.source_id, payload.target_id
+    if a == b:
+        raise HTTPException(status_code=400, detail="같은 장비끼리는 연결할 수 없습니다")
+ 
+    found = db.execute(
+        text("SELECT COUNT(*) FROM devices WHERE id IN :ids").bindparams(
+            bindparam("ids", expanding=True)
+        ),
+        {"ids": [a, b]},
+    ).scalar()
+    if found != 2:
+        raise HTTPException(status_code=404, detail="Device not found")
+ 
+    dup = db.execute(
+        text("""
+            SELECT 1 FROM links
+            WHERE (source_id = :a AND target_id = :b)
+               OR (source_id = :b AND target_id = :a)
+        """),
+        {"a": a, "b": b},
+    ).fetchone()
+    if dup:
+        raise HTTPException(status_code=400, detail="이미 연결되어 있는 장비입니다")
+ 
+    try:
+        db.execute(
+            text("INSERT INTO links (source_id, target_id) VALUES (:a, :b)"),
+            {"a": a, "b": b},
+        )
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="연결 정보가 올바르지 않습니다")
+    return {"message": "Link created successfully"}
+ 
+ 
+@app.delete("/api/links")
+def delete_link(
+    source_id: int,
+    target_id: int,
+    current_user: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Disconnect two devices (admin only). 방향(A-B / B-A)과 상관없이 삭제."""
+    result = db.execute(
+        text("""
+            DELETE FROM links
+            WHERE (source_id = :a AND target_id = :b)
+               OR (source_id = :b AND target_id = :a)
+        """),
+        {"a": source_id, "b": target_id},
+    )
+    db.commit()
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Link not found")
+    return {"message": "Link deleted successfully"}
+    
 # ========================
 # 3. Telemetry (table: telemetry)
 # ========================

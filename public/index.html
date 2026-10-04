@@ -4150,6 +4150,7 @@
                 if (targetVlan && targetVlan !== n.vlan) {
                     const zoneName = (vlanById(targetVlan) || {}).name || '';
                     n.vlan = targetVlan;
+                    syncDevice(d.key, { x: +n.x.toFixed(1), y: +n.y.toFixed(1), vlan_code: (vlanById(targetVlan) || {}).code });
                     buildNodeUI(); updateNodeUI(); lucide.createIcons();
                     renderVlanZones();
                     if (state.selected) selectNode(state.selected);
@@ -4160,6 +4161,7 @@
                     }
                 } else {
                     updateVlanZoneShapes(topoIntrinsicRect());
+                    syncDevice(d.key, { x: +n.x.toFixed(1), y: +n.y.toFixed(1) });
                     toast(`${n.name} 위치를 옮겼어요.`);
                 }
             }
@@ -4496,20 +4498,27 @@
             if (!from || !to) return;
             const tmp = from.value; from.value = to.value; to.value = tmp;
         }
-        function connectDevices() {
+        async function connectDevices() {
             if (!state.isAdmin) return;
             const a = $('link-from').value, b = $('link-to').value;
             if (!a || !b) { toast('연결할 두 장비를 선택해 주세요.'); return; }
             if (a === b) { toast('같은 장비끼리는 연결할 수 없어요.'); return; }
             if (!NODES[a] || !NODES[b]) return;
             if (edgeExists(a, b)) { toast('이미 연결되어 있는 장비예요.'); return; }
+            
+            if (!(await syncLink('add', a, b))) return;
+            if (!NODES[a] || !NODES[b] || edgeExists(a, b)) return;
+
             EDGES.push([a, b]);
             buildNodeUI(); updateNodeUI(); lucide.createIcons();
             if (state.selected) selectNode(state.selected);
             toast(`${NODES[a].name} ↔ ${NODES[b].name} 연결선이 추가됐어요.`);
         }
-        function disconnectEdge(a, b) {
+
+        async function disconnectEdge(a, b) {
             if (!state.isAdmin) return;
+            if (!(await syncLink('remove', a, b))) return;
+ 
             const idx = EDGES.findIndex(([x, y]) => x === a && y === b);
             if (idx !== -1) EDGES.splice(idx, 1);
             buildNodeUI(); updateNodeUI(); lucide.createIcons();
@@ -4657,12 +4666,16 @@
             }
         }
 
-        function quickConnectFromInspector() {
+        async function quickConnectFromInspector() {
             if (!state.isAdmin) return;
             const from = state.selected;
             const to = $('inspect-connect-target').value;
             if (!from || !to || !NODES[from] || !NODES[to] || from === to) return;
             if (edgeExists(from, to)) { toast('이미 연결되어 있는 장비예요.'); return; }
+
+            if (!(await syncLink('add', from, to))) return;
+            if (!NODES[from] || !NODES[to] || edgeExists(from, to)) return;
+            
             EDGES.push([from, to]);
             buildNodeUI(); updateNodeUI(); lucide.createIcons();
             selectNode(from);
@@ -4769,9 +4782,16 @@
             refreshVlanSelects();
         }
 
-        function moveNodeVlan(key, vlanId) {
+        async function moveNodeVlan(key, vlanId) {
             if (!state.isAdmin) return;
             if (!NODES[key]) return;
+            const v = vlanById(vlanId);
+            if (!v) return;
+
+            const ok = await syncDevice(key, { vlan_code: v.code });
+            if (!ok) { renderVlanZones(); return; }   // 실패하면 드롭다운을 원래 값으로 되돌림
+            if (!NODES[key]) return;
+            
             NODES[key].vlan = vlanId;
             buildNodeUI();
             updateNodeUI();
@@ -4978,14 +4998,32 @@
             deleteDevice(state.selected);
         }
 
-        function deleteDevice(key) {
+        async function deleteDevice(key) {
             if (!state.isAdmin || !NODES[key]) return;
+            const n0 = NODES[key];
+
+            if (IS_REAL_ENV && n0.dbId) {
+                if (!confirm(`'${n0.name}' 장비를 DB에서 삭제할까요?\n연결선과 수집된 텔레메트리도 함께 삭제됩니다.`)) return;
+                try {
+                    const res = await apiFetch(`/api/devices/${n0.dbId}`, { method: 'DELETE' });
+                    if (!res.ok) {
+                        const err = await res.json().catch(() => ({}));
+                        toast(`삭제 실패: ${formatApiError(err.detail)}`);
+                        return;
+                    }
+                } catch (e) {
+                    toast(`삭제 실패: ${e.message}`);
+                    return;
+                }
+                if (!NODES[key]) return;
+            }
+
             const name = NODES[key].name;
             delete NODES[key];
             const idx = NODE_KEYS.indexOf(key);
             if (idx !== -1) NODE_KEYS.splice(idx, 1);
             for (let i = EDGES.length - 1; i >= 0; i--) { if (EDGES[i][0] === key || EDGES[i][1] === key) EDGES.splice(i, 1); }
-
+ 
             buildNodeUI();
             renderVlanZones();
             if (state.isAdmin) renderDevices();
@@ -5011,8 +5049,10 @@
             $('device-edit-modal').classList.add('show');
         }
         function closeDeviceEditModal() { $('device-edit-modal').classList.remove('show'); editingDeviceKey = null; }
-        function saveDeviceEdit() {
-            if (!editingDeviceKey || !NODES[editingDeviceKey]) { closeDeviceEditModal(); return; }
+        
+        async function saveDeviceEdit() {
+            const key = editingDeviceKey;
+            if (!key || !NODES[key]) { closeDeviceEditModal(); return; }
             const name = $('edit-device-name').value.trim();
             const ipInput = $('edit-device-ip');
             const ip = ipInput.value.trim();
@@ -5021,8 +5061,13 @@
             clearIpError(ipInput);
 
             const typeVal = $('edit-device-type').value;
+
+            const ok = await syncDevice(key, { name, ip, type: typeVal });
+            if (!ok) return;
+            if (!NODES[key]) { closeDeviceEditModal(); return; }
+
             const dt = DEVICE_TYPES[typeVal] || DEVICE_TYPES.server;
-            const n = NODES[editingDeviceKey];
+            const n = NODES[key];
             n.name = name; n.short = name.length > 10 ? name.slice(0, 9) + '…' : name;
             n.ip = ip; n.type = dt.typeLabel; n.icon = dt.icon;
             n.owner = $('edit-device-owner').value.trim() || n.owner;
@@ -5778,7 +5823,149 @@
                 select.appendChild(option);
             });
         }
+        function formatApiError(detail) {
+            if (!detail) return '알 수 없는 오류';
+            if (typeof detail === 'string') return detail;
+            if (Array.isArray(detail)) return detail.map(x => `${(x.loc || []).slice(1).join('.')}: ${x.msg}`).join(', ');
+            return JSON.stringify(detail);
+        }
+        /* 실제 환경에서만 PUT 호출. 성공하면 true, 실패하면 토스트 후 false */
+        async function syncDevice(key, fields) {
+            if (!IS_REAL_ENV) return true;
+            const n = NODES[key];
+            if (!n || !n.dbId) return true;
+            try {
+                 const res = await apiFetch(`/api/devices/${n.dbId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(fields)
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    toast(`저장 실패: ${formatApiError(err.detail)}`);
+                    return false;
+                }
+                return true;
+            } catch (e) {
+                toast(`저장 실패: ${e.message}`);
+                return false;
+            }
+        }
+        async function syncLink(action, a, b) {
+            if (!IS_REAL_ENV) return true;
+            const na = NODES[a], nb = NODES[b];
+            if (!na || !nb || !na.dbId || !nb.dbId) return true;
+            try {
+                let res;
+                if (action === 'add') {
+                    res = await apiFetch('/api/links', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ source_id: na.dbId, target_id: nb.dbId })
+                    });
+                } else {
+                    res = await apiFetch(`/api/links?source_id=${na.dbId}&target_id=${nb.dbId}`, { method: 'DELETE' });
+                }
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    oast(`연결 저장 실패: ${formatApiError(err.detail)}`);
+                    return false;
+                }
+                return true;
+            } catch (e) {
+                toast(`연결 저장 실패: ${e.message}`);
+                return false;
+            }
+        }
 
+        async function loadDevices() {
+            let data;
+            try {
+                const res = await apiFetch('/api/devices', { cache: 'no-store' });
+                if (!res.ok) {
+                   const err = await res.json().catch(() => ({}));
+                   toast(`장비 목록을 불러오지 못했어요: ${err.detail || res.status}`);
+                   return;
+                }
+                data = await res.json();
+            } catch (e) {
+                console.warn('loadDevices 실패:', e);
+                return;
+            }
+
+            const dbVlans = data.vlans || [];
+            const dbDevices = data.devices || [];
+            const dbLinks = data.links || [];
+            /* 1) 구역: 로그인 2단계에서 쓴 기존 id를 code 기준으로 유지 (state.vlanView가 깨지지 않게) */
+            const prevVlans = vlans.slice();
+            vlans.length = 0;
+            const vlanIdByCode = {};
+            dbVlans.forEach(v => {
+                const code = String(v.code);
+                const prev = prevVlans.find(o => String(o.code) === code);
+                const id = prev ? prev.id : 'vlan-' + v.id;
+                vlanIdByCode[code] = id;
+                vlans.push({ id, name: v.name, color: v.color || '#a78bfa', cidr: v.cidr || '', code });
+            });
+            
+            /* 2) 장비: 기존 데이터를 비우고 DB 값으로 다시 채움 */
+            Object.keys(NODES).forEach(k => delete NODES[k]);
+            NODE_KEYS.length = 0;
+            EDGES.length = 0;
+ 
+            const keyByDbId = {};
+            dbDevices.forEach(d => {
+                const key = 'd' + d.id;
+                keyByDbId[d.id] = key;
+                const dt = DEVICE_TYPES[d.type] || DEVICE_TYPES.server;
+                const cpu = Math.round(10 + Math.random() * 20);   // 텔레메트리 수신 전 임시값
+                const ram = Math.round(15 + Math.random() * 25);
+                const unplaced = d.x == null || d.y == null || (d.x === 0 && d.y === 0);
+                NODES[key] = {
+                    dbId: d.id,
+                    name: d.name,
+                    short: d.name.length > 10 ? d.name.slice(0, 9) + '…' : d.name,
+                    ip: d.ip,
+                    type: dt.typeLabel,
+                    owner: d.owner || '미지정',
+                    cpu, ram, lc: cpu, lr: ram, lv: 'ok',
+                    status: '● Online',
+                    icon: dt.icon,
+                    vlan: vlanIdByCode[String(d.vlan_code)] || (vlans[0] && vlans[0].id),
+                    x: unplaced ? null : d.x,
+                    y: unplaced ? null : d.y
+                };
+                NODE_KEYS.push(key);
+            });
+ 
+            /* 좌표가 없는(0,0 포함) 장비는 빈 자리를 찾아 배치 */
+            NODE_KEYS.forEach(k => {
+                if (NODES[k].x == null) {
+                    const p = autoLayoutPosition();
+                    NODES[k].x = p.x; NODES[k].y = p.y;
+                }
+            });
+            relaxLayout();
+ 
+            /* 3) 연결선 */
+            dbLinks.forEach(l => {
+                const a = keyByDbId[l.source_id], b = keyByDbId[l.target_id];
+                if (a && b && !edgeExists(a, b)) EDGES.push([a, b]);
+            });
+ 
+            /* 4) 화면 갱신 */
+            if (!NODES[state.selected]) state.selected = NODE_KEYS[0] || null;
+            if (!vlanById(state.vlanView)) state.vlanView = vlans[0] ? vlans[0].id : null;
+ 
+           buildNodeUI();
+           renderVlanZones();
+           refreshVlanSelects();
+           if (state.isAdmin) renderDevices();
+           updateNodeUI();
+           if (state.selected) selectNode(state.selected);
+           $('stat-devices').textContent = `${NODE_KEYS.length} / ${NODE_KEYS.length} Online`;
+           lucide.createIcons();
+        }
         async function submitAddDevice(e) {
             e.preventDefault();
             if (!state.isAdmin) {
