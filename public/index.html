@@ -1212,7 +1212,12 @@
         .tnode.sel {
             box-shadow: 0 0 0 3px color-mix(in srgb, var(--lv) 28%, transparent), 0 10px 28px color-mix(in srgb, var(--lv) 24%, transparent);
         }
-
+        .tnode svg {
+            position: static !important;
+            width: 16px !important;
+            height: 16px !important;
+            flex-shrink: 0;
+        }
         .tnode b {
             font-size: 12px;
         }
