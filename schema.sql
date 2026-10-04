@@ -156,18 +156,6 @@ CREATE TABLE alert_devices (
         ON UPDATE CASCADE ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- ---------------------------------------------------------------------
--- 7. 편의 뷰 : 장비별 최신 텔레메트리
--- ---------------------------------------------------------------------
-CREATE VIEW v_latest_telemetry AS
-SELECT t.device_id, t.cpu_usage, t.ram_usage, t.traffic_in_mbps, t.packet_loss, t.`timestamp`
-FROM devices d
-JOIN telemetry t
-  ON t.id = (SELECT t2.id
-               FROM telemetry t2
-              WHERE t2.device_id = d.id
-              ORDER BY t2.`timestamp` DESC, t2.id DESC
-              LIMIT 1);
 
 -- ---------------------------------------------------------------------
 -- 8. 초기 기본 데이터 삽입
@@ -248,3 +236,16 @@ JOIN telemetry t
        ORDER BY t2.timestamp DESC, t2.id DESC
        LIMIT 1
      );
+-- 초기 user_vlans 권한 데이터
+INSERT INTO user_vlans (user_id, vlan_id, access_level) VALUES
+(1, 1, 'admin'),    -- test: Backbone
+(1, 2, 'admin'),    -- test: VLAN1
+(1, 3, 'admin'),    -- test: VLAN2
+(2, 2, 'view'),     -- user1: VLAN1
+(2, 3, 'view');     -- user1: VLAN2
+
+-- 초기 endpoint_events 샘플 데이터
+INSERT INTO endpoint_events (action, process_name, pid, reason) VALUES
+('blocked', 'malware.exe', 1234, 'Signature match: Trojan.Generic'),
+('allowed', 'notepad.exe', 5678, 'Whitelisted process'),
+('blocked', 'cmd.exe', 9999, 'Suspicious C&C communication attempt');
