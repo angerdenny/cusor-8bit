@@ -390,6 +390,65 @@ def get_devices(current_user: dict = Depends(get_current_user), db: Session = De
         "links": [row_to_dict(r) for r in link_rows],
     }
 
+@app.get("/api/users")
+def get_users(current_user: dict = Depends(get_current_user)):
+    """사용자 목록 반환"""
+    with engine.begin() as conn:
+        rows = conn.execute(text("SELECT id, username FROM users")).fetchall()
+        return {"users": [{"id": r[0], "username": r[1]} for r in rows]}
+
+# ========================
+# 2. VLAN CRUD
+# ========================
+
+class VLANCreate(BaseModel):
+    name: str
+    code: str
+    cidr: str
+    color: str
+
+@app.get("/api/vlans")
+def get_vlans(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    """모든 VLAN 조회"""
+    vlans = db.execute(text("SELECT id, name, code, cidr, color FROM vlans ORDER BY id")).fetchall()
+    return {"vlans": [row_to_dict(r) for r in vlans]}
+
+@app.post("/api/vlans")
+def create_vlan(vlan: VLANCreate, current_user: dict = Depends(require_admin), db: Session = Depends(get_db)):
+    """새 VLAN 생성 (admin only)"""
+    try:
+        result = db.execute(
+            text("INSERT INTO vlans (name, code, cidr, color) VALUES (:name, :code, :cidr, :color)"),
+            {"name": vlan.name, "code": vlan.code, "cidr": vlan.cidr, "color": vlan.color}
+        )
+        db.commit()
+        return {"id": result.lastrowid, "message": "VLAN created successfully"}
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=_integrity_detail(e))
+
+@app.put("/api/vlans/{vlan_id}")
+def update_vlan(vlan_id: int, vlan: VLANCreate, current_user: dict = Depends(require_admin), db: Session = Depends(get_db)):
+    """VLAN 수정 (admin only)"""
+    if db.execute(text("SELECT id FROM vlans WHERE id = :id"), {"id": vlan_id}).fetchone() is None:
+        raise HTTPException(status_code=404, detail="VLAN not found")
+    
+    db.execute(
+        text("UPDATE vlans SET name = :name, code = :code, cidr = :cidr, color = :color WHERE id = :id"),
+        {"id": vlan_id, "name": vlan.name, "code": vlan.code, "cidr": vlan.cidr, "color": vlan.color}
+    )
+    db.commit()
+    return {"id": vlan_id, "message": "VLAN updated successfully"}
+
+@app.delete("/api/vlans/{vlan_id}")
+def delete_vlan(vlan_id: int, current_user: dict = Depends(require_admin), db: Session = Depends(get_db)):
+    """VLAN 삭제 (admin only)"""
+    if db.execute(text("SELECT id FROM vlans WHERE id = :id"), {"id": vlan_id}).fetchone() is None:
+        raise HTTPException(status_code=404, detail="VLAN not found")
+    
+    db.execute(text("DELETE FROM vlans WHERE id = :id"), {"id": vlan_id})
+    db.commit()
+    return {"id": vlan_id, "message": "VLAN deleted successfully"}
 
 @app.post("/api/devices")
 def create_device(device: DeviceCreate, current_user: dict = Depends(require_admin), db: Session = Depends(get_db)):
