@@ -3341,6 +3341,7 @@
         const lockDurations = { 5: 30, 6: 60, 7: 180, 8: 600, 9: 1200 };
         async function apiFetch(url, options = {}) {
             const token = sessionStorage.getItem('token');
+
             const headers = { ...(options.headers || {}) };
             if (token) headers['Authorization'] = `Bearer ${token}`;
             const res = await fetch(url, { ...options, headers });
@@ -3504,6 +3505,8 @@
             renderConnections();
             switchView('overview');
             loadHeaderUserInfo();
+            loadUsers();
+            loadDevices();
             if (IS_REAL_ENV) loadDevices();
         }
 
@@ -5002,11 +5005,21 @@
             if (IS_REAL_ENV) {
                 const v = vlanById(vlanId);
                 if (!v) { toast('소속 구역을 선택해 주세요.'); return null; }
+
                 try {
+                    const owner_id = getUserIdByName(owner);
                      const res = await apiFetch('/api/devices', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name, ip, type: typeVal, vlan_code: v.code, x: pos.x, y: pos.y })
+                        body: JSON.stringify({
+                             name,
+                            ip,
+                            type: typeVal,
+                            vlan_code: v.code, 
+                            owner_id: owner_id,
+                            x: pos.x,
+                            y: pos.y 
+                        })
                     });
                     if (!res.ok) {
                         const err = await res.json().catch(() => ({}));
@@ -6085,6 +6098,18 @@
            lucide.createIcons();
         }
 
+        async function loadUsers() {
+            try {
+                const res = await apiFetch('/api/users');
+                if (!res.ok) return; 
+                const data = await res.json();
+                window.users = data.users;
+                console.log('Users loaded:', window.users);
+            } catch (e) {
+                console.error('Failed to load users:', e);
+            }
+        }
+
         async function updateTelemetry() {
             const data = await apiFetch('/api/telemetry/latest').then(r => r.json());
             
@@ -6156,6 +6181,7 @@
                 $('add-device-vlan').value = state.currentVlan.code || '';
                 closeModal('device-add-modal');
                 await loadDevices();
+                await loadUsers();
                 
             } catch (e) {
                 toast(`오류: ${e.message}`);
@@ -6165,7 +6191,15 @@
         document.addEventListener('DOMContentLoaded', () => {
             setupAddDeviceForm();
         });
-
+        // ========== 담당자 ID 매핑 ==========
+        function getUserIdByName(username) {
+            if (!window.users || !Array.isArray(window.users)) {
+                console.warn('window.users 로드 안 됨');
+                return null;
+            }
+            const user = window.users.find(u => u.username === username);
+            return user ? user.id : null;
+        }
         
     </script>
 </body>
