@@ -3506,6 +3506,8 @@
             switchView('overview');
             loadHeaderUserInfo();
             loadUsers();
+            loadAlerts();
+            startAlertsPoll();
             loadDevices();
             if (IS_REAL_ENV) loadDevices();
         }
@@ -3676,29 +3678,12 @@
         ];
 
         let alertSeq = 0;
-        const alerts = [
-            {
-                id: ++alertSeq, lv: 'crit', title: '[CRITICAL] 장애 위험 감지', msg: 'Distribution SW 트래픽 급증 (AI 예측 확률 87.4%)', time: '14:02:11',
-                cause: '분산 스위치 구간의 트래픽이 짧은 시간 안에 급격히 늘어나면서 AI 모델이 장애 전조 패턴으로 판단했어요.',
-                action: '해당 스위치의 상위 링크 대역폭과 연결 세션 수를 확인하세요.', affected: ['Dist-SW-01']
-            },
-            {
-                id: ++alertSeq, lv: 'warn', title: 'Dist-SW-01 CPU 고부하', msg: 'CPU 82% — 임계치(70%)를 넘었어요.', time: '13:47:05',
-                cause: '분산 스위치의 패킷 처리량이 늘어나며 CPU 점유율이 설정된 경고 임계치(70%)를 넘었어요.',
-                action: '트래픽이 특정 포트에 몰려 있는지 확인하고, 필요하면 부하를 분산하세요.', affected: ['Dist-SW-01']
-            },
-            {
-                id: ++alertSeq, lv: 'info', title: 'AI 엔진 정상 기동', msg: '이상 감지 모델이 로드되어 실시간 분석을 시작했어요.', time: '13:41:30',
-                cause: '시스템이 시작되며 AI 이상 감지 모델이 정상적으로 로드되었어요.',
-                action: '별도 조치가 필요하지 않아요. 계속 모니터링을 진행하세요.', affected: []
-            }
-        ];
-
+        
         if (IS_REAL_ENV) {
             NODE_KEYS.forEach(k => delete NODES[k]);
             NODE_KEYS.length = 0;
             EDGES.length = 0;
-            alerts.length = 0;
+            window.alerts = [];
             alertSeq = 0;
         }
 
@@ -3731,7 +3716,7 @@
                 ? '기기별 소유자 할당과 DB 백업 기록을 확인할 수 있어요 (보기 전용)'
                 : t[1];
             if (name === 'vlan') { const zv = vlanById(state.vlanView); if (zv) $('page-title').textContent = `${zv.name} 구역`; }
-            if (name === 'logs') { state.unread = 0; updateBadge(); }
+            if (name === 'logs') { state.unread = 0; updateBadge(); markAlertsRead(); if (typeof renderAlertList === 'function') renderAlertList(); }
             if (name === 'devices') { renderDevices(); renderBackups(); }
             if (name === 'vlan') { renderVlanView(); }
             if (name === 'topology') { buildNodeUI(); updateNodeUI(); lucide.createIcons(); } // 이 시점에야 실제 크기를 알 수 있어 구역 도형을 다시 계산
@@ -5225,9 +5210,9 @@
             return a;
         }
         function renderAlerts() {
-            $('alert-mini').innerHTML = alerts.slice(0, 4).map(alertHtml).join('');
-            const list = alerts.filter(a => state.logFilter === 'all' || a.lv === state.logFilter);
-            $('alert-full').innerHTML = list.length ? list.map(alertHtml).join('') : '<p class="text-sm t-dim py-6 text-center">해당하는 로그가 없어요.</p>';
+            const alertList = (window.alerts || []);
+            const list = alertList.filter(a => state.logFilter == 'all' || a.lv === state.logFilter);
+            $('alert-full').innerHTML = list.length ? list.map(alertHtml).join('') : '<p class="text-sm t-dim py-6 text-center">이용 중인 로그가 없어요.</p>';
         }
 
         /* ═════════ 6-1. 알림 상세 팝업 ═════════ */
@@ -5258,9 +5243,11 @@
             renderAlerts();
         }
         function updateBadge() {
-            const b = $('log-badge');
-            b.textContent = state.unread > 9 ? '9+' : state.unread;
-            b.classList.toggle('hide', state.unread === 0);
+            const b = $('#log-badge');
+            const dbUnread = (window.alerts || []).filter(a => a.id > lastSeenAlertId && a.lv !== 'info').length;
+            const total = dbUnread + (state.unread || 0);
+            b.textContent = total > 9 ? '9+' : total;
+            b.classList.toggle('hide', total === 0);
         }
 
         /* ═════════ 6-2. 엔드포인트 프로세스 감시 ═════════ */
@@ -6108,6 +6095,51 @@
             } catch (e) {
                 console.error('Failed to load users:', e);
             }
+        }
+        // ========== Alerts 로드 ==========
+        const ALERT_ORDER = { crit: 0, warn: 1, info: 2 };
+        let lastSeenAlertId = 0;
+
+        async function loadAlerts() {
+            try {
+                const res = await apiFetch('/api/alerts');
+                if (!res.ok) return;
+                const data = await res.json();
+                const list = (data.alerts || []).slice().sort((a, b) =>
+                (ALERT_ORDER[a.lv] ?? 9) - (ALERT_ORDER[b.lv] ?? 9) || b.id - a.id
+                );
+                window.alerts = list;
+                updateAlertBadge();
+                if (typeof renderAlertList === 'function') renderAlertList();
+            } catch (err) {
+                console.warn('Alerts load failed:', err);
+            }
+        }
+
+        function updateAlertBadge() {
+            const badge = $('log-badge');
+            if (!badge) return;
+            const unread = (window.alerts || []).filter(a => a.id > lastSeenAlertId && a.lv !== 'info').length;
+            badge.textContent = unread;
+            badge.classList.toggle('hide', unread === 0);
+        }
+
+        function markAlertsRead() {
+            const ids = (window.alerts || []).map(a => a.id);
+            lastSeenAlertId = ids.length ? Math.max(...ids) : lastSeenAlertId;
+            updateAlertBadge();
+        }
+
+        // ========== Alerts 실시간 갱신 ==========
+        let alertsPollInterval = null;
+   
+        function startAlertsPoll() {
+        if (alertsPollInterval) clearInterval(alertsPollInterval);
+        alertsPollInterval = setInterval(loadAlerts, 5000);  // 5초마다
+        }
+
+        function stopAlertsPoll() {
+            if (alertsPollInterval) clearInterval(alertsPollInterval);
         }
 
         async function updateTelemetry() {
