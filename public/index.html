@@ -3962,11 +3962,11 @@
                 if (!geo) return '';
                 const offsetY = geo.radiusPx + 18;
 
-                return `<g class="vzone" id="vz-${v.id}" pointer-events="none">
-                    <ellipse cx="${geo.cxPercent}%" cy="${geo.cyPercent}%" rx="${geo.rxPercent}%" ry="${geo.ryPercent}%" fill="${v.color}" fill-opacity="0.10" stroke="${v.color}" stroke-opacity="0.55" style="stroke-width:calc(1.5px * var(--topo-node-scale, 1));" stroke-dasharray="7 6"/>
-                    <text x="${geo.cxPercent}%" y="${geo.cyPercent}%" dy="calc(${offsetY}px * var(--topo-node-scale, 1))" fill="${v.color}" font-weight="700" text-anchor="middle" style="font-size:calc(11px * var(--topo-node-scale, 1));paint-order:stroke;stroke:var(--bg);stroke-width:calc(3px * var(--topo-node-scale, 1));">${v.name}</text>
-                </g>`;
-            }).join('');
+                 return `<g class="vzone" id="vz-${v.id}" pointer-events="none">
+                        <ellipse cx="${geo.cxPercent}%" cy="${geo.cyPercent}%" rx="${geo.rxPercent}%" ry="${geo.ryPercent}%" fill="${v.color}" fill-opacity="0.10" stroke="${v.color}" stroke-opacity="0.55" style="stroke-width:calc(1.5px * var(--topo-node-scale, 1));" stroke-dasharray="7 6"/>
+                        <text x="${geo.cxPercent}%" y="${geo.cyPercent}%" fill="${v.color}" font-weight="700" text-anchor="middle" style="font-size:calc(11px * var(--topo-node-scale, 1));paint-order:stroke;stroke:var(--bg);stroke-width:calc(3px * var(--topo-node-scale, 1));transform: translateY(calc(${offsetY}px * var(--topo-node-scale, 1)));">${v.name}</text>
+                    </g>`;
+                }).join('');
         } 
 
         /* 3. 드래그 중 갱신 함수 (updateVlanZoneShapes) */
@@ -5244,6 +5244,7 @@
         }
         function updateBadge() {
             const b = $('#log-badge');
+            if (!b) return;
             const dbUnread = (window.alerts || []).filter(a => a.id > lastSeenAlertId && a.lv !== 'info').length;
             const total = dbUnread + (state.unread || 0);
             b.textContent = total > 9 ? '9+' : total;
@@ -6164,7 +6165,8 @@
 
         setInterval(updateTelemetry, 5000);
         
-    redrawNetwork();
+    //redrawNetwork();
+    async function submitAddDevice(e) {
         async function submitAddDevice(e) {
             e.preventDefault();
             if (!state.isAdmin) {
@@ -6232,7 +6234,7 @@
             const user = window.users.find(u => u.username === username);
             return user ? user.id : null;
         }
-        
+    }
     </script>
 </body>
 
