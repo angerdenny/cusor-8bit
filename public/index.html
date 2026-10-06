@@ -2344,6 +2344,152 @@
             font-size: 0.75rem;
             font-weight: 600;
         }
+
+        /* Device chip styling */
+        .device-chip {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .device-chip:hover {
+            background: var(--glass-strong);
+            border-color: var(--cyan);
+            transform: translateY(-2px);
+        }
+        
+        .device-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text);
+            word-break: break-word;
+        }
+        
+        .device-ip {
+            font-size: 11px;
+            color: var(--muted);
+            font-family: monospace;
+        }
+        
+        .device-metrics {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .metric-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .metric-label {
+            font-size: 11px;
+            color: var(--muted);
+            min-width: 35px;
+            font-weight: 500;
+        }
+        
+        .metric-value {
+            font-size: 16px;
+            font-weight: 700;
+            font-family: monospace;
+            min-width: 45px;
+        }
+        
+        .metric-bar {
+            flex: 1;
+            height: 8px;
+            background: var(--track);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .metric-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        
+        .metric-bar-fill.cpu {
+            background: linear-gradient(90deg, #818cf8 0%, #f97316 100%);
+        }
+        
+        .metric-bar-fill.ram {
+            background: linear-gradient(90deg, #22d3ee 0%, #8b5cf6 100%);
+        }
+        
+        .device-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-top: 4px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-dot.online {
+            background: var(--green);
+        }
+        
+        .status-dot.offline {
+            background: var(--red);
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Tab switching */
+        .tab-btn {
+            color: var(--muted);
+            font-weight: 500;
+            transition: all 0.2s;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            padding: 8px 16px;
+        }
+        
+        .tab-btn.active {
+            color: var(--cyan);
+            border-bottom-color: var(--cyan);
+        }
+        
+        .tab-btn:hover {
+            color: var(--text);
+        }
+         
+        /* Dashboard content fade transition */
+        #zone-dashboard-content,
+        #root-dashboard-content {
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        #zone-dashboard-content.hide,
+        #root-dashboard-content.hide {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+        #zone-dashboard-content,
+        #root-dashboard-content {
+            opacity: 1;
+            visibility: visible;
+        }
     </style>
 </head>
 
@@ -2524,6 +2670,19 @@
                     </div>
                 </div>
             </header>
+            
+            <!-- 대시보드 탭: 구역별 보기 / 전체 통합 보기 -->
+            <div class="flex items-center gap-2 mb-4" style="position: sticky; top: 0; z-index: 10; background: var(--bg); padding: 12px 0; border-bottom: 2px solid var(--border); backdrop-filter: blur(10px);">
+                <button id="tab-zone-dashboard" class="tab-btn active" onclick="switchDashboardTab('zone')" style="padding: 8px 16px; border-bottom: 2px solid transparent; cursor: pointer; border-bottom-color: var(--cyan);">
+                    📍 구역별 보기
+                </button>
+                <button id="tab-root-dashboard" class="tab-btn" onclick="switchDashboardTab('root')" style="padding: 8px 16px; border-bottom: 2px solid transparent; cursor: pointer;">
+                    🌐 전체 통합 분석   
+                </button>
+            </div>
+
+            <!-- 구역별 대시보드 (기존) -->
+            <div id="zone-dashboard-content">
 
             <!-- ───── VIEW: 대시보드 ───── -->
             <section class="view active" data-view="overview">
@@ -2620,16 +2779,42 @@
                         </div>
                     </div>
                 </div>
+            </div>
 
                 <div class="card mt-5">
-                    <div class="flex items-center justify-between mb-3">
-                        <h2 class="ctitle"><i data-lucide="server" class="w-4 h-4 c-indigo"></i>장비 상태 요약</h2>
-                        <span class="text-xs t-dim">장비를 누르면 토폴로지에서 상세 진단을 볼 수 있어요</span>
+                    <div class="flex items-center justify-between mb-4"></div>
+                      <h2 class="ctitle"><i data-lucide="server" class="w-4 h-4 c-indigo"></i>장비 상태 요약</h2>
+                      <span class="text-xs t-dim">장비를 누르면 토폴로지에서 상세 진단을 볼 수 있어요</span>
                     </div>
-                    <div id="node-chips" class="grid gap-3"
-                        style="grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));"></div>
+                    <div id="node-chips" class="grid gap-4" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));"></div>
                 </div>
             </section>
+            <!-- 전체 통합 대시보드 (신규) -->
+            <div id="root-dashboard-content" class="hide">
+                <!-- 전체 구역 통계 -->
+                <div class="stats" id="root-stats-container">
+                    <!-- 데이터 로드 중... -->
+                </div>
+
+                <!-- 구역별 상세 정보 -->
+                <div class="card mt-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="ctitle"><i data-lucide="network" class="w-4 h-4 c-indigo"></i>구역별 상세 분석</h2>
+                        <span class="credit">전체 시스템</span>
+                    </div>
+                    <div id="root-zone-details" class="grid gap-3" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));"></div>
+                </div>
+
+                <!-- 전체 경고 피드 -->
+                <div class="card mt-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="ctitle"><i data-lucide="alert-circle" class="w-4 h-4 c-red"></i>전체 경고 피드</h2>
+                        <button class="text-xs c-indigo font-semibold" onclick="switchView('logs')">더보기</button>
+                    </div>
+                    <div id="root-alerts-container" class="grid gap-2"></div>
+                </div>
+            </div>
+            </div>
 
             <!-- ───── VIEW: 토폴로지 ───── -->
             <section class="view" data-view="topology">
@@ -3031,6 +3216,27 @@
                         <span class="text-xs t-dim">백엔드 연동 전, 화면이 어떻게 동작할지 미리 보여주는 버튼이에요</span>
                     </div>
                 </div>
+                
+            <!-- ───── Device Enrollment Modal ───── -->
+            <div id="enrollment-modal" class="modal hide">
+                <div class="modal-bg" onclick="closeModal('enrollment-modal')"></div>
+                <div class="modal-box">
+                    <div class="modal-head">
+                        <h3>🔌 새 기기 감지 및 연동</h3>
+                        <button class="close-btn" onclick="closeModal('enrollment-modal')">✕</button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-sm t-muted mb-4">네트워크에서 감지된 기기를 시스템에 추가하세요.</p>
+                        <div id="pending-devices-list" class="grid gap-3">
+                            <p class="text-xs t-dim">감지된 기기 로딩 중...</p>
+                        </div>
+                    </div>
+                    <div class="modal-foot">
+                        <button class="btn" onclick="closeModal('enrollment-modal')">닫기</button>
+                        <button id="enroll-all-btn" class="btn primary hide" onclick="enrollAllPending()">모두 연동</button>
+                    </div>
+                </div>
+            </div>
             </section>
 
             <!-- ───── VIEW: AI 가이드 ───── -->
@@ -3578,6 +3784,192 @@
                 return true;
             } catch (e) { return false; }
         }
+        // ========================
+        // Dashboard Tab Switching & Root Overview
+        // ========================
+        let currentDashboardTab = 'zone';
+        
+        function switchDashboardTab(tab) {
+            currentDashboardTab = tab;
+    
+            // Tab 버튼 스타일 변경
+            document.getElementById('tab-zone-dashboard').classList.toggle('active', tab === 'zone');
+            document.getElementById('tab-root-dashboard').classList.toggle('active', tab === 'root');
+    
+            // 탭 내용 표시
+            document.getElementById('zone-dashboard-content').classList.toggle('hide', tab !== 'zone');
+            document.getElementById('root-dashboard-content').classList.toggle('hide', tab !== 'root');
+    
+            if (tab === 'root') {
+                loadRootDashboard();
+            }
+        }
+
+        async function loadRootDashboard() {
+            try {
+                const token = sessionStorage.getItem('access_token');
+                const res = await fetch('/api/dashboard/overview', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+        
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+        
+                renderRootDashboard(data);
+            } catch (err) {
+                console.error('Root dashboard load error:', err);
+                showToast(`전체 분석 로드 실패: ${err.message}`, 'error');
+            }
+        }  
+
+        function renderRootDashboard(data) {
+            const { summary, zone_stats, recent_alerts } = data;
+    
+            // 통계 카드
+            const statsHTML = `
+                <div class="card lift stat accent">
+                    <div class="ibadge g-glass"><i data-lucide="network" class="w-5 h-5"></i></div>
+                    <p class="label">전체 구역 수</p>
+                    <h3 class="value mono">${summary.total_zones}</h3>
+                </div>
+                <div class="card lift stat">
+                    <div class="ibadge g-indigo"><i data-lucide="server" class="w-5 h-5"></i></div>
+                    <p class="label">전체 기기 수</p>
+                    <h3 class="value mono">${summary.total_devices}</h3>
+                </div>
+                    <div class="card lift stat">
+                    <div class="ibadge g-orange"><i data-lucide="cpu" class="w-5 h-5"></i></div>
+                    <p class="label">평균 CPU 사용률</p>
+                    <h3 class="value mono">${summary.avg_cpu.toFixed(1)}%</h3>
+                </div>
+                <div class="card lift stat">
+                    <div class="ibadge g-purple"><i data-lucide="memory-stick" class="w-5 h-5"></i></div>
+                    <p class="label">평균 메모리 사용률</p>
+                    <h3 class="value mono">${summary.avg_ram.toFixed(1)}%</h3>
+                </div>
+            `;
+    
+            document.getElementById('root-stats-container').innerHTML = statsHTML;
+            lucide.createIcons();
+    
+            // 구역별 상세
+            const zoneDetailsHTML = zone_stats.map((zone, idx) => `
+                 <div class="card">
+                    <h3 class="ctitle mb-3">${zone.zone_name} (${zone.zone_code})</h3>
+                    <div class="grid gap-2 text-sm">
+                        <div class="flex justify-between">
+                            <span class="t-muted">기기 수:</span>
+                            <span class="font-semibold">${zone.device_count}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="t-muted">평균 CPU:</span>
+                            <span class="font-semibold">${zone.avg_cpu.toFixed(1)}%</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="t-muted">평균 RAM:</span>
+                            <span class="font-semibold">${zone.avg_ram.toFixed(1)}%</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="t-muted">총 트래픽:</span>
+                            <span class="font-semibold">${zone.total_traffic.toFixed(0)} Mbps</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+    
+            document.getElementById('root-zone-details').innerHTML = zoneDetailsHTML || '<p class="text-xs t-dim">구역 데이터 없음</p>';
+    
+            // 경고
+            const alertsHTML = recent_alerts.slice(0, 5).map(a => `
+                <div class="alert-item" style="padding: 12px; background: var(--glass); border-left: 3px solid var(--${a.severity === 'critical' ? 'red' : 'amber'});">
+                    <p class="text-sm font-semibold">${a.title}</p>
+                    <p class="text-xs t-muted mt-1">${new Date(a.created_at).toLocaleString('ko-KR')}</p>
+            </div>
+            `).join('');
+    
+            document.getElementById('root-alerts-container').innerHTML = alertsHTML || '<p class="text-xs t-dim">경고 없음</p>';
+        }
+
+        // ========================
+        // Device Enrollment
+        // ========================
+        async function loadPendingDevices() {
+            try {
+                const token = sessionStorage.getItem('access_token');
+                const res = await fetch('/api/devices/pending', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+        
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            const pending = data.pending_devices || [];
+        
+            if (pending.length === 0) {
+                document.getElementById('pending-devices-list').innerHTML = '<p class="text-xs t-dim">감지된 기기 없음</p>';
+                document.getElementById('enroll-all-btn').classList.add('hide');
+                return;
+            }
+        
+            const html = pending.map(dev => `
+                <div class="card" style="padding: 12px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <p class="font-semibold">${dev.name || dev.ip}</p>
+                        <p class="text-xs t-muted">IP: ${dev.ip} | Type: ${dev.type}</p>
+                    </div>
+                    <button class="btn primary sm" onclick="enrollDevice(${dev.id})">연동</button>
+                </div>
+            `).join('');
+        
+            document.getElementById('pending-devices-list').innerHTML = html;
+            document.getElementById('enroll-all-btn').classList.remove('hide');
+        } catch (err) {
+            console.error('Pending devices load error:', err);
+            showToast(`감지된 기기 로드 실패: ${err.message}`, 'error');
+        }
+    }
+
+    async function enrollDevice(deviceId) {
+        try {
+            const token = sessionStorage.getItem('access_token');
+            const res = await fetch('/api/devices/enroll', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ device_id: deviceId })
+            });
+        
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            await res.json();
+        
+            showToast('기기가 연동되었습니다', 'success');
+            loadPendingDevices();
+        } catch (err) {
+            console.error('Device enrollment error:', err);
+            showToast(`기기 연동 실패: ${err.message}`, 'error');
+        }
+    }
+
+    async function enrollAllPending() {
+        const token = sessionStorage.getItem('access_token');
+        try {
+            const res = await fetch('/api/devices/pending', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+        
+            for (const dev of data.pending_devices) {
+                await enrollDevice(dev.id);
+            }
+        
+            showToast('모든 기기가 연동되었습니다', 'success');
+            closeModal('enrollment-modal');
+        } catch (err) {
+            console.error('Bulk enrollment error:', err);
+        }
+    }
+
 
         /* ═════════ 3. 데이터 모델 ═════════ */
         const state = {
@@ -4563,10 +4955,54 @@
         }
 
         function renderNodeChips() {
-            $('node-chips').innerHTML = NODE_KEYS.map(k => `
-                <button class="nchip lv-ok" id="nc-${k}" onclick="openNode('${k}')">
-                    <span class="ldot"></span><span class="font-semibold">${NODES[k].short || NODES[k].name}</span><span class="mono t-muted ml-auto" id="ncc-${k}">0%</span>
-                </button>`).join('');
+            const container = document.getElementById('node-chips');
+            if (!container || !state.devices) return;
+            
+            container.innerHTML = state.devices.map(dev => {
+                const cpu = state.telemetry[dev.id]?.cpu || 0;
+                const ram = state.telemetry[dev.id]?.ram || 0;
+                const online = Math.random() > 0.1; // 임시 (실제는 DB에서)
+                
+                return `
+                    <div class="device-chip" onclick="clickDeviceChip(${dev.id})">
+                        <div class="device-name">${dev.name}</div>
+                        <div class="device-ip">${dev.ip}</div>
+                        
+                        <div class="device-metrics">
+                            <div class="metric-row">
+                                <span class="metric-label">CPU</span>
+                                <span class="metric-value">${cpu.toFixed(0)}%</span>
+                                <div class="metric-bar">
+                                    <div class="metric-bar-fill cpu" style="width: ${Math.min(cpu, 100)}%"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="metric-row">
+                                <span class="metric-label">RAM</span>
+                                <span class="metric-value">${ram.toFixed(0)}%</span>
+                                <div class="metric-bar">
+                                    <div class="metric-bar-fill ram" style="width: ${Math.min(ram, 100)}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="device-status">
+                            <span class="status-dot ${online ? 'online' : 'offline'}"></span>
+                            <span>${online ? '● Online' : '● Offline'}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            lucide.createIcons();
+        }
+        
+        function clickDeviceChip(deviceId) {
+            // 토폴로지로 이동하고 장비 선택
+            switchView('topology');
+            if (typeof selectNode === 'function') {
+                selectNode(`node-${deviceId}`);
+            }
         }
 
         function renderNodeTable() {
@@ -6148,37 +6584,55 @@
 
         // ========== Alerts 실시간 갱신 ==========
         let alertsPollInterval = null;
-   
-        function startAlertsPoll() {
-        if (alertsPollInterval) clearInterval(alertsPollInterval);
-        alertsPollInterval = setInterval(loadAlerts, 5000);  // 5초마다
-        }
+        async function startAlertsPoll() {
+            const token = sessionStorage.getItem('access_token');
+            if (!token) return; // 토큰 없으면 조용히 리턴
 
-        function stopAlertsPoll() {
-            if (alertsPollInterval) clearInterval(alertsPollInterval);
+            try {
+                const res = await apiFetch('/api/endpoint-security/events');
+                if (res.status === 401) {
+                    sessionStorage.clear();
+                    return; // logout() 호출 금지!
+                }
+
+                const data = await res.json();
+                if (data && data.events && data.events.length > 0) {
+                    window.alerts = data.events;
+                    updateAlertsBadge();
+                }
+            } catch (err) {
+                console.error('[alerts poll error]', err);
+            }
         }
 
         async function updateTelemetry() {
-            const data = await apiFetch('/api/telemetry/latest').then(r => r.json());
-            
-            const latest = {};
-            for (let row of data.telemetry) {
-                if (!latest[row.device_id]) {
-                    latest[row.device_id] = row;
-                }
+            // 토큰 없으면 조용히 리턴 (401 스팸 방지)
+            const token = sessionStorage.getItem('access_token');
+            if (!token) {
+                console.log('[polled] no token, skipping telemetry update');
+                return;
             }
-
-            // NODES 업데이트
-            for (let [key, node] of Object.entries(NODES)) {
-                 if (node.dbId && latest[node.dbId]) {
-                    const t = latest[node.dbId];
-                    node.lc.cpu = Math.round(t.cpu_usage);
-                    node.lc.lrr = Math.round(t.ram_usage);
+    
+            try {
+                const res = await apiFetch('/api/telemetry/latest');
+                if (res.status === 401) {
+                    console.log('[401] telemetry access denied, clearing token');
+                    sessionStorage.clear();
+                    return; // logout() 호출 금지!
                 }
+        
+                const data = await res.json();
+                if (data && data.devices && data.devices.length > 0) {
+                    state.devices = data.devices;
+                    renderTelemetry();
+                }
+            } catch (err) {
+                console.error('[telemetry error]', err);
             }
         }
 
         setInterval(updateTelemetry, 5000);
+        setInterval(startAlertsPoll, 5000);
         
     //redrawNetwork();
     async function submitAddDevice(e) {
