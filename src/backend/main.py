@@ -173,6 +173,7 @@ def require_admin(current_user: dict = Depends(get_current_user)):
 @app.post("/api/auth/login", response_model=LoginResponse)
 def login(payload: LoginRequest, http_request: Request, db: Session = Depends(get_db)):
     """Login: blocks an IP after 10 failures for 1 hour, issues JWT on success."""
+    username = payload.username.strip()
     client_ip = http_request.client.host if http_request.client else "unknown"
 
     # Check block status
@@ -186,21 +187,22 @@ def login(payload: LoginRequest, http_request: Request, db: Session = Depends(ge
     # Fetch user info from database
     result = db.execute(
         text("SELECT id, username, password_hash, role FROM users WHERE username = :username"),
-        {"username": payload.username},
+        {"username": username},
     ).fetchone()
 
     if result is None:
-        record_failure(client_ip)  # Record failed login attempt
+        record_failure(client_ip)
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     user_id, username, password_hash, role = result
 
-    # Verify password
+    # Verify password (a broken hash counts as a failed login, not a 500)
     try:
-        if not pwd_context.verify(payload.password, password_hash):
-            record_failure(client_ip)
-            raise HTTPException(status_code=401, detail="Invalid username or password")
+        valid = pwd_context.verify(payload.password, password_hash)
     except Exception:
+        valid = False
+
+    if not valid:
         record_failure(client_ip)
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
@@ -209,7 +211,6 @@ def login(payload: LoginRequest, http_request: Request, db: Session = Depends(ge
 
     token = create_access_token({"user_id": user_id, "username": username, "role": role})
     return LoginResponse(access_token=token, token_type="bearer", role=role, username=username)
-
 
 @app.get("/api/auth/me", response_model=UserResponse)
 def get_current_user_info(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -329,7 +330,14 @@ def _check_xy(x, y):
         if v is not None and not (POS_MIN <= v <= POS_MAX):
             raise HTTPException(status_code=400, detail=f"좌표는 {POS_MIN}~{POS_MAX} 범위여야 합니다")
 
-
+def _vlan_integrity_detail(e: IntegrityError) -> str:
+    msg = str(getattr(e, "orig", e)).lower()
+    if "duplicate" in msg and "code" in msg:
+        return "이미 사용 중인 구역 코드입니다"
+    if "duplicate" in msg and "name" in msg:
+        return "이미 사용 중인 구역 이름입니다"
+    return "VLAN 정보가 올바르지 않습니다"
+    
 def _integrity_detail(e: IntegrityError) -> str:
     msg = str(e.orig)
     if "ux_devices_ip" in msg or "Duplicate" in msg:
