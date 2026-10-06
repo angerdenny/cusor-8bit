@@ -3426,10 +3426,26 @@
         }
 
         // 2단계: 구역 목록 그리기
-        function renderStep2Zones() {
+        async function renderStep2Zones() {
             const box = $('step2-zone-list');
             if (!box) return;
-            box.innerHTML = vlans.map(z => `
+            let allowed = null;
+            try {
+                const res = await fetch('/api/auth/my-zones', {
+                    headers: { 'Authorization': 'Bearer ' + state.token }
+                });
+                if (res.ok) {
+                    const d = await res.json();
+                    allowed = (d.zones || []).map(z => String(z.code));
+                }
+            } catch (e) { /* fall back to showing all; the server still enforces access */ }
+
+            const list = allowed ? vlans.filter(z => allowed.includes(String(z.code))) : vlans;
+            if (!list.length) {
+                box.innerHTML = '<p class="text-xs text-slate-400">접근 가능한 구역이 없습니다. 관리자에게 문의하세요.</p>';
+                return;
+            }
+            box.innerHTML = list.map(z => `
                 <button type="button" onclick="selectZoneAtLogin('${escHtml(z.id)}')"
                     class="w-full flex items-center justify-between px-3.5 py-2.5 bg-[#1a2035]/80 border border-slate-700/70 rounded-lg text-white hover:border-indigo-500 transition text-sm">
                     <span>${escHtml(z.name)}</span>
