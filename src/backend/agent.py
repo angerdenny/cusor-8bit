@@ -20,17 +20,36 @@ load_dotenv()
 BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 AGENT_API_KEY = os.getenv("AGENT_API_KEY", "your_secure_agent_api_key_change_this")
 
-# 의심 프로세스 목록 (예시)
+# 위험한 프로세스만 엄격하게
 SUSPICIOUS_PROCESSES = [
-    "cmd.exe",           # 명령 프롬프트
-    "powershell.exe",    # PowerShell (의심 실행일 경우)
-    "wscript.exe",       # VBScript
-    "cscript.exe",       # JavaScript
-    "python.exe",        # Python (테스트용, 실제론 제거)
-    "nc.exe",            # netcat
-    "psexec.exe",        # PsExec
+    "nc.exe",            # netcat (원격 접근)
+    "psexec.exe",        # PsExec (원격 실행)
     "mimikatz.exe",      # 크리덴셜 탈취
+    "backdoor",          # 백도어
+    "ransomware",        # 랜섬웨어
 ]
+
+# 정상 프로세스 화이트리스트
+WHITELIST_PROCESSES = {
+    "svchost.exe",
+    "System",
+    "csrss.exe",
+    "wininit.exe",
+    "services.exe",
+    "lsass.exe",
+    "explorer.exe",
+    "dwm.exe",
+    "cmd.exe",
+    "powershell.exe",
+    "python.exe",
+    "pythonw.exe",
+    "java.exe",
+    "javaw.exe",
+    "node.exe",
+    "chrome.exe",
+    "firefox.exe",
+    "msedge.exe",
+}
 
 # 이미 보고된 프로세스 추적
 reported_pids = set()
@@ -39,14 +58,14 @@ reported_pids = set()
 # 함수: 의심 프로세스 감시
 # ========================
 def check_suspicious_processes():
-    """
-    현재 실행 중인 프로세스를 감시하고
-    의심 프로세스 발견 시 백엔드로 이벤트 전송
-    """
     for proc in psutil.process_iter(['pid', 'name']):
         try:
             pid = proc.info['pid']
             process_name = proc.info['name'].lower()
+            
+            # 화이트리스트 확인 (화이트리스트는 무조건 통과)
+            if process_name in WHITELIST_PROCESSES:
+                continue
             
             # 의심 프로세스 확인
             if any(suspicious in process_name for suspicious in SUSPICIOUS_PROCESSES):
@@ -66,9 +85,8 @@ def check_suspicious_processes():
                 reported_pids.add(pid)
         
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            # 프로세스가 종료됐거나 접근 불가
             pass
-
+        
 # ========================
 # 함수: 백엔드에 이벤트 전송
 # ========================

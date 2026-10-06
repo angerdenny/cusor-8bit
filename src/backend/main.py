@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import hmac
 from datetime import datetime, date, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -195,7 +196,11 @@ def login(payload: LoginRequest, http_request: Request, db: Session = Depends(ge
     user_id, username, password_hash, role = result
 
     # Verify password
-    if not pwd_context.verify(payload.password, password_hash):
+    try:
+        if not pwd_context.verify(payload.password, password_hash):
+            record_failure(client_ip)
+            raise HTTPException(status_code=401, detail="Invalid username or password")
+    except Exception:
         record_failure(client_ip)
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
@@ -425,7 +430,7 @@ def create_vlan(vlan: VLANCreate, current_user: dict = Depends(require_admin), d
         return {"id": result.lastrowid, "message": "VLAN created successfully"}
     except IntegrityError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=_integrity_detail(e))
+        raise HTTPException(status_code=400, detail=_vlan_integrity_detail(e))
 
 @app.put("/api/vlans/{vlan_id}")
 def update_vlan(vlan_id: int, vlan: VLANCreate, current_user: dict = Depends(require_admin), db: Session = Depends(get_db)):
@@ -668,8 +673,8 @@ def create_endpoint_event(event: dict, x_api_key: str = Header(None), db: Sessio
     Create endpoint security event (for agent). Header: X-API-Key
     Body: {"action": "blocked"|"allowed", "process_name": "...", "pid": 1234, "reason": "..."}
     """
-    if x_api_key != AGENT_API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid API Key")
+    if not x_api_key or not hmac.compare_digest(x_api_key, AGENT_API_KEY):
+        raise HTTPException(status_code=403, detail="Invalid API Key")
 
     # Normalize action values (block -> blocked, allow -> allowed)
     action = str(event.get("action", "")).lower()
