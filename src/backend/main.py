@@ -17,7 +17,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 import ipaddress
-from sqlalchemy import bindparam 
+from sqlalchemy import bindparam
+from ai_routes import build_ai_router, score_rows 
 
 # ========================
 # Environment variables (.env must be next to main.py)
@@ -259,18 +260,19 @@ def validate_vlan(
     ).fetchone()
     if vlan is None:
         raise HTTPException(status_code=403, detail="Invalid zone code")
-
-    # Step 2: Check if user has access permission to this VLAN
-    user_vlan = db.execute(
-        text("""
-            SELECT access_level FROM user_vlans
-            WHERE user_id = :user_id AND vlan_id = :vlan_id
-        """),
-        {"user_id": current_user["user_id"], "vlan_id": vlan.id},
-    ).fetchone()
     
-    if user_vlan is None:
-        raise HTTPException(status_code=403, detail="No access to this zone")
+
+    # Step 2: Admin can enter every zone, others need a user_vlans row
+    if current_user.get("role") != "admin":
+        user_vlan = db.execute(
+            text("""
+                SELECT access_level FROM user_vlans
+                WHERE user_id = :user_id AND vlan_id = :vlan_id
+            """),
+            {"user_id": current_user["user_id"], "vlan_id": vlan.id},
+        ).fetchone()
+        if user_vlan is None:
+            raise HTTPException(status_code=403, detail="No access to this zone")
 
     # Step 3: Reissue access token
     token = create_access_token({
@@ -288,7 +290,165 @@ def validate_vlan(
         "vlan_name": vlan.name,
         "role": current_user["role"],
     }
+@app.get("/api/auth/my-zones")
+def my_zones(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Zones the logged-in user may enter (admin = all zones)."""
+    if current_user.get("role") == "admin":
+        rows = db.execute(text("SELECT id, name, code FROM vlans ORDER BY id")).fetchall()
+    else:
+        rows = db.execute(
+            text("""
+                SELECT v.id, v.name, v.code
+                FROM vlans v JOIN user_vlans uv ON uv.vlan_id = v.id
+                WHERE uv.user_id = :uid ORDER BY v.id
+            """),
+            {"uid": current_user["user_id"]},
+        ).fetchall()
+    return {"zones": [row_to_dict(r) for r in rows]}
+
+
+# ========================
+# 2-0. Device Enrollment & Dashboard
+# ========================
+@app.get("/api/devices/pending")
+def get_pending_devices(
+    current_user: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Get devices waiting for enrollment (status='pending')"""
+    rows = db.execute(
+        text("""
+            SELECT id, name, ip, type, vlan_id, owner_id, x, y, status, created_at
+            FROM devices
+            WHERE status = 'pending'
+            ORDER BY created_at DESC
+        """)
+    ).fetchall()
+    return {"pending_devices": [row_to_dict(r) for r in rows]}
+
+
+@app.post("/api/devices/enroll")
+def enroll_device(
+    device_id: int,
+    current_user: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Move device from pending to registered"""
+    device = db.execute(
+        text("SELECT id, status FROM devices WHERE id = :id"),
+        {"id": device_id},
+    ).fetchone()
     
+    if device is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+    
+    if device.status != "pending":
+        raise HTTPException(status_code=400, detail="Device is not in pending status")
+    
+    db.execute(
+        text("UPDATE devices SET status = 'registered' WHERE id = :id"),
+        {"id": device_id},
+    )
+    db.commit()
+    return {"id": device_id, "message": "Device enrolled successfully", "status": "registered"}
+
+
+@app.get("/api/dashboard/overview")
+def get_dashboard_overview(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Get overview for root dashboard (all zones + all devices stats).
+    Regular users see only their assigned zones.
+    """
+    is_admin = current_user.get("role") == "admin"
+    
+    # Get zones (admin = all, user = assigned)
+    if is_admin:
+        zone_rows = db.execute(
+            text("SELECT id, name, code FROM vlans ORDER BY id")
+        ).fetchall()
+    else:
+        zone_rows = db.execute(
+            text("""
+                SELECT v.id, v.name, v.code
+                FROM vlans v JOIN user_vlans uv ON uv.vlan_id = v.id
+                WHERE uv.user_id = :uid
+                ORDER BY v.id
+            """),
+            {"uid": current_user["user_id"]},
+        ).fetchall()
+    
+    zones = [row_to_dict(r) for r in zone_rows]
+    zone_ids = [z["id"] for z in zones]
+    
+    # Get devices per zone
+    zone_stats = []
+    total_cpu = total_ram = total_traffic = 0
+    total_devices = 0
+    
+    for zone in zones:
+        device_rows = db.execute(
+            text("""
+                SELECT d.id, d.name, d.ip, d.type, d.vlan_id, d.status,
+                       COALESCE(MAX(t.cpu), 0) AS cpu,
+                       COALESCE(MAX(t.ram), 0) AS ram,
+                       COALESCE(MAX(t.traffic_in), 0) AS traffic
+                FROM devices d
+                LEFT JOIN telemetry t ON t.device_id = d.id
+                WHERE d.vlan_id = :vlan_id AND d.status = 'registered'
+                GROUP BY d.id
+            """),
+            {"vlan_id": zone["id"]},
+        ).fetchall()
+        
+        devices = [row_to_dict(r) for r in device_rows]
+        zone_cpu = sum(d.get("cpu", 0) for d in devices)
+        zone_ram = sum(d.get("ram", 0) for d in devices)
+        zone_traffic = sum(d.get("traffic", 0) for d in devices)
+        
+        total_cpu += zone_cpu
+        total_ram += zone_ram
+        total_traffic += zone_traffic
+        total_devices += len(devices)
+        
+        zone_stats.append({
+            "zone_id": zone["id"],
+            "zone_name": zone["name"],
+            "zone_code": zone["code"],
+            "device_count": len(devices),
+            "avg_cpu": zone_cpu / len(devices) if devices else 0,
+            "avg_ram": zone_ram / len(devices) if devices else 0,
+            "total_traffic": zone_traffic,
+            "devices": devices,
+        })
+    
+    # Get alerts
+    alert_rows = db.execute(
+        text("""
+            SELECT id, title, description, severity, created_at
+            FROM alerts
+            WHERE severity IN ('critical', 'warning')
+            ORDER BY created_at DESC
+            LIMIT 10
+        """)
+    ).fetchall()
+    alerts = [row_to_dict(a) for a in alert_rows]
+    
+    return {
+        "zones": zones,
+        "zone_stats": zone_stats,
+        "summary": {
+            "total_zones": len(zones),
+            "total_devices": total_devices,
+            "avg_cpu": total_cpu / total_devices if total_devices > 0 else 0,
+            "avg_ram": total_ram / total_devices if total_devices > 0 else 0,
+            "total_traffic": total_traffic,
+            "critical_alerts": len([a for a in alerts if a.get("severity") == "critical"]),
+        },
+        "recent_alerts": alerts,
+    }   
 
 # ========================
 # 2. Devices
@@ -637,9 +797,10 @@ def delete_link(
 # ========================
 @app.get("/api/telemetry/latest")
 def get_latest_telemetry(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Latest telemetry data (auth required)"""
+    """Latest telemetry data + AI risk score (auth required)"""
     rows = db.execute(text("SELECT * FROM telemetry ORDER BY id DESC LIMIT 50")).fetchall()
-    return {"telemetry": [row_to_dict(r) for r in rows]}
+    data = [row_to_dict(r) for r in rows]
+    return {"telemetry": score_rows(db, data)}
 
 
 # ========================
@@ -723,6 +884,7 @@ def db_test(current_user: dict = Depends(require_admin), db: Session = Depends(g
         raise HTTPException(status_code=500, detail=f"DB connection error: {str(e)}")
 
 
+app.include_router(build_ai_router(get_db, get_current_user, require_admin, AGENT_API_KEY))
 # ========================
 # Static files (MUST be registered last, otherwise it shadows /api routes)
 # ========================
