@@ -2344,152 +2344,37 @@
             font-size: 0.75rem;
             font-weight: 600;
         }
-
-        /* Device chip styling */
-        .device-chip {
-            background: var(--glass);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 16px;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
+        /* 전체 통합 분석 슬라이드 패널 */
+        .insight-drawer {
+            position: fixed; top: 0; right: 0; height: 100vh;
+            width: min(380px, 92vw); z-index: 55;
+            transform: translateX(100%);
+            transition: transform .38s cubic-bezier(.22, .8, .3, 1);
         }
-        
-        .device-chip:hover {
-            background: var(--glass-strong);
-            border-color: var(--cyan);
-            transform: translateY(-2px);
+        .insight-drawer.open { transform: translateX(0); }
+        .insight-panel {
+            height: 100%; overflow-y: auto; padding: 22px 18px 32px;
+            background: linear-gradient(var(--glass-strong), var(--glass-strong)), var(--bg);
+            border-left: 1px solid var(--border);
+            box-shadow: -12px 0 40px rgba(0, 0, 0, .35);
         }
-        
-        .device-name {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--text);
-            word-break: break-word;
+        .insight-handle {
+            position: absolute; left: -42px; top: 50%; transform: translateY(-50%);
+            width: 42px; padding: 16px 0; text-align: center;
+            writing-mode: vertical-rl; letter-spacing: .08em;
+            font-size: 12px; font-weight: 700; color: var(--text); cursor: pointer;
+            border: 1px solid var(--border); border-right: 0; border-radius: 14px 0 0 14px;
+            background: linear-gradient(var(--glass-strong), var(--glass-strong)), var(--bg);
         }
-        
-        .device-ip {
-            font-size: 11px;
-            color: var(--muted);
-            font-family: monospace;
+        .insight-handle:hover { color: var(--indigo); }
+        .insight-zone {
+            --vzc: var(--indigo);
+            display: block; width: 100%; text-align: left; padding: 12px 14px; margin-bottom: 10px;
+            border-radius: 16px; color: var(--text); cursor: pointer;
+            background: var(--input); border: 1px solid var(--border); border-left: 3px solid var(--vzc);
+            transition: transform .15s, border-color .15s;
         }
-        
-        .device-metrics {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        
-        .metric-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .metric-label {
-            font-size: 11px;
-            color: var(--muted);
-            min-width: 35px;
-            font-weight: 500;
-        }
-        
-        .metric-value {
-            font-size: 16px;
-            font-weight: 700;
-            font-family: monospace;
-            min-width: 45px;
-        }
-        
-        .metric-bar {
-            flex: 1;
-            height: 8px;
-            background: var(--track);
-            border-radius: 4px;
-            overflow: hidden;
-            position: relative;
-        }
-        
-        .metric-bar-fill {
-            height: 100%;
-            border-radius: 4px;
-            transition: width 0.3s ease;
-        }
-        
-        .metric-bar-fill.cpu {
-            background: linear-gradient(90deg, #818cf8 0%, #f97316 100%);
-        }
-        
-        .metric-bar-fill.ram {
-            background: linear-gradient(90deg, #22d3ee 0%, #8b5cf6 100%);
-        }
-        
-        .device-status {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            font-weight: 500;
-            margin-top: 4px;
-        }
-        
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-        }
-        
-        .status-dot.online {
-            background: var(--green);
-        }
-        
-        .status-dot.offline {
-            background: var(--red);
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        /* Tab switching */
-        .tab-btn {
-            color: var(--muted);
-            font-weight: 500;
-            transition: all 0.2s;
-            border-bottom: 2px solid transparent;
-            cursor: pointer;
-            padding: 8px 16px;
-        }
-        
-        .tab-btn.active {
-            color: var(--cyan);
-            border-bottom-color: var(--cyan);
-        }
-        
-        .tab-btn:hover {
-            color: var(--text);
-        }
-         
-        /* Dashboard content fade transition */
-        #zone-dashboard-content,
-        #root-dashboard-content {
-            transition: opacity 0.3s ease, visibility 0.3s ease;
-        }
-        #zone-dashboard-content.hide,
-        #root-dashboard-content.hide {
-            opacity: 0;
-            visibility: hidden;
-            pointer-events: none;
-        }
-        #zone-dashboard-content,
-        #root-dashboard-content {
-            opacity: 1;
-            visibility: visible;
-        }
+        .insight-zone:hover { transform: translateX(-3px); border-color: var(--vzc); }
     </style>
 </head>
 
@@ -2670,19 +2555,6 @@
                     </div>
                 </div>
             </header>
-            
-            <!-- 대시보드 탭: 구역별 보기 / 전체 통합 보기 -->
-            <div class="flex items-center gap-2 mb-4" style="position: sticky; top: 0; z-index: 10; background: var(--bg); padding: 12px 0; border-bottom: 2px solid var(--border); backdrop-filter: blur(10px);">
-                <button id="tab-zone-dashboard" class="tab-btn active" onclick="switchDashboardTab('zone')" style="padding: 8px 16px; border-bottom: 2px solid transparent; cursor: pointer; border-bottom-color: var(--cyan);">
-                    📍 구역별 보기
-                </button>
-                <button id="tab-root-dashboard" class="tab-btn" onclick="switchDashboardTab('root')" style="padding: 8px 16px; border-bottom: 2px solid transparent; cursor: pointer;">
-                    🌐 전체 통합 분석   
-                </button>
-            </div>
-
-            <!-- 구역별 대시보드 (기존) -->
-            <div id="zone-dashboard-content">
 
             <!-- ───── VIEW: 대시보드 ───── -->
             <section class="view active" data-view="overview">
@@ -2779,42 +2651,16 @@
                         </div>
                     </div>
                 </div>
-            </div>
 
                 <div class="card mt-5">
-                    <div class="flex items-center justify-between mb-4"></div>
-                      <h2 class="ctitle"><i data-lucide="server" class="w-4 h-4 c-indigo"></i>장비 상태 요약</h2>
-                      <span class="text-xs t-dim">장비를 누르면 토폴로지에서 상세 진단을 볼 수 있어요</span>
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="ctitle"><i data-lucide="server" class="w-4 h-4 c-indigo"></i>장비 상태 요약</h2>
+                        <span class="text-xs t-dim">장비를 누르면 토폴로지에서 상세 진단을 볼 수 있어요</span>
                     </div>
-                    <div id="node-chips" class="grid gap-4" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));"></div>
+                    <div id="node-chips" class="grid gap-3"
+                        style="grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));"></div>
                 </div>
             </section>
-            <!-- 전체 통합 대시보드 (신규) -->
-            <div id="root-dashboard-content" class="hide">
-                <!-- 전체 구역 통계 -->
-                <div class="stats" id="root-stats-container">
-                    <!-- 데이터 로드 중... -->
-                </div>
-
-                <!-- 구역별 상세 정보 -->
-                <div class="card mt-5">
-                    <div class="flex items-center justify-between mb-3">
-                        <h2 class="ctitle"><i data-lucide="network" class="w-4 h-4 c-indigo"></i>구역별 상세 분석</h2>
-                        <span class="credit">전체 시스템</span>
-                    </div>
-                    <div id="root-zone-details" class="grid gap-3" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));"></div>
-                </div>
-
-                <!-- 전체 경고 피드 -->
-                <div class="card mt-5">
-                    <div class="flex items-center justify-between mb-3">
-                        <h2 class="ctitle"><i data-lucide="alert-circle" class="w-4 h-4 c-red"></i>전체 경고 피드</h2>
-                        <button class="text-xs c-indigo font-semibold" onclick="switchView('logs')">더보기</button>
-                    </div>
-                    <div id="root-alerts-container" class="grid gap-2"></div>
-                </div>
-            </div>
-            </div>
 
             <!-- ───── VIEW: 토폴로지 ───── -->
             <section class="view" data-view="topology">
@@ -3216,27 +3062,6 @@
                         <span class="text-xs t-dim">백엔드 연동 전, 화면이 어떻게 동작할지 미리 보여주는 버튼이에요</span>
                     </div>
                 </div>
-                
-            <!-- ───── Device Enrollment Modal ───── -->
-            <div id="enrollment-modal" class="modal hide">
-                <div class="modal-bg" onclick="closeModal('enrollment-modal')"></div>
-                <div class="modal-box">
-                    <div class="modal-head">
-                        <h3>🔌 새 기기 감지 및 연동</h3>
-                        <button class="close-btn" onclick="closeModal('enrollment-modal')">✕</button>
-                    </div>
-                    <div class="modal-body">
-                        <p class="text-sm t-muted mb-4">네트워크에서 감지된 기기를 시스템에 추가하세요.</p>
-                        <div id="pending-devices-list" class="grid gap-3">
-                            <p class="text-xs t-dim">감지된 기기 로딩 중...</p>
-                        </div>
-                    </div>
-                    <div class="modal-foot">
-                        <button class="btn" onclick="closeModal('enrollment-modal')">닫기</button>
-                        <button id="enroll-all-btn" class="btn primary hide" onclick="enrollAllPending()">모두 연동</button>
-                    </div>
-                </div>
-            </div>
             </section>
 
             <!-- ───── VIEW: AI 가이드 ───── -->
@@ -3350,6 +3175,16 @@
                 </div>
             </section>
         </div>
+        <aside id="insight-drawer" class="insight-drawer" aria-hidden="true">
+            <button type="button" class="insight-handle" aria-expanded="false" onclick="toggleInsightDrawer()">전체 통합 분석</button>
+            <div class="insight-panel">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="ctitle">🌐 전체 통합 분석</h2>
+                    <button type="button" class="topo-arrange-btn" onclick="toggleInsightDrawer(false)">닫기</button>
+                </div>
+                <div id="insight-body"></div>
+            </div>
+        </aside>
     </div>
 
     <div id="toast" class="toast"></div>
@@ -3729,8 +3564,11 @@
             loadUsers();
             loadAlerts();
             startAlertsPoll();
-            loadDevices();
-            if (IS_REAL_ENV) loadDevices();
+            if (IS_REAL_ENV) {
+                loadDevices();  // 실제 환경: DB에서 로드
+            } else {
+                loadSimulationDevices();  // 가상 환경: 더미 데이터 로드
+            }
         }
 
         function logout() {
@@ -3782,194 +3620,8 @@
                 state.username = s.username;
                 showDashboard();
                 return true;
-            } catch (e) { return false; }
+            } catch (e) { console.error('restoreSession 실패:', e); return false; }
         }
-        // ========================
-        // Dashboard Tab Switching & Root Overview
-        // ========================
-        let currentDashboardTab = 'zone';
-        
-        function switchDashboardTab(tab) {
-            currentDashboardTab = tab;
-    
-            // Tab 버튼 스타일 변경
-            document.getElementById('tab-zone-dashboard').classList.toggle('active', tab === 'zone');
-            document.getElementById('tab-root-dashboard').classList.toggle('active', tab === 'root');
-    
-            // 탭 내용 표시
-            document.getElementById('zone-dashboard-content').classList.toggle('hide', tab !== 'zone');
-            document.getElementById('root-dashboard-content').classList.toggle('hide', tab !== 'root');
-    
-            if (tab === 'root') {
-                loadRootDashboard();
-            }
-        }
-
-        async function loadRootDashboard() {
-            try {
-                const token = sessionStorage.getItem('access_token');
-                const res = await fetch('/api/dashboard/overview', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-        
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
-        
-                renderRootDashboard(data);
-            } catch (err) {
-                console.error('Root dashboard load error:', err);
-                showToast(`전체 분석 로드 실패: ${err.message}`, 'error');
-            }
-        }  
-
-        function renderRootDashboard(data) {
-            const { summary, zone_stats, recent_alerts } = data;
-    
-            // 통계 카드
-            const statsHTML = `
-                <div class="card lift stat accent">
-                    <div class="ibadge g-glass"><i data-lucide="network" class="w-5 h-5"></i></div>
-                    <p class="label">전체 구역 수</p>
-                    <h3 class="value mono">${summary.total_zones}</h3>
-                </div>
-                <div class="card lift stat">
-                    <div class="ibadge g-indigo"><i data-lucide="server" class="w-5 h-5"></i></div>
-                    <p class="label">전체 기기 수</p>
-                    <h3 class="value mono">${summary.total_devices}</h3>
-                </div>
-                    <div class="card lift stat">
-                    <div class="ibadge g-orange"><i data-lucide="cpu" class="w-5 h-5"></i></div>
-                    <p class="label">평균 CPU 사용률</p>
-                    <h3 class="value mono">${summary.avg_cpu.toFixed(1)}%</h3>
-                </div>
-                <div class="card lift stat">
-                    <div class="ibadge g-purple"><i data-lucide="memory-stick" class="w-5 h-5"></i></div>
-                    <p class="label">평균 메모리 사용률</p>
-                    <h3 class="value mono">${summary.avg_ram.toFixed(1)}%</h3>
-                </div>
-            `;
-    
-            document.getElementById('root-stats-container').innerHTML = statsHTML;
-            lucide.createIcons();
-    
-            // 구역별 상세
-            const zoneDetailsHTML = zone_stats.map((zone, idx) => `
-                 <div class="card">
-                    <h3 class="ctitle mb-3">${zone.zone_name} (${zone.zone_code})</h3>
-                    <div class="grid gap-2 text-sm">
-                        <div class="flex justify-between">
-                            <span class="t-muted">기기 수:</span>
-                            <span class="font-semibold">${zone.device_count}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="t-muted">평균 CPU:</span>
-                            <span class="font-semibold">${zone.avg_cpu.toFixed(1)}%</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="t-muted">평균 RAM:</span>
-                            <span class="font-semibold">${zone.avg_ram.toFixed(1)}%</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="t-muted">총 트래픽:</span>
-                            <span class="font-semibold">${zone.total_traffic.toFixed(0)} Mbps</span>
-                        </div>
-                    </div>
-                </div>
-            `).join('');
-    
-            document.getElementById('root-zone-details').innerHTML = zoneDetailsHTML || '<p class="text-xs t-dim">구역 데이터 없음</p>';
-    
-            // 경고
-            const alertsHTML = recent_alerts.slice(0, 5).map(a => `
-                <div class="alert-item" style="padding: 12px; background: var(--glass); border-left: 3px solid var(--${a.severity === 'critical' ? 'red' : 'amber'});">
-                    <p class="text-sm font-semibold">${a.title}</p>
-                    <p class="text-xs t-muted mt-1">${new Date(a.created_at).toLocaleString('ko-KR')}</p>
-            </div>
-            `).join('');
-    
-            document.getElementById('root-alerts-container').innerHTML = alertsHTML || '<p class="text-xs t-dim">경고 없음</p>';
-        }
-
-        // ========================
-        // Device Enrollment
-        // ========================
-        async function loadPendingDevices() {
-            try {
-                const token = sessionStorage.getItem('access_token');
-                const res = await fetch('/api/devices/pending', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-        
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            const pending = data.pending_devices || [];
-        
-            if (pending.length === 0) {
-                document.getElementById('pending-devices-list').innerHTML = '<p class="text-xs t-dim">감지된 기기 없음</p>';
-                document.getElementById('enroll-all-btn').classList.add('hide');
-                return;
-            }
-        
-            const html = pending.map(dev => `
-                <div class="card" style="padding: 12px; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <p class="font-semibold">${dev.name || dev.ip}</p>
-                        <p class="text-xs t-muted">IP: ${dev.ip} | Type: ${dev.type}</p>
-                    </div>
-                    <button class="btn primary sm" onclick="enrollDevice(${dev.id})">연동</button>
-                </div>
-            `).join('');
-        
-            document.getElementById('pending-devices-list').innerHTML = html;
-            document.getElementById('enroll-all-btn').classList.remove('hide');
-        } catch (err) {
-            console.error('Pending devices load error:', err);
-            showToast(`감지된 기기 로드 실패: ${err.message}`, 'error');
-        }
-    }
-
-    async function enrollDevice(deviceId) {
-        try {
-            const token = sessionStorage.getItem('access_token');
-            const res = await fetch('/api/devices/enroll', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ device_id: deviceId })
-            });
-        
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            await res.json();
-        
-            showToast('기기가 연동되었습니다', 'success');
-            loadPendingDevices();
-        } catch (err) {
-            console.error('Device enrollment error:', err);
-            showToast(`기기 연동 실패: ${err.message}`, 'error');
-        }
-    }
-
-    async function enrollAllPending() {
-        const token = sessionStorage.getItem('access_token');
-        try {
-            const res = await fetch('/api/devices/pending', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
-        
-            for (const dev of data.pending_devices) {
-                await enrollDevice(dev.id);
-            }
-        
-            showToast('모든 기기가 연동되었습니다', 'success');
-            closeModal('enrollment-modal');
-        } catch (err) {
-            console.error('Bulk enrollment error:', err);
-        }
-    }
-
 
         /* ═════════ 3. 데이터 모델 ═════════ */
         const state = {
@@ -4955,54 +4607,10 @@
         }
 
         function renderNodeChips() {
-            const container = document.getElementById('node-chips');
-            if (!container || !state.devices) return;
-            
-            container.innerHTML = state.devices.map(dev => {
-                const cpu = state.telemetry[dev.id]?.cpu || 0;
-                const ram = state.telemetry[dev.id]?.ram || 0;
-                const online = Math.random() > 0.1; // 임시 (실제는 DB에서)
-                
-                return `
-                    <div class="device-chip" onclick="clickDeviceChip(${dev.id})">
-                        <div class="device-name">${dev.name}</div>
-                        <div class="device-ip">${dev.ip}</div>
-                        
-                        <div class="device-metrics">
-                            <div class="metric-row">
-                                <span class="metric-label">CPU</span>
-                                <span class="metric-value">${cpu.toFixed(0)}%</span>
-                                <div class="metric-bar">
-                                    <div class="metric-bar-fill cpu" style="width: ${Math.min(cpu, 100)}%"></div>
-                                </div>
-                            </div>
-                            
-                            <div class="metric-row">
-                                <span class="metric-label">RAM</span>
-                                <span class="metric-value">${ram.toFixed(0)}%</span>
-                                <div class="metric-bar">
-                                    <div class="metric-bar-fill ram" style="width: ${Math.min(ram, 100)}%"></div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="device-status">
-                            <span class="status-dot ${online ? 'online' : 'offline'}"></span>
-                            <span>${online ? '● Online' : '● Offline'}</span>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-            
-            lucide.createIcons();
-        }
-        
-        function clickDeviceChip(deviceId) {
-            // 토폴로지로 이동하고 장비 선택
-            switchView('topology');
-            if (typeof selectNode === 'function') {
-                selectNode(`node-${deviceId}`);
-            }
+            $('node-chips').innerHTML = NODE_KEYS.map(k => `
+                <button class="nchip lv-ok" id="nc-${k}" onclick="openNode('${k}')">
+                    <span class="ldot"></span><span class="font-semibold">${NODES[k].short || NODES[k].name}</span><span class="mono t-muted ml-auto" id="ncc-${k}">0%</span>
+                </button>`).join('');
         }
 
         function renderNodeTable() {
@@ -5414,20 +5022,23 @@
 
         /* ───────────── [3] quickCreateDevice 교체본 ───────────── */
         async function quickCreateDevice() {
-            if (!pendingCtxPos) return;
-            const pos = { ...pendingCtxPos };   // await 중에 팝업이 닫혀도 좌표 유지
-            const nameInput = $('ctx-device-name');
-            const name = nameInput.value.trim();
-        if (!name) { toast('장비 이름을 입력해 주세요.'); nameInput.focus(); return; }
- 
-        const typeVal = $('ctx-device-type').value;
-        const vlanId = $('ctx-device-vlan').value;
-        const linkTo = $('ctx-device-link').value;
-        const ipInput = $('ctx-device-ip');
-        let ip = ipInput.value.trim();
-        if (ip && !isValidIp(ip)) { showIpError(ipInput); return; }
-        clearIpError(ipInput);
-        if (!ip) ip = nextAvailableIp(vlanId);  
+              if (!pendingCtxPos) return;
+              const pos = { ...pendingCtxPos };
+              const nameInput = $('ctx-device-name');
+              const name = nameInput.value.trim();
+              if (!name) { toast('장비 이름을 입력해 주세요.'); nameInput.focus(); return; }
+
+              const typeVal = $('ctx-device-type').value;
+              const vlanId = $('ctx-device-vlan').value;
+              const linkTo = $('ctx-device-link').value;
+              const ipInput = $('ctx-device-ip');
+              let ip = ipInput.value.trim();
+              if (ip && !isValidIp(ip)) { showIpError(ipInput); return; }
+              clearIpError(ipInput);
+              if (!ip) ip = nextAvailableIp(vlanId);
+
+              const key = await commitNewDevice({ name, ip, typeVal, vlanId, owner: '', x: pos.x, y: pos.y, linkTo });
+              if (key) closeTopoContextMenu();
         }
         
         /* ───────────── [1] commitNewDevice 교체본 ───────────── */
@@ -6271,8 +5882,7 @@
         lucide.createIcons();
         applyRealEnvEmptyState();
         drawAll();
-        if (!restoreSession()) {
-        }
+
         async function pollTelemetry() {
             if (!sessionStorage.getItem('token')) return;
             try {
@@ -6336,6 +5946,7 @@
         }
 
         function closeModal(modalId) {
+            if (!modalId) { document.getElementById('ai-modal')?.remove(); return; }
             const modal = $(modalId);
             if (!modal) return;
             modal.classList.remove('show');
@@ -6584,126 +6195,304 @@
 
         // ========== Alerts 실시간 갱신 ==========
         let alertsPollInterval = null;
-        async function startAlertsPoll() {
-            const token = sessionStorage.getItem('access_token');
-            if (!token) return; // 토큰 없으면 조용히 리턴
+   
+        function startAlertsPoll() {
+        if (alertsPollInterval) clearInterval(alertsPollInterval);
+        alertsPollInterval = setInterval(loadAlerts, 5000);  // 5초마다
+        }
 
-            try {
-                const res = await apiFetch('/api/endpoint-security/events');
-                if (res.status === 401) {
-                    sessionStorage.clear();
-                    return; // logout() 호출 금지!
-                }
-
-                const data = await res.json();
-                if (data && data.events && data.events.length > 0) {
-                    window.alerts = data.events;
-                    updateAlertsBadge();
-                }
-            } catch (err) {
-                console.error('[alerts poll error]', err);
-            }
+        function stopAlertsPoll() {
+            if (alertsPollInterval) clearInterval(alertsPollInterval);
         }
 
         async function updateTelemetry() {
-            // 토큰 없으면 조용히 리턴 (401 스팸 방지)
-            const token = sessionStorage.getItem('access_token');
-            if (!token) {
-                console.log('[polled] no token, skipping telemetry update');
-                return;
+            const data = await apiFetch('/api/telemetry/latest').then(r => r.json());
+            
+            const latest = {};
+            for (let row of data.telemetry) {
+                if (!latest[row.device_id]) {
+                    latest[row.device_id] = row;
+                }
             }
-    
-            try {
-                const res = await apiFetch('/api/telemetry/latest');
-                if (res.status === 401) {
-                    console.log('[401] telemetry access denied, clearing token');
-                    sessionStorage.clear();
-                    return; // logout() 호출 금지!
+
+            // NODES 업데이트
+            for (let [key, node] of Object.entries(NODES)) {
+                 if (node.dbId && latest[node.dbId]) {
+                    const t = latest[node.dbId];
+                    node.lc.cpu = Math.round(t.cpu_usage);
+                    node.lc.lrr = Math.round(t.ram_usage);
                 }
-        
-                const data = await res.json();
-                if (data && data.devices && data.devices.length > 0) {
-                    state.devices = data.devices;
-                    renderTelemetry();
-                }
-            } catch (err) {
-                console.error('[telemetry error]', err);
             }
         }
 
         setInterval(updateTelemetry, 5000);
-        setInterval(startAlertsPoll, 5000);
         
-    //redrawNetwork();
-    async function submitAddDevice(e) {
         async function submitAddDevice(e) {
             e.preventDefault();
-            if (!state.isAdmin) {
-                toast('관리자만 기기를 추가할 수 있습니다.');
-                return;
-            }
+            if (!state.isAdmin) { toast('관리자만 기기를 추가할 수 있습니다.'); return; }
 
             const name = $('add-device-name').value.trim();
             const ip = $('add-device-ip').value.trim();
             const type = $('add-device-type').value;
             const vlanCode = $('add-device-vlan').value;
 
-            if (!name || !ip || !type || !vlanCode) {
-                toast('모든 필드를 입력해주세요.');
-                return;
-            }
+            if (!name || !ip || !type || !vlanCode) { toast('모든 필드를 입력해주세요.'); return; }
+            if (!isValidIp(ip)) { toast('IP 주소 형식이 올바르지 않아요. 예) 192.168.1.20'); return; }
 
             try {
                 const res = await apiFetch('/api/devices', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name,
-                        ip,
-                        type,
-                        vlan_code: vlanCode,
-                        x: 0,
-                        y: 0
-                    })
+                    body: JSON.stringify({ name, ip, type, vlan_code: vlanCode, x: 0, y: 0 })
                 });
-
                 if (!res.ok) {
                     const err = await res.json().catch(() => ({}));
-                    const d = err.detail;
-                    const msg = Array.isArray(d)
-                        ? d.map(x => `${(x.loc || []).slice(1).join('.')}: ${x.msg}`).join(', ')
-                        : (d || '기기 추가 실패');
-                    toast(`오류: ${msg}`);
+                    toast(`오류: ${formatApiError(err.detail)}`);
                     return;
                 }
-
                 toast(`${name}이(가) 추가되었습니다.`);
                 $('add-device-name').value = '';
                 $('add-device-ip').value = '';
                 $('add-device-type').value = '';
-                $('add-device-vlan').value = state.currentVlan.code || '';
+                $('add-device-vlan').value = '';
                 closeModal('device-add-modal');
                 await loadDevices();
                 await loadUsers();
-                
             } catch (e) {
                 toast(`오류: ${e.message}`);
             }
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            setupAddDeviceForm();
-        });
         // ========== 담당자 ID 매핑 ==========
         function getUserIdByName(username) {
-            if (!window.users || !Array.isArray(window.users)) {
-                console.warn('window.users 로드 안 됨');
-                return null;
-            }
-            const user = window.users.find(u => u.username === username);
-            return user ? user.id : null;
+            if (!username || !Array.isArray(window.users)) return null;
+            const u = window.users.find(u => u.username === username);
+            return u ? u.id : null;
         }
+
+    function loadSimulationDevices() {
+        console.log('[SIM] 더미 기기 데이터 로드 중...');
+    
+        // 임시 더미 데이터
+        state.devices = [
+            { id: 1, name: 'Core Router', ip: '192.168.1.1', type: 'router', vlan_code: '100', cpu_usage: 45, ram_usage: 62 },
+            { id: 2, name: 'Switch-VLAN1', ip: '10.0.0.1', type: 'switch', vlan_code: '101', cpu_usage: 32, ram_usage: 48 },
+            { id: 3, name: 'PC-Dev-01', ip: '10.0.0.50', type: 'pc', vlan_code: '102', cpu_usage: 55, ram_usage: 71 },
+        ];
+    
+        console.log('[SIM] 더미 데이터 로드 완료:', state.devices);
+    
+        // 토폴로지 렌더링
+        buildNodeUI();
+        renderVlanZones();
+        refreshVlanSelects();
+        updateNodeUI();
+        lucide.createIcons(); 
     }
+    /* ═════════ 전체 통합 분석 슬라이드 패널 ═════════ */
+    let insightTimer = null;
+
+    function toggleInsightDrawer(force) {
+        const d = $('insight-drawer');
+        if (!d) return;
+        const open = typeof force === 'boolean' ? force : !d.classList.contains('open');
+        d.classList.toggle('open', open);
+        d.setAttribute('aria-hidden', String(!open));
+        const h = d.querySelector('.insight-handle');
+        if (h) h.setAttribute('aria-expanded', String(open));
+        clearInterval(insightTimer);
+        if (open) { renderInsight(); insightTimer = setInterval(renderInsight, 2000); }
+    }
+
+    function renderInsight() {
+        const body = $('insight-body');
+        if (!body) return;
+        const all = NODE_KEYS.filter(k => NODES[k]);
+        if (!all.length) {
+            body.innerHTML = '<p class="text-sm t-dim py-6 text-center">등록된 장비가 없어요.</p>';
+            return;
+        }
+        const avg = (keys, f) => keys.length ? Math.round(keys.reduce((s, k) => s + NODES[k][f], 0) / keys.length) : 0;
+        const crit = all.filter(k => NODES[k].lv === 'crit').length;
+        const warn = all.filter(k => NODES[k].lv === 'warn').length;
+
+        const summary = `
+            <div class="grid grid-cols-2 gap-3 mb-5">
+                <div class="vv-stat"><small>전체 장비</small><b>${all.length}대</b></div>
+                <div class="vv-stat"><small>구역</small><b>${vlans.length}개</b></div>
+                <div class="vv-stat"><small>평균 CPU</small><b class="c-cyan">${avg(all, 'lc')}%</b></div>
+                <div class="vv-stat"><small>평균 메모리</small><b style="color:var(--blue)">${avg(all, 'lr')}%</b></div>
+            </div>
+            <p class="text-xs mb-4"><span class="c-amber">▲ 경고 ${warn}</span> &nbsp; <span style="color:var(--red)">✖ 위험 ${crit}</span></p>
+            <p class="text-xs font-semibold t-muted mb-2">구역별 현황 <span class="t-dim font-normal">(누르면 그 구역으로 이동)</span></p>`;
+
+        const zones = vlans.map(z => {
+            const mem = zoneMembers(z.id);
+            const lv = mem.length ? worstLv(mem) : 'ok';
+            const cpu = avg(mem, 'lc'), ram = avg(mem, 'lr');
+            return `<button type="button" class="insight-zone lv-${lv}" style="--vzc:${escHtml(z.color)}"
+                    onclick="toggleInsightDrawer(false); openVlanView('${escHtml(z.id)}')">
+                <div class="flex items-center gap-2">
+                    <span class="vzdot"></span><b class="text-sm">${escHtml(z.name)}</b>
+                    <span class="tag mono">${escHtml(z.code)}</span>
+                    <span class="ldot ml-auto"></span><span class="text-xs t-dim">${mem.length}대</span>
+                </div>
+                <div class="mt-3 grid gap-2">
+                    <div class="flex items-center gap-2 text-xs"><span class="t-muted w-10">CPU</span><div class="bar flex-1"><i class="cy" style="width:${cpu}%"></i></div><span class="mono w-9 text-right">${cpu}%</span></div>
+                    <div class="flex items-center gap-2 text-xs"><span class="t-muted w-10">메모리</span><div class="bar flex-1"><i class="bl" style="width:${ram}%"></i></div><span class="mono w-9 text-right">${ram}%</span></div>
+                </div>
+            </button>`;
+        }).join('');
+
+        body.innerHTML = summary + zones;
+    }
+
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') toggleInsightDrawer(false); });
+    // ===== AI 공통 도구 =====
+    const IS_REAL = new URLSearchParams(location.search).get('env') === 'real';
+    const aiFetch = (path, opts = {}) => fetch(path, {
+        ...opts,
+        headers: { 'Content-Type': 'application/json',
+                   'Authorization': 'Bearer ' + sessionStorage.getItem('token'), ...(opts.headers || {}) }
+    }).then(async r => {
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.detail || r.statusText);
+        return j;
+    });
+
+    function showModal(html) {
+        closeModal();
+        const el = document.createElement('div');
+        el.id = 'ai-modal';
+        el.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center';
+        el.innerHTML = `<div style="background:#0f1424;border:1px solid #334;border-radius:16px;padding:24px;max-width:420px;width:90%;color:#fff">${html}</div>`;
+        document.body.appendChild(el);
+    }
+        // ===== AI 경보 팝업 (승인/차단 · 오탐/재학습) =====
+        const shownAlerts = new Set();
+    let aiCanAct = false;
+    async function pollAiIncidents() {
+        try {
+            const r = await aiFetch('/api/ai/incidents');
+            aiCanAct = r.can_act;
+            const a = r.incidents.find(x => x.status === 'open' && !shownAlerts.has(x.id));
+            if (a && !document.getElementById('ai-modal')) showAiAlertPopup(a);
+        } catch (e) { /* 로그인 전이면 무시 */ }
+    }
+    function showAiAlertPopup(a) {
+        shownAlerts.add(a.id);
+        const act = aiCanAct ? `
+            ${a.pid ? `<button onclick="approveBlock(${a.id})" style="flex:1;padding:10px;border-radius:10px;background:#ef4444">승인/차단</button>` : ''}
+            <button onclick="markFalsePositive(${a.id})" style="flex:1;padding:10px;border-radius:10px;background:#22c55e">오탐/재학습</button>` : '';
+        showModal(`
+            <h3 style="font-weight:800;margin-bottom:8px">🚨 AI 이상 감지 (위험도 ${Math.round(a.risk_score)}%)</h3>
+            <p style="margin-bottom:16px;font-size:14px">${aiEsc(a.message)}</p>
+            <div style="display:flex;gap:8px">${act}
+                <button onclick="closeModal()" style="padding:10px;border-radius:10px;background:#334">나중에</button>
+            </div>`);
+    }
+    async function approveBlock(id) {
+        try { await aiFetch('/api/security/block', { method: 'POST', body: JSON.stringify({ incident_id: id }) });
+              toast('차단 명령을 에이전트에 전달했습니다'); } catch (e) { toast(e.message); }
+        closeModal();
+    }
+    async function markFalsePositive(id) {
+        try { const r = await aiFetch('/api/ai/feedback', { method: 'POST', body: JSON.stringify({ incident_id: id }) });
+              toast(`재학습 완료: 위험도 ${r.risk_before}% → ${r.risk_after}%`); } catch (e) { toast(e.message); }
+        closeModal();
+    }
+
+    // ===== 미등록 기기 등록 팝업 (관리자 화면) =====
+    const aiEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const aiToast = m => (typeof toast === 'function' ? toast(m) : alert(m));
+    const askedIps = new Set();
+    async function pollPendingDevices() {
+        try {
+            const list = await aiFetch('/api/ai/pending-devices');   // 관리자만 성공, 일반 사용자는 403 → 무시
+            const d = list.find(x => !askedIps.has(x.ip));
+            if (!d || document.getElementById('ai-modal')) return;
+            askedIps.add(d.ip);
+            const vl = (await aiFetch('/api/vlans')).vlans || [];
+            showModal(`
+                <h3 style="font-weight:800;margin-bottom:8px">✋ 잠시만요! 이 기기는 등록되어 있지 않아요</h3>
+                <p style="font-size:14px;margin-bottom:12px">${aiEsc(d.hostname) || '이름 없음'} (${aiEsc(d.ip)})<br>등록하시겠습니까?</p>
+                <input id="enroll-name" value="${aiEsc(d.hostname)}" placeholder="기기 이름" style="width:100%;padding:8px;margin-bottom:8px;color:#000">
+                <select id="enroll-type" style="width:100%;padding:8px;margin-bottom:8px;color:#000">
+                    ${['pc','server','router','switch','firewall','app','mobile','printer','access-point'].map(t => `<option ${t === (d.type || 'pc') ? 'selected' : ''}>${t}</option>`).join('')}
+                </select>
+                <select id="enroll-vlan" style="width:100%;padding:8px;margin-bottom:16px;color:#000">
+                    ${vl.map(v => `<option value="${aiEsc(v.code)}">${aiEsc(v.name)}</option>`).join('')}
+                </select>
+                <div style="display:flex;gap:8px">
+                    <button onclick="enrollPending('${aiEsc(d.ip)}')" style="flex:1;padding:10px;border-radius:10px;background:#3b82f6">등록</button>
+                    <button onclick="closeModal()" style="padding:10px;border-radius:10px;background:#334">나중에</button>
+                </div>`);
+        } catch (e) { /* 무시 */ }
+    }
+    async function enrollPending(ip) {
+        try {
+            await aiFetch('/api/ai/enroll', { method: 'POST', body: JSON.stringify({
+                ip, name: document.getElementById('enroll-name').value,
+                type: document.getElementById('enroll-type').value,
+                vlan_code: document.getElementById('enroll-vlan').value }) });
+            toast('기기를 등록했습니다'); closeModal(); loadDevices();
+        } catch (e) { toast(e.message); }
+    }
+
+    // ===== 기기 본인 화면: 미등록이면 등록 요청 (iPad/스마트폰 접속용) =====
+    async function checkMyDevice() {
+        try {
+            const me = await fetch('/api/ai/whoami').then(r => r.json());
+            if (me.local || me.registered) return;
+            showModal(`
+                <h3 style="font-weight:800;margin-bottom:8px">✋ 잠시만요! 이 기기는 등록되어 있지 않아요</h3>
+                <p id="my-dev-msg" style="font-size:14px;margin-bottom:12px">이 기기(${aiEsc(me.ip)})를 등록하시겠습니까?</p>
+                <div id="my-dev-form">
+                    <input id="my-dev-name" placeholder="기기 이름 (예: 지환의 iPad)" maxlength="50" style="width:100%;padding:8px;margin-bottom:8px;color:#000">
+                    <select id="my-dev-type" style="width:100%;padding:8px;margin-bottom:16px;color:#000">
+                        <option value="mobile">mobile (스마트폰/태블릿)</option><option value="pc">pc</option>
+                        <option value="printer">printer</option><option value="app">app</option>
+                    </select>
+                    <div style="display:flex;gap:8px">
+                        <button onclick="requestRegister()" style="flex:1;padding:10px;border-radius:10px;background:#3b82f6">등록 요청</button>
+                        <button onclick="closeModal()" style="padding:10px;border-radius:10px;background:#334">나중에</button>
+                    </div>
+                </div>`);
+        } catch (e) { /* 무시 */ }
+    }
+    async function requestRegister() {
+        const name = document.getElementById('my-dev-name').value.trim();
+        const type = document.getElementById('my-dev-type').value;
+        if (!name) return aiToast('기기 이름을 입력해 주세요');
+        try {
+            const r = await fetch('/api/ai/register-request', { method: 'POST',
+                headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, type }) });
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(j.detail || r.statusText);
+            document.getElementById('my-dev-form').remove();
+            document.getElementById('my-dev-msg').textContent = j.registered
+                ? '✅ 등록이 완료되었습니다!' : '⏳ 관리자 승인을 기다리는 중입니다...';
+            if (j.registered) setTimeout(closeModal, 2500); else waitApproval();
+        } catch (e) { aiToast(e.message); }
+    }
+    function waitApproval() {
+        const t = setInterval(async () => {
+            try {
+                const me = await fetch('/api/ai/whoami').then(r => r.json());
+                if (me.registered) {
+                    clearInterval(t);
+                    const m = document.getElementById('my-dev-msg');
+                    if (m) m.textContent = '✅ 등록이 완료되었습니다!';
+                    setTimeout(closeModal, 2500);
+                }
+            } catch (e) { /* 무시 */ }
+        }, 3000);
+    }
+    restoreSession();
+    if (IS_REAL) setInterval(() => {
+        if (sessionStorage.getItem('token')) { pollAiIncidents(); pollPendingDevices(); }
+    }, 5000);
+    if (IS_REAL) checkMyDevice();
     </script>
 </body>
 
