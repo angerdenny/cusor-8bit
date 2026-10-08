@@ -3727,8 +3727,7 @@
             }
         };
         const BOOST = Object.fromEntries(Object.entries(SIM_TYPES).map(([k, v]) => [k, v.boost]));
-        function nodeStatus(n) { return n.lv === 'crit' ? '✖ Overload — 즉시 조치 필요' : n.lv === 'warn' ? '▲ High Load Warning' : n.status; }
-
+        function nodeStatus(n) { return n.conn ? n.connText : n.lv === 'crit' ? '✖ Overload — 즉시 조치 필요' : n.lv === 'warn' ? '▲ High Load Warning' : n.status; }
         const ROLES = [
             { name: '이지환', role: '총괄 · 권한 관리' }, { name: '장우진', role: 'UI · 대시보드' },
             { name: '양이수', role: '네트워크 토폴로지' }, { name: '김범수', role: '로그 수집' },
@@ -4553,6 +4552,7 @@
             if (a === b) { toast('같은 장비끼리는 연결할 수 없어요.'); return; }
             if (!NODES[a] || !NODES[b]) return;
             if (edgeExists(a, b)) { toast('이미 연결되어 있는 장비예요.'); return; }
+            if (IS_REAL_ENV && needsApproval(a, b)) { await requestConnect(a, b); return; }
             
             if (!(await syncLink('add', a, b))) return;
             if (!NODES[a] || !NODES[b] || edgeExists(a, b)) return;
@@ -4720,6 +4720,7 @@
             const to = $('inspect-connect-target').value;
             if (!from || !to || !NODES[from] || !NODES[to] || from === to) return;
             if (edgeExists(from, to)) { toast('이미 연결되어 있는 장비예요.'); return; }
+            if (IS_REAL_ENV && needsApproval(from, to)) { await requestConnect(from, to); return; }
 
             if (!(await syncLink('add', from, to))) return;
             if (!NODES[from] || !NODES[to] || edgeExists(from, to)) return;
@@ -5251,7 +5252,8 @@
                 const n = NODES[k], [bc, br] = boost[k] || [0, 0];
                 n.lc = clamp(n.lc + (Math.min(99, n.cpu + bc) - n.lc) * 0.3 + (Math.random() * 2 - 1) * 1.2, 2, 99);
                 n.lr = clamp(n.lr + (Math.min(99, n.ram + br) - n.lr) * 0.3 + (Math.random() * 2 - 1) * 0.6, 2, 99);
-                n.lv = n.lc >= 90 ? 'crit' : n.lc >= 70 ? 'warn' : 'ok';
+                n.lv = n.conn === 'offline' ? 'crit' : (n.conn === 'unstable' || n.conn === 'slow') ? 'warn'
+                    : n.lc >= 90 ? 'crit' : n.lc >= 70 ? 'warn' : 'ok';
             });
         }
 
@@ -5896,6 +5898,12 @@
                 rows.forEach(r => { if (!(r.device_id in latest)) latest[r.device_id] = r; });
                 const list = Object.values(latest);
 
+                Object.values(NODES).forEach(n => {
+                    const t = n.dbId && latest[n.dbId];
+                    if (t) { n.cpu = Math.round(t.cpu_usage); n.ram = Math.round(t.ram_usage); n.measured = true; }
+                    else { n.cpu = 0; n.ram = 0; n.measured = false; }   // 에이전트 없는 기기(iPad 등)는 측정값 없음
+                });
+
                 const traffic = list.reduce((a, r) => a + (r.traffic_in_mbps || 0), 0);
                 const cpu = list.reduce((a, r) => a + (r.cpu_usage || 0), 0) / list.length;
                 const ram = list.reduce((a, r) => a + (r.ram_usage || 0), 0) / list.length;
@@ -6104,6 +6112,7 @@
                 const unplaced = d.x == null || d.y == null || (d.x === 0 && d.y === 0);
                 NODES[key] = {
                     dbId: d.id,
+                    rawType: d.type,
                     name: d.name,
                     short: d.name.length > 10 ? d.name.slice(0, 9) + '…' : d.name,
                     ip: d.ip,
@@ -6225,7 +6234,6 @@
             }
         }
 
-        setInterval(updateTelemetry, 5000);
         
         async function submitAddDevice(e) {
             e.preventDefault();
@@ -6365,7 +6373,15 @@
         const el = document.createElement('div');
         el.id = 'ai-modal';
         el.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center';
-        el.innerHTML = `<div style="background:#0f1424;border:1px solid #334;border-radius:16px;padding:24px;max-width:420px;width:90%;color:#fff">${html}</div>`;
+        el.innerHTML = `<style>
+            #ai-modal input, #ai-modal select, #ai-modal option {
+                background:#1b2236 !important; color:#fff !important;
+                border:1px solid #556 !important; border-radius:8px !important;
+                font-size:16px !important; color-scheme:dark;
+            }
+            #ai-modal input::placeholder { color:#8a93a8 !important; } 
+        </style>
+        <div style="background:#0f1424;border:1px solid #334;border-radius:16px;padding:24px;max-width:420px;width:90%;color:#fff">${html}</div>`;    
         document.body.appendChild(el);
     }
         // ===== AI 경보 팝업 (승인/차단 · 오탐/재학습) =====
@@ -6409,9 +6425,11 @@
     async function pollPendingDevices() {
         try {
             const list = await aiFetch('/api/ai/pending-devices');   // 관리자만 성공, 일반 사용자는 403 → 무시
-            const d = list.find(x => !askedIps.has(x.ip));
+            const key = x => x.ip + (x.requested ? ':req' : '');
+            const d = [...list].sort((a, b) => (b.requested ? 1 : 0) - (a.requested ? 1 : 0))
+                               .find(x => !askedIps.has(key(x)));
             if (!d || document.getElementById('ai-modal')) return;
-            askedIps.add(d.ip);
+            askedIps.add(key(d));
             const vl = (await aiFetch('/api/vlans')).vlans || [];
             showModal(`
                 <h3 style="font-weight:800;margin-bottom:8px">✋ 잠시만요! 이 기기는 등록되어 있지 않아요</h3>
@@ -6489,8 +6507,66 @@
         }, 3000);
     }
     restoreSession();
+    // ===== 연결 요청: 관리자 요청 → 기기(iPad) 승인 =====
+    const shownConn = new Set();
+    function needsApproval(a, b) { return [a, b].some(k => NODES[k] && NODES[k].rawType === 'mobile'); }
+    async function requestConnect(a, b) {
+        try {
+            await aiFetch('/api/ai/connect-request', { method: 'POST',
+                body: JSON.stringify({ source_id: NODES[a].dbId, target_id: NODES[b].dbId }) });
+            toast('연결 요청을 보냈어요. 상대 기기의 승인을 기다리는 중...');
+        } catch (e) { toast(e.message); }
+    }
+    async function pollMyConnectRequest() {              // 기기(iPad) 화면: 로그인 없이 동작
+        if (document.getElementById('ai-modal')) return;
+        try {
+            const q = (await fetch('/api/ai/my-connect-request').then(r => r.json())).request;
+            if (!q || shownConn.has(q.id)) return;
+            shownConn.add(q.id);
+            showModal(`
+                <h3 style="font-weight:800;margin-bottom:8px">🔗 연결 요청</h3>
+                <p style="font-size:14px;margin-bottom:16px"><b>${aiEsc(q.from_name)}</b>에서 이 기기와 연결하려고 해요.<br>승인하시겠습니까?</p>
+                <div style="display:flex;gap:8px">
+                    <button onclick="respondConnect('${aiEsc(q.id)}', true)" style="flex:1;padding:10px;border-radius:10px;background:#22c55e">승인</button>
+                    <button onclick="respondConnect('${aiEsc(q.id)}', false)" style="flex:1;padding:10px;border-radius:10px;background:#ef4444">거절</button>
+                </div>`);
+        } catch (e) { /* 무시 */ }
+    }
+    async function respondConnect(id, accept) {
+        try {
+            const r = await fetch('/api/ai/connect-respond', { method: 'POST',
+                headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request_id: id, accept }) });
+            if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+            aiToast(accept ? '연결을 승인했어요' : '연결을 거절했어요');
+        } catch (e) { aiToast(e.message); }
+        closeModal();
+    }
+    async function pollConnectResults() {                // 관리자 화면: 결과 알림
+        try {
+            const r = await aiFetch('/api/ai/connect-results');
+            r.results.forEach(x => toast(x.accepted ? `${x.a} ↔ ${x.b} 연결이 승인됐어요` : `${x.b}가 연결을 거절했어요`));
+            if (r.results.some(x => x.accepted)) loadDevices();
+        } catch (e) { /* 무시 */ }
+    }
+
+    async function pollConnectivity() {                  // 에이전트 없는 기기의 연결 상태
+        try {
+            const j = await aiFetch('/api/ai/connectivity');
+            Object.values(NODES).forEach(n => {
+                const c = n.dbId && j.devices[n.dbId];
+                if (!c || c.source === 'agent') { n.conn = null; return; }
+                n.conn = c.status;
+                const rtt = c.rtt_ms != null ? `${Math.round(c.rtt_ms)}ms` : '-';
+                n.connText = c.status === 'offline' ? '✖ 오프라인 — 응답 없음'
+                    : c.status === 'unstable' ? `▲ 불안정 — 응답 ${rtt} · 손실 ${c.loss}%`
+                    : c.status === 'slow' ? `▲ 느림 — 응답 ${rtt} · 손실 ${c.loss}%`
+                    : `● 온라인 — 응답 ${rtt} · 손실 ${c.loss}%`;
+            });
+        } catch (e) { /* 무시 */ }
+    }
     if (IS_REAL) setInterval(() => {
-        if (sessionStorage.getItem('token')) { pollAiIncidents(); pollPendingDevices(); }
+        pollMyConnectRequest();
+        if (sessionStorage.getItem('token')) { pollAiIncidents(); pollPendingDevices(); pollConnectResults(); pollConnectivity(); }
     }, 5000);
     if (IS_REAL) checkMyDevice();
     </script>
