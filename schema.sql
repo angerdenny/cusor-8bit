@@ -249,3 +249,28 @@ INSERT INTO endpoint_events (action, process_name, pid, reason) VALUES
 ('blocked', 'malware.exe', 1234, 'Signature match: Trojan.Generic'),
 ('allowed', 'notepad.exe', 5678, 'Whitelisted process'),
 ('blocked', 'cmd.exe', 9999, 'Suspicious C&C communication attempt');
+
+-- AI anomaly incidents (admin-approved block / feedback retraining)
+CREATE TABLE IF NOT EXISTS ai_incidents (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  device_id INT NOT NULL,
+  risk_score DOUBLE NOT NULL,
+  message VARCHAR(255) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'open',
+  process_name VARCHAR(255) NULL,
+  pid INT NULL,
+  proc_create_time DOUBLE NULL,
+  features JSON NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_inc_status (status, device_id)
+);
+
+-- Ping results for agentless devices (iPad, phones)
+CREATE TABLE IF NOT EXISTS ping_logs (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  device_id INT NOT NULL,
+  ok TINYINT(1) NOT NULL,
+  rtt_ms DOUBLE NULL,
+  created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  INDEX idx_ping_dev (device_id, id)
+);

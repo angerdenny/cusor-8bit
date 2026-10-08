@@ -34,6 +34,18 @@ _lock = threading.Lock()
 _commands: dict[int, list[dict]] = {}  # device_id -> 대기 중 명령 (서버 재시작 시 초기화)
 _suspects: dict[int, dict] = {}        # device_id -> 에이전트가 보고한 의심 프로세스
 _pending: dict[str, dict] = {}         # ip -> 미등록 기기
+_conn_reqs: dict[int, dict] = {}   # 승인자(기기) device_id -> 연결 요청
+_conn_done: list[dict] = []        # 관리자에게 알릴 처리 결과
+
+class ConnReq(BaseModel):
+    source_id: int
+    target_id: int
+
+
+class ConnResp(BaseModel):
+    request_id: str
+    accept: bool
+
 
 ALLOWED_TYPES = {"router", "switch", "server", "app", "pc", "mobile", "firewall", "printer", "access-point"}
 _last_req: dict[str, float] = {}
@@ -302,5 +314,103 @@ def build_ai_router(get_db, get_current_user, require_admin, agent_key: str) -> 
             raise HTTPException(status_code=429, detail="대기 중인 요청이 너무 많습니다")
         _pending[ip] = {"ip": ip, "hostname": name, "type": req.type, "requested": True}
         return {"registered": False}
+    
+    # ---------- 연결 요청 (관리자 → 기기 승인) ----------
+    def _me(db, request: Request):
+        ip = request.client.host if request.client else ""
+        return db.execute(text("SELECT id, name FROM devices WHERE ip=:ip"), {"ip": ip}).first()
 
+    def _linked(db, a, b):
+        return db.execute(text("SELECT 1 FROM links WHERE (source_id=:a AND target_id=:b) "
+                               "OR (source_id=:b AND target_id=:a)"), {"a": a, "b": b}).first()
+
+    @r.post("/api/ai/connect-request")
+    def connect_request(req: ConnReq, db=Depends(get_db), user=Depends(require_admin)):
+        if req.source_id == req.target_id:
+            raise HTTPException(status_code=400, detail="같은 장비끼리는 연결할 수 없습니다")
+        rows = {x.id: x for x in db.execute(
+            text("SELECT id, name, type FROM devices WHERE id IN (:a,:b)"),
+            {"a": req.source_id, "b": req.target_id})}
+        if len(rows) != 2:
+            raise HTTPException(status_code=404, detail="Device not found")
+        if _linked(db, req.source_id, req.target_id):
+            raise HTTPException(status_code=400, detail="이미 연결되어 있는 장비입니다")
+        # 승인하는 쪽: mobile 기기 (없으면 대상 기기)
+        appr, other = ((req.source_id, req.target_id) if rows[req.source_id].type == "mobile" and rows[req.target_id].type != "mobile"
+                       else (req.target_id, req.source_id))
+        _conn_reqs[appr] = {"id": uuid.uuid4().hex, "other": other, "appr": appr,
+                            "from_name": rows[other].name, "ts": time.time()}
+        return {"ok": True}
+
+    @r.get("/api/ai/my-connect-request")
+    def my_connect_request(request: Request, db=Depends(get_db)):
+        me = _me(db, request)
+        q = _conn_reqs.get(me.id) if me else None
+        if q and time.time() - q["ts"] > 120:   # 2분 지나면 만료
+            _conn_reqs.pop(me.id, None)
+            q = None
+        return {"request": {"id": q["id"], "from_name": q["from_name"]} if q else None}
+
+    @r.post("/api/ai/connect-respond")
+    def connect_respond(res: ConnResp, request: Request, db=Depends(get_db)):
+        me = _me(db, request)
+        q = _conn_reqs.get(me.id) if me else None
+        if not q or q["id"] != res.request_id:
+            raise HTTPException(status_code=404, detail="처리할 연결 요청이 없습니다")
+        _conn_reqs.pop(me.id, None)
+        if res.accept and not _linked(db, q["other"], q["appr"]):
+            try:
+                db.execute(text("INSERT INTO links (source_id, target_id) VALUES (:a,:b)"),
+                           {"a": q["other"], "b": q["appr"]})
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+                raise HTTPException(status_code=400, detail="연결 정보가 올바르지 않습니다")
+        _conn_done.append({"accepted": res.accept, "a": q["from_name"], "b": me.name})
+        return {"ok": True}
+
+    @r.get("/api/ai/connect-results")
+    def connect_results(user=Depends(require_admin)):
+        out = list(_conn_done)
+        _conn_done.clear()
+        return {"results": out}
+
+    # ---------- 연결 상태 (에이전트 없는 기기: 핑 기반) ----------
+    @r.get("/api/ai/connectivity")
+    def connectivity(db=Depends(get_db), user=Depends(get_current_user)):
+        agent = {x[0] for x in db.execute(text(
+            "SELECT DISTINCT device_id FROM telemetry WHERE timestamp > NOW() - INTERVAL 30 SECOND"))}
+        rows = db.execute(text("""
+            SELECT device_id, ok, rtt_ms FROM (
+              SELECT device_id, ok, rtt_ms,
+                     ROW_NUMBER() OVER (PARTITION BY device_id ORDER BY id DESC) AS rn
+              FROM ping_logs WHERE created_at > NOW() - INTERVAL 2 MINUTE) t
+            WHERE rn <= 10 ORDER BY device_id, rn""")).fetchall()
+        by: dict[int, list] = {}
+        for x in rows:
+            by.setdefault(x.device_id, []).append(x)
+        out = {}
+        for dev, lst in by.items():
+            if dev in agent:
+                continue
+            lead = 0                       # 최근부터 연속 실패 횟수
+            for x in lst:
+                if x.ok:
+                    break
+                lead += 1
+            loss = round(100 * sum(1 for x in lst if not x.ok) / len(lst))
+            rtts = [x.rtt_ms for x in lst if x.ok and x.rtt_ms is not None]
+            avg = sum(rtts) / len(rtts) if rtts else None
+            if lead >= 3:
+                status = "offline"
+            elif loss >= 20:
+                status = "unstable"
+            elif avg is not None and avg >= 150:
+                status = "slow"
+            else:
+                status = "online"
+            out[dev] = {"source": "ping", "status": status, "rtt_ms": avg, "loss": loss}
+        for dev in agent:
+            out[dev] = {"source": "agent", "status": "online"}
+        return {"devices": out}
     return r
