@@ -77,6 +77,11 @@ def to_features(row: dict) -> dict:
 def _json(v):
     return json.loads(v) if isinstance(v, (str, bytes)) else (v or {})
 
+def add_alert(db, lv, title, msg, cause="", action=""):
+    """보안 로그(alerts)에 한 줄 남긴다. commit은 호출한 쪽에서 한다."""
+    db.execute(text("INSERT INTO alerts (lv, title, msg, cause, action) VALUES (:lv,:t,:m,:c,:a)"),
+               {"lv": lv, "t": title[:190], "m": msg, "c": cause[:490], "a": action[:490]})
+
 
 class BlockReq(BaseModel):
     incident_id: int
@@ -113,7 +118,7 @@ class EnrollReq(BaseModel):
 
 
 def score_rows(db, rows: list[dict]) -> list[dict]:
-    """telemetry 행들에 risk_score를 붙이고, 이상이면 경보(ai_incidents)를 만든다.
+    """telemetry 행들에 risk_score를 붙이고, 이상이면 경보(ai_incidents)와 보안 로그(alerts)를 만든다.
     main.py의 /api/telemetry/latest 에서 호출."""
     if not detector.trained:
         train = [to_features(dict(x._mapping)) for x in db.execute(text(TRAIN_SQL))]
@@ -130,10 +135,10 @@ def score_rows(db, rows: list[dict]) -> list[dict]:
             continue
         seen.add(dev)
         if not (detector.trained and res["is_anomaly"]):
-            continue  # 미학습(임시 수식) 상태에서는 경보를 만들지 않는다
+            continue  # 미학습 상태에서는 경보를 만들지 않는다
         if db.execute(text("SELECT 1 FROM ai_incidents WHERE device_id=:d AND status IN ('open','block_pending') LIMIT 1"),
                       {"d": dev}).first():
-            continue
+            continue  # 이미 열린 경보가 있으면 새로 만들지 않는다 (중복·도배 방지)
         s = _suspects.get(dev)
         if s and time.time() - s["ts"] > SUSPECT_TTL:
             s = None
@@ -144,8 +149,13 @@ def score_rows(db, rows: list[dict]) -> list[dict]:
             "VALUES (:d,:r,:m,:pn,:pid,:ct,:f)"),
             {"d": dev, "r": res["risk_score"], "m": msg, "pn": s and s["name"], "pid": s and s["pid"],
              "ct": s and s["create_time"], "f": json.dumps(feats)})
+        add_alert(db, "crit", "🤖 AI 이상 감지", msg,
+                  f"위험도 {res['risk_score']}% · 주요 요인: {res['top_factor'] or '-'}",
+                  "승인/차단 또는 오탐/재학습을 선택하세요")
         db.commit()
     return rows
+            
+               
 
 
 def build_ai_router(get_db, get_current_user, require_admin, agent_key: str) -> APIRouter:
@@ -188,6 +198,8 @@ def build_ai_router(get_db, get_current_user, require_admin, agent_key: str) -> 
         with _lock:
             _commands.setdefault(a["device_id"], []).append(cmd)
         db.execute(text("UPDATE ai_incidents SET status='block_pending' WHERE id=:i"), {"i": a["id"]})
+        add_alert(db, "warn", "🛡 차단 승인", f"관리자가 '{a['process_name']}'(PID {a['pid']}) 차단을 승인했습니다",
+                  "관리자 승인", "에이전트가 프로세스를 종료합니다")
         db.commit()
         return {"command_id": cmd["id"], "status": "block_pending"}
 
@@ -203,6 +215,9 @@ def build_ai_router(get_db, get_current_user, require_admin, agent_key: str) -> 
             total = detector.add_feedback(feats)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
+        
+        after = detector.predict_risk(feats)["risk_score"]
+        add_alert(db, "info", "♻ 오탐 재학습", f"위험도 {before}% → {after}%", "관리자가 오탐으로 판정", "정상 기준선에 반영됨")
         db.execute(text("UPDATE ai_incidents SET status='false_positive' WHERE id=:i"), {"i": req.incident_id})
         db.commit()
         return {"risk_before": before, "risk_after": detector.predict_risk(feats)["risk_score"], "baseline_size": total}
@@ -233,6 +248,7 @@ def build_ai_router(get_db, get_current_user, require_admin, agent_key: str) -> 
     def cmd_result(cmd_id: str, res: CmdResult, incident_id: int, db=Depends(get_db)):
         status = "blocked" if res.ok else "block_failed"
         db.execute(text("UPDATE ai_incidents SET status=:s WHERE id=:i"), {"s": status, "i": incident_id})
+        add_alert(db, "info" if res.ok else "crit", "차단 완료" if res.ok else "차단 실패", res.detail, "에이전트 실행 결과")
         db.commit()
         return {"status": status, "detail": res.detail}
 
@@ -259,6 +275,7 @@ def build_ai_router(get_db, get_current_user, require_admin, agent_key: str) -> 
             db.execute(text("INSERT INTO devices (name, ip, type, owner_id, x, y, vlan_id) "
                             "VALUES (:n,:ip,:t,:o,50,50,:v)"),
                        {"n": req.name.strip(), "ip": ip, "t": req.type, "o": user["user_id"], "v": vlan[0]})
+            add_alert(db, "info", "기기 등록", f"{req.name.strip()} ({ip}) 등록", "관리자 승인")
             db.commit()
         except IntegrityError:
             db.rollback()

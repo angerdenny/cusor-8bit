@@ -3727,7 +3727,7 @@
             }
         };
         const BOOST = Object.fromEntries(Object.entries(SIM_TYPES).map(([k, v]) => [k, v.boost]));
-        function nodeStatus(n) { return n.conn ? n.connText : n.lv === 'crit' ? '✖ Overload — 즉시 조치 필요' : n.lv === 'warn' ? '▲ High Load Warning' : n.status; }
+        function nodeStatus(n) { return n.alert ? '🚨 AI 이상 감지 — 조치 대기' : n.conn ? n.connText : n.lv === 'crit' ? '✖ Overload — 즉시 조치 필요' : n.lv === 'warn' ? '▲ High Load Warning' : n.status; }
         const ROLES = [
             { name: '이지환', role: '총괄 · 권한 관리' }, { name: '장우진', role: 'UI · 대시보드' },
             { name: '양이수', role: '네트워크 토폴로지' }, { name: '김범수', role: '로그 수집' },
@@ -3736,6 +3736,7 @@
         ];
 
         let alertSeq = 0;
+        window.alerts = [];
         
         if (IS_REAL_ENV) {
             NODE_KEYS.forEach(k => delete NODES[k]);
@@ -3774,7 +3775,7 @@
                 ? '기기별 소유자 할당과 DB 백업 기록을 확인할 수 있어요 (보기 전용)'
                 : t[1];
             if (name === 'vlan') { const zv = vlanById(state.vlanView); if (zv) $('page-title').textContent = `${zv.name} 구역`; }
-            if (name === 'logs') { state.unread = 0; updateBadge(); markAlertsRead(); if (typeof renderAlertList === 'function') renderAlertList(); }
+            if (name === 'logs') { state.unread = 0; updateBadge(); markAlertsRead(); renderAlerts(); }
             if (name === 'devices') { renderDevices(); renderBackups(); }
             if (name === 'vlan') { renderVlanView(); }
             if (name === 'topology') { buildNodeUI(); updateNodeUI(); lucide.createIcons(); } // 이 시점에야 실제 크기를 알 수 있어 구역 도형을 다시 계산
@@ -5252,7 +5253,7 @@
                 const n = NODES[k], [bc, br] = boost[k] || [0, 0];
                 n.lc = clamp(n.lc + (Math.min(99, n.cpu + bc) - n.lc) * 0.3 + (Math.random() * 2 - 1) * 1.2, 2, 99);
                 n.lr = clamp(n.lr + (Math.min(99, n.ram + br) - n.lr) * 0.3 + (Math.random() * 2 - 1) * 0.6, 2, 99);
-                n.lv = n.conn === 'offline' ? 'crit' : (n.conn === 'unstable' || n.conn === 'slow') ? 'warn'
+                n.lv = (n.alert || n.conn === 'offline') ? 'crit' : (n.conn === 'unstable' || n.conn === 'slow') ? 'warn'
                     : n.lc >= 90 ? 'crit' : n.lc >= 70 ? 'warn' : 'ok';
             });
         }
@@ -5260,8 +5261,9 @@
         /* ═════════ 6. 알림 로그 ═════════ */
         const ALERT_ICON = { crit: '🚨', warn: '⚠️', info: 'ℹ️' };
         const LV_LABEL = { crit: '위험', warn: '경고', info: '정보' };
+        const alertTime = a => a.time || ((a.created_at || a.timestamp) ? new Date(a.created_at || a.timestamp).toLocaleTimeString('ko-KR') : '');
         const alertHtml = a => `<div class="alert click lv-${a.lv}" onclick="openAlertModal(${a.id})">
-            <div class="a-h"><span>${ALERT_ICON[a.lv]} ${a.title}</span><span class="a-t">${a.time}</span></div>
+            <div class="a-h"><span>${ALERT_ICON[a.lv]} ${a.title}</span><span class="a-t">${alertTime(a)}</span></div>
             <p>${a.msg}</p>
         </div>`;
 
@@ -5286,7 +5288,7 @@
             $('modal-body').innerHTML = `
                 <div class="modal-head">
                     <span class="pill sm lv-${a.lv}"><span class="pdot"></span>${LV_LABEL[a.lv]}</span>
-                    <span class="modal-time">${a.time}</span>
+                    <span class="modal-time">${alertTime(a)}</span>
                 </div>
                 <h3 class="text-lg font-extrabold mt-3 mb-1">${ALERT_ICON[a.lv]} ${a.title}</h3>
                 <p class="text-sm t-muted leading-relaxed">${a.msg}</p>
@@ -5897,19 +5899,20 @@
                 const latest = {};
                 rows.forEach(r => { if (!(r.device_id in latest)) latest[r.device_id] = r; });
                 const list = Object.values(latest);
-
+                
                 Object.values(NODES).forEach(n => {
                     const t = n.dbId && latest[n.dbId];
-                    if (t) { n.cpu = Math.round(t.cpu_usage); n.ram = Math.round(t.ram_usage); n.measured = true; }
-                    else { n.cpu = 0; n.ram = 0; n.measured = false; }   // 에이전트 없는 기기(iPad 등)는 측정값 없음
+                    if (t) { n.cpu = Math.round(t.cpu_usage); n.ram = Math.round(t.ram_usage); }
+                    else { n.cpu = 0; n.ram = 0; }          // 측정값 없는 기기(iPad 등)
                 });
+
 
                 const traffic = list.reduce((a, r) => a + (r.traffic_in_mbps || 0), 0);
                 const cpu = list.reduce((a, r) => a + (r.cpu_usage || 0), 0) / list.length;
                 const ram = list.reduce((a, r) => a + (r.ram_usage || 0), 0) / list.length;
-                const loss = Math.max(...list.map(r => r.packet_loss || 0));
-                // 임시 위험도: AI 분석 연동 전까지 CPU/RAM/손실률로 단순 계산
-                const risk = clamp(cpu * 0.5 + ram * 0.2 + loss * 0.3, 1, 99.9);
+                const pingLoss = Math.max(0, ...Object.values(NODES).filter(n => n.conn && n.conn !== 'offline').map(n => n.connLoss || 0));
+                const loss = Math.max(...list.map(r => r.packet_loss || 0), pingLoss);
+                const risk = clamp(Math.max(...list.map(r => r.risk_score || 0)), 1, 99.9);
 
                 state.ingress = +traffic.toFixed(1);
                 state.loss = +loss.toFixed(2);
@@ -5925,7 +5928,7 @@
                 $('stat-packet-loss').textContent = `${state.loss}%`;
                 $('stat-ai-risk').textContent = `${state.risk}%`;
                 $('stat-ai-bar').style.width = `${state.risk}%`;
-                $('stat-devices').textContent = `${list.length} / ${list.length} Online`;
+                updateDeviceCount();
 
                 const aiLv = state.risk > 80 ? 'crit' : state.risk > 50 ? 'warn' : 'ok';
                 const lossLv = state.loss >= 5 ? 'crit' : state.loss >= 1.5 ? 'warn' : 'ok';
@@ -6057,7 +6060,7 @@
                 }
                 if (!res.ok) {
                     const err = await res.json().catch(() => ({}));
-                    oast(`연결 저장 실패: ${formatApiError(err.detail)}`);
+                    toast(`연결 저장 실패: ${formatApiError(err.detail)}`);
                     return false;
                 }
                 return true;
@@ -6182,7 +6185,8 @@
                 );
                 window.alerts = list;
                 updateAlertBadge();
-                if (typeof renderAlertList === 'function') renderAlertList();
+                renderAlerts();
+            
             } catch (err) {
                 console.warn('Alerts load failed:', err);
             }
@@ -6320,7 +6324,7 @@
             body.innerHTML = '<p class="text-sm t-dim py-6 text-center">등록된 장비가 없어요.</p>';
             return;
         }
-        const avg = (keys, f) => keys.length ? Math.round(keys.reduce((s, k) => s + NODES[k][f], 0) / keys.length) : 0;
+        const avg = (keys, f) => { const m = keys.filter(k => NODES[k].measured); return m.length ? Math.round(m.reduce((s, k) => s + NODES[k][f], 0) / m.length) : 0; };
         const crit = all.filter(k => NODES[k].lv === 'crit').length;
         const warn = all.filter(k => NODES[k].lv === 'warn').length;
 
@@ -6328,8 +6332,8 @@
             <div class="grid grid-cols-2 gap-3 mb-5">
                 <div class="vv-stat"><small>전체 장비</small><b>${all.length}대</b></div>
                 <div class="vv-stat"><small>구역</small><b>${vlans.length}개</b></div>
-                <div class="vv-stat"><small>평균 CPU</small><b class="c-cyan">${avg(all, 'lc')}%</b></div>
-                <div class="vv-stat"><small>평균 메모리</small><b style="color:var(--blue)">${avg(all, 'lr')}%</b></div>
+                <div class="vv-stat"><small>평균 CPU (측정 ${all.filter(k => NODES[k].measured).length}대)</small><b class="c-cyan">${avg(all, 'lc')}%</b></div>
+                <div class="vv-stat"><small>평균 메모리 (측정 ${all.filter(k => NODES[k].measured).length}대)</small><b style="color:var(--blue)">${avg(all, 'lr')}%</b></div>
             </div>
             <p class="text-xs mb-4"><span class="c-amber">▲ 경고 ${warn}</span> &nbsp; <span style="color:var(--red)">✖ 위험 ${crit}</span></p>
             <p class="text-xs font-semibold t-muted mb-2">구역별 현황 <span class="t-dim font-normal">(누르면 그 구역으로 이동)</span></p>`;
@@ -6391,6 +6395,8 @@
         try {
             const r = await aiFetch('/api/ai/incidents');
             aiCanAct = r.can_act;
+            const bad = new Set(r.incidents.filter(x => x.status === 'open' || x.status === 'block_pending').map(x => x.device_id));
+            Object.values(NODES).forEach(n => { n.alert = !!(n.dbId && bad.has(n.dbId)); });
             const a = r.incidents.find(x => x.status === 'open' && !shownAlerts.has(x.id));
             if (a && !document.getElementById('ai-modal')) showAiAlertPopup(a);
         } catch (e) { /* 로그인 전이면 무시 */ }
@@ -6549,21 +6555,36 @@
         } catch (e) { /* 무시 */ }
     }
 
+    function updateDeviceCount() {
+        const total = NODE_KEYS.length;
+        const on = NODE_KEYS.filter(k => { const n = NODES[k]; return n && (n.measured || (n.conn && n.conn !== 'offline')); }).length;
+        const el = $('stat-devices'); if (el) el.textContent = `${on} / ${total} Online`;
+    }
     async function pollConnectivity() {                  // 에이전트 없는 기기의 연결 상태
         try {
             const j = await aiFetch('/api/ai/connectivity');
             Object.values(NODES).forEach(n => {
                 const c = n.dbId && j.devices[n.dbId];
+                n.measured = !!(c && c.source === 'agent');
                 if (!c || c.source === 'agent') { n.conn = null; return; }
                 n.conn = c.status;
+                n.connLoss = c.loss || 0;
                 const rtt = c.rtt_ms != null ? `${Math.round(c.rtt_ms)}ms` : '-';
                 n.connText = c.status === 'offline' ? '✖ 오프라인 — 응답 없음'
                     : c.status === 'unstable' ? `▲ 불안정 — 응답 ${rtt} · 손실 ${c.loss}%`
                     : c.status === 'slow' ? `▲ 느림 — 응답 ${rtt} · 손실 ${c.loss}%`
                     : `● 온라인 — 응답 ${rtt} · 손실 ${c.loss}%`;
             });
+            updateDeviceCount();
         } catch (e) { /* 무시 */ }
     }
+    async function pollDevices() {                       // 다른 기기에서 바뀐 장비/위치를 가져온다
+        if (typeof nodeDragState !== 'undefined' && nodeDragState) return;   // 드래그 중에는 건너뜀
+        if (document.getElementById('ai-modal')) return;
+        try { await loadDevices(); await pollConnectivity(); } catch (e) { /* 무시 */ }
+    }
+    if (IS_REAL) setInterval(() => { if (sessionStorage.getItem('token')) pollDevices(); }, 10000);
+    
     if (IS_REAL) setInterval(() => {
         pollMyConnectRequest();
         if (sessionStorage.getItem('token')) { pollAiIncidents(); pollPendingDevices(); pollConnectResults(); pollConnectivity(); }
