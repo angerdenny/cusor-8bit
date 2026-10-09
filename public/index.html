@@ -3380,7 +3380,7 @@
         let failCount = 0;
         const lockDurations = { 5: 30, 6: 60, 7: 180, 8: 600, 9: 1200 };
         async function apiFetch(url, options = {}) {
-            const token = sessionStorage.getItem('token');
+            const token = sessionStorage.getItem('access_token');
 
             const headers = { ...(options.headers || {}) };
             if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -3625,6 +3625,7 @@
 
         /* ═════════ 3. 데이터 모델 ═════════ */
         const state = {
+            devices: [],telemetry: {},
             isAdmin: true, username: '이지환', view: 'overview',
             ingress: 450, risk: 12.4, loss: 0.02, mode: null,
             selected: 'core-router', logFilter: 'all', unread: 0
@@ -6581,7 +6582,7 @@
     async function pollDevices() {                       // 다른 기기에서 바뀐 장비/위치를 가져온다
         if (typeof nodeDragState !== 'undefined' && nodeDragState) return;   // 드래그 중에는 건너뜀
         if (document.getElementById('ai-modal')) return;
-        try { await loadDevices(); await pollConnectivity(); } catch (e) { /* 무시 */ }
+        try { await loadDevices(); await Promise.all([pollConnectivity(), pollTelemetry(), pollAiIncidents()]); } catch (e) { /* 무시 */ }
     }
     if (IS_REAL) setInterval(() => { if (sessionStorage.getItem('token')) pollDevices(); }, 10000);
     

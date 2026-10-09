@@ -112,7 +112,7 @@ def send_event_to_backend(action, process_name, pid, reason):
     }
     
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=5)
+        response = requests.post(url, headers=headers, json=payload, timeout=5)
         
         if response.status_code == 200:
             data = response.json()

@@ -82,6 +82,14 @@ def add_alert(db, lv, title, msg, cause="", action=""):
     db.execute(text("INSERT INTO alerts (lv, title, msg, cause, action) VALUES (:lv,:t,:m,:c,:a)"),
                {"lv": lv, "t": title[:190], "m": msg, "c": cause[:490], "a": action[:490]})
 
+def visible_device_ids(db, user):
+    """admin이면 None(전체), 일반 사용자는 user_vlans 구역의 장비 id 집합."""
+    if user.get("role") == "admin":
+        return None
+    rows = db.execute(text("SELECT d.id FROM devices d JOIN user_vlans uv ON uv.vlan_id = d.vlan_id "
+                           "WHERE uv.user_id = :u"), {"u": user["user_id"]}).fetchall()
+    return {x.id for x in rows}
+
 
 class BlockReq(BaseModel):
     incident_id: int
@@ -171,8 +179,11 @@ def build_ai_router(get_db, get_current_user, require_admin, agent_key: str) -> 
         rows = db.execute(text(
             "SELECT id, device_id, risk_score, message, status, process_name, pid, created_at "
             "FROM ai_incidents WHERE status IN ('open','block_pending') ORDER BY id DESC LIMIT 20")).fetchall()
-        return {"can_act": user.get("role") == "admin", "incidents": [dict(x._mapping) for x in rows],
-                "model_trained": detector.trained}
+        ids = visible_device_ids(db, user)
+        items = [dict(x._mapping) for x in rows]
+        if ids is not None:
+            items = [x for x in items if x["device_id"] in ids]
+        return {"can_act": user.get("role") == "admin", "incidents": items, "model_trained": detector.trained}
 
     @r.post("/api/ai/train")
     def retrain(db=Depends(get_db), user=Depends(require_admin)):
@@ -429,5 +440,9 @@ def build_ai_router(get_db, get_current_user, require_admin, agent_key: str) -> 
             out[dev] = {"source": "ping", "status": status, "rtt_ms": avg, "loss": loss}
         for dev in agent:
             out[dev] = {"source": "agent", "status": "online"}
+            
+        ids = visible_device_ids(db, user)
+        if ids is not None:
+            out = {k: v for k, v in out.items() if k in ids}
         return {"devices": out}
     return r

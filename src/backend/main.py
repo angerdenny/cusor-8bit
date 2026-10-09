@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 import ipaddress
 from sqlalchemy import bindparam
-from ai_routes import build_ai_router, score_rows 
+from ai_routes import build_ai_router, score_rows, visible_device_ids
 
 # ========================
 # Environment variables (.env must be next to main.py)
@@ -716,8 +716,15 @@ def delete_device(
     """Delete a device (admin only). links / telemetry / alert_devices 는 FK CASCADE 로 함께 삭제됩니다."""
     if db.execute(text("SELECT id FROM devices WHERE id = :id"), {"id": device_id}).fetchone() is None:
         raise HTTPException(status_code=404, detail="Device not found")
-    db.execute(text("DELETE FROM devices WHERE id = :id"), {"id": device_id})
-    db.commit()
+    try:
+        db.execute(text("DELETE FROM ai_incidents WHERE device_id = :id"), {"id": device_id})
+        db.execute(text("DELETE FROM ping_logs WHERE device_id = :id"), {"id": device_id})
+        db.execute(text("DELETE FROM devices WHERE id = :id"), {"id": device_id})
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        print(f"[delete_device] {e.orig}")   # 원인은 서버 터미널에서 확인
+        raise HTTPException(status_code=409, detail="다른 데이터가 이 장비를 참조하고 있어 삭제할 수 없습니다")
     return {"id": device_id, "message": "Device deleted successfully"}
 
 # ========================
@@ -797,8 +804,16 @@ def delete_link(
 # ========================
 @app.get("/api/telemetry/latest")
 def get_latest_telemetry(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Latest telemetry data + AI risk score (auth required)"""
-    rows = db.execute(text("SELECT * FROM telemetry ORDER BY id DESC LIMIT 50")).fetchall()
+    """Latest telemetry + AI risk score. admin = 전체, 일반 사용자 = 자기 구역 장비만."""
+    ids = visible_device_ids(db, current_user)
+    if ids is None:
+        rows = db.execute(text("SELECT * FROM telemetry ORDER BY id DESC LIMIT 50")).fetchall()
+    elif not ids:
+        return {"telemetry": []}
+    else:
+        rows = db.execute(
+            text("SELECT * FROM telemetry WHERE device_id IN :ids ORDER BY id DESC LIMIT 50")
+            .bindparams(bindparam("ids", expanding=True)), {"ids": list(ids)}).fetchall()
     data = [row_to_dict(r) for r in rows]
     return {"telemetry": score_rows(db, data)}
 
