@@ -1,0 +1,75 @@
+# 🖥️ NetMon Agent 설치 (다른 노트북용)
+
+## 📦 필요한 것
+- Python 3.10+
+- 관리자 노트북의 IP 주소
+
+## 🚀 설치 방법
+
+### 1. 파일 복사
+이 폴더(downloads)의 모든 파일을 다른 노트북에 복사하세요.
+
+### 2. .env 설정
+`.env.example`를 `.env`로 복사 후 수정:
+
+```env
+DATABASE_URL=mysql+pymysql://netmon:8bit@[관리자IP]:3306/netmon
+BACKEND_URL=http://[관리자IP]:8000
+COLLECT_DEVICE_NAME=Laptop-Kim
+COLLECT_VLAN_ID=1
+COLLECT_INTERVAL_SEC=5
+```
+
+**[관리자IP] 입력 예시:**
+- `ipconfig` 실행 → IPv4 주소 복사
+- 예: `192.168.1.100`
+
+### 3. 라이브러리 설치
+```powershell
+pip install -r requirements.txt
+```
+
+### 4. 실행
+```powershell
+python collector.py
+```
+
+### 5. 대시보드 확인
+
+
+---
+
+## 📝 예시
+- 관리자 노트북 IP: `192.168.1.100`
+- 다른 노트북 이름: `Laptop-Dev`
+
+**→ .env 설정:**
+```env
+DATABASE_URL=mysql+pymysql://netmon:8bit@192.168.1.100:3306/netmon
+BACKEND_URL=http://192.168.1.100:8000
+COLLECT_DEVICE_NAME=Laptop-Dev
+```
+
+**→ 실행:**
+```powershell
+python collector.py
+```
+
+
+
+관리자 (당신)
+├─ IPv4 주소만 알려주기
+│  예: "192.168.1.100"
+└─ 끝!
+
+다른 기기 사용자
+├─ downloads/ 폴더 받기
+├─ .env.example → .env로 복사
+├─ .env 직접 수정
+│  ├─ DATABASE_URL에 192.168.1.100 입력
+│  ├─ BACKEND_URL에 192.168.1.100 입력
+│  ├─ COLLECT_DEVICE_NAME 자신의 이름 입력
+│  └─ 저장
+├─ pip install -r requirements.txt
+├─ python collector.py 실행
+└─ 끝!
