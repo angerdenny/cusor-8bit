@@ -3380,7 +3380,7 @@
         let failCount = 0;
         const lockDurations = { 5: 30, 6: 60, 7: 180, 8: 600, 9: 1200 };
         async function apiFetch(url, options = {}) {
-            const token = sessionStorage.getItem('access_token');
+            const token = sessionStorage.getItem('token');
 
             const headers = { ...(options.headers || {}) };
             if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -6162,6 +6162,7 @@
         }
 
         async function loadUsers() {
+            if (!sessionStorage.getItem('token')) return;
             try {
                 const res = await apiFetch('/api/users');
                 if (!res.ok) return; 
@@ -6177,6 +6178,7 @@
         let lastSeenAlertId = 0;
 
         async function loadAlerts() {
+            if (!sessionStorage.getItem('token')) return;
             try {
                 const res = await apiFetch('/api/alerts');
                 if (!res.ok) return;
