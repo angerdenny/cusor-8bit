@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 import ipaddress
 from sqlalchemy import bindparam
-from ai_routes import build_ai_router, score_rows, visible_device_ids
+from .ai_routes import build_ai_router, score_rows, visible_device_ids
 
 # ========================
 # Environment variables (.env must be next to main.py)
