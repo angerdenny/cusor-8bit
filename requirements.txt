@@ -22,4 +22,8 @@ pydantic-settings==2.15.0
 psutil==7.2.2
 requests==2.34.2
 
-python-dotenv
+
+# AI and ML
+joblib==1.4.2
+scikit-learn==1.6.1
+numpy==2.2.3
