@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 # ========================
 load_dotenv()
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
+BACKEND_URL = os.getenv("BACKEND_URL", "https://cusor-8bit.onrender.com")
 AGENT_API_KEY = os.getenv("AGENT_API_KEY", "your_secure_agent_api_key_change_this")
 
 # 위험한 프로세스만 엄격하게
