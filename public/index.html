@@ -4656,10 +4656,17 @@
                 return;
             }
             $('inspect-node-id').textContent = n.name;
-            $('inspect-cpu-text').textContent = `${Math.round(n.lc)}%`;
-            $('inspect-cpu-bar').style.width = `${n.lc}%`;
-            $('inspect-ram-text').textContent = `${Math.round(n.lr)}%`;
-            $('inspect-ram-bar').style.width = `${n.lr}%`;
+            if (n.noMetric) {
+                $('inspect-cpu-text').textContent = '측정 안 됨';
+                $('inspect-cpu-bar').style.width = '0%';
+                $('inspect-ram-text').textContent = '측정 안 됨';
+                $('inspect-ram-bar').style.width = '0%';
+            } else {
+                $('inspect-cpu-text').textContent = `${Math.round(n.lc)}%`;
+                $('inspect-cpu-bar').style.width = `${n.lc}%`;
+                $('inspect-ram-text').textContent = `${Math.round(n.lr)}%`;
+                $('inspect-ram-bar').style.width = `${n.lr}%`;
+            }
             $('inspect-ip').textContent = n.ip;
             $('inspect-owner').textContent = n.owner;
             $('inspect-type').textContent = n.type;
@@ -4738,12 +4745,12 @@
                 const n = NODES[k];
                 setLv($('tn-' + k), n.lv);
                 setLv($('nc-' + k), n.lv);
-                const ncc = $('ncc-' + k); if (ncc) ncc.textContent = Math.round(n.lc) + '%';
+                const ncc = $('ncc-' + k); if (ncc) ncc.textContent = n.noMetric ? '측정 안 됨' : Math.round(n.lc) + '%';
                 setLv($('tr-' + k), n.lv);
                 const tc = $('tc-' + k); if (tc) tc.style.width = n.lc + '%';
-                const tct = $('tct-' + k); if (tct) tct.textContent = Math.round(n.lc) + '%';
+                const tct = $('tct-' + k); if (tct) tct.textContent = n.noMetric ? '측정 안 됨' : Math.round(n.lc) + '%';
                 const tr2 = $('tr2-' + k); if (tr2) tr2.style.width = n.lr + '%';
-                const trt = $('trt-' + k); if (trt) trt.textContent = Math.round(n.lr) + '%';
+                const trt = $('trt-' + k); if (trt) trt.textContent = n.noMetric ? '측정 안 됨' : Math.round(n.lr) + '%';
                 const ts = $('ts-' + k); if (ts) ts.textContent = nodeStatus(n);
             });
             EDGES.forEach(([a, b]) => {
@@ -4921,8 +4928,7 @@
             }
             const dt = DEVICE_TYPES[typeVal] || DEVICE_TYPES.server;
             const key = 'dev-' + (++deviceSeq) + '-' + Date.now().toString(36).slice(-4);
-            const cpu = Math.round(10 + Math.random() * 20);
-            const ram = Math.round(15 + Math.random() * 25);
+            const cpu = 0; const ram = 0;   // 측정 전에는 가짜 값 대신 0
             const pos = (x != null && y != null) ? { x: clamp(x, NODE_POS_MIN, NODE_POS_MAX), y: clamp(y, NODE_POS_MIN, NODE_POS_MAX) } : autoLayoutPosition();
 
             NODES[key] = {
@@ -5086,8 +5092,7 @@
                 key = 'dev-' + (++deviceSeq) + '-' + Date.now().toString(36).slice(-4);
             }
  
-            const cpu = Math.round(10 + Math.random() * 20);
-            const ram = Math.round(15 + Math.random() * 25);
+            const cpu = 0; const ram = 0;   // 측정 전에는 가짜 값 대신 0
             NODES[key] = {
                 dbId, name, short: name.length > 10 ? name.slice(0, 9) + '…' : name, ip,
                 type: dt.typeLabel,
@@ -5903,8 +5908,8 @@
                 
                 Object.values(NODES).forEach(n => {
                     const t = n.dbId && latest[n.dbId];
-                    if (t) { n.cpu = Math.round(t.cpu_usage); n.ram = Math.round(t.ram_usage); }
-                    else { n.cpu = 0; n.ram = 0; }          // 측정값 없는 기기(iPad 등)
+                    if (t) { n.cpu = Math.round(t.cpu_usage); n.ram = Math.round(t.ram_usage); n.noMetric = false; }
+                    else { n.cpu = 0; n.ram = 0; n.noMetric = true; }   // 측정 기록 없는 기기(스마트폰 등) → '측정 안 됨'
                 });
 
 
@@ -6111,8 +6116,7 @@
                 const key = 'd' + d.id;
                 keyByDbId[d.id] = key;
                 const dt = DEVICE_TYPES[d.type] || DEVICE_TYPES.server;
-                const cpu = Math.round(10 + Math.random() * 20);   // 텔레메트리 수신 전 임시값
-                const ram = Math.round(15 + Math.random() * 25);
+                const cpu = 0; const ram = 0;   // 텔레메트리 수신 전에는 0 (가짜 값 아님)
                 const unplaced = d.x == null || d.y == null || (d.x === 0 && d.y === 0);
                 NODES[key] = {
                     dbId: d.id,
