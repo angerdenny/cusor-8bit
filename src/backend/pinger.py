@@ -38,7 +38,7 @@ def main() -> None:
     while True:
         try:
             with SessionLocal() as db:
-                devs = [d for d in db.execute(text("SELECT id, name, ip FROM devices")).fetchall() if d.ip]
+                devs = [d for d in db.execute(text("SELECT id, name, ip FROM devices WHERE client_uuid IS NULL")).fetchall() if d.ip]
                 with ThreadPoolExecutor(max_workers=16) as ex:
                     results = list(ex.map(lambda d: ping(d.ip), devs))
                 for d, (ok, rtt) in zip(devs, results):

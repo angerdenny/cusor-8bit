@@ -37,6 +37,11 @@ _pending: dict[str, dict] = {}         # client_uuid -> 미등록 기기
 _conn_reqs: dict[int, dict] = {}   # 승인자(기기) device_id -> 연결 요청
 _conn_done: list[dict] = []        # 관리자에게 알릴 처리 결과
 
+class HeartbeatReq(BaseModel):
+    ok: bool
+    rtt_ms: float | None = None
+
+
 class ConnReq(BaseModel):
     source_id: int
     target_id: int
@@ -49,6 +54,7 @@ class ConnResp(BaseModel):
 
 ALLOWED_TYPES = {"router", "switch", "server", "app", "pc", "mobile", "firewall", "printer", "access-point"}
 _last_req: dict[str, float] = {}
+_last_hb: dict[str, float] = {}
 
 
 def _clean_name(s: str) -> str:
@@ -369,6 +375,24 @@ def build_ai_router(get_db, get_current_user, require_admin, agent_key: str) -> 
             raise HTTPException(status_code=429, detail="대기 중인 요청이 너무 많습니다")
         _pending[cid] = {"client_uuid": cid, "ip": ip, "hostname": name, "type": req.type, "requested": True}
         return {"registered": False}
+
+    # ---------- 기기 연결 품질 측정 (브라우저가 서버까지 응답 시간을 재서 5초마다 보고) ----------
+    @r.post("/api/ai/heartbeat")
+    def heartbeat(req: HeartbeatReq, request: Request, db=Depends(get_db)):
+        cid = _client_uuid(request)
+        if time.time() - _last_hb.get(cid, 0) < 3:
+            return {"ok": True, "skipped": True}
+        _last_hb[cid] = time.time()
+        row = db.execute(text("SELECT id FROM devices WHERE client_uuid=:c"), {"c": cid}).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="등록되지 않은 기기입니다")
+        rtt = None if (req.rtt_ms is None or req.rtt_ms < 0) else min(float(req.rtt_ms), 10000.0)
+        db.execute(text("INSERT INTO ping_logs (device_id, ok, rtt_ms) VALUES (:d,:o,:r)"),
+                   {"d": row.id, "o": 1 if req.ok else 0, "r": rtt})
+        db.execute(text("DELETE FROM ping_logs WHERE device_id=:d AND created_at < NOW() - INTERVAL 1 HOUR"),
+                   {"d": row.id})
+        db.commit()
+        return {"ok": True}
 
     # ---------- 연결 요청 (관리자 → 기기 승인) ----------
     def _me(db, request: Request):
