@@ -491,6 +491,16 @@ def build_ai_router(get_db, get_current_user, require_admin, agent_key: str) -> 
             else:
                 status = "online"
             out[dev] = {"source": "ping", "status": status, "rtt_ms": avg, "loss": loss}
+        # 브라우저 측정 기기(스마트폰 등): 마지막 보고가 20초 넘게 없으면 오프라인
+        # (와이파이를 끄면 보고가 끊기므로, 2분 기록 창에 기대지 않고 마지막 보고 시각으로 판정)
+        browser_ages = db.execute(text(
+            "SELECT d.id AS id, TIMESTAMPDIFF(SECOND, MAX(p.created_at), NOW()) AS age "
+            "FROM devices d LEFT JOIN ping_logs p ON p.device_id = d.id "
+            "WHERE d.client_uuid IS NOT NULL GROUP BY d.id")).fetchall()
+        for row in browser_ages:
+            if row.age is None or row.age > 20:
+                out[row.id] = {"source": "heartbeat", "status": "offline", "rtt_ms": None, "loss": 100}
+
         for dev in agent:
             out[dev] = {"source": "agent", "status": "online"}
             
