@@ -1173,10 +1173,9 @@
         }
 
         .topo line {
-            stroke-width: 2;
-            stroke-dasharray: 5 6;
-            opacity: .75;
-            animation: flow 1s linear infinite;
+            stroke-width: 3;
+            stroke-dasharray: none;
+            opacity: .95;
         }
 
         @keyframes flow {
@@ -6499,6 +6498,7 @@
     }
     // ===== 기기 본인 화면: 미등록이면 등록 요청 (iPad/스마트폰 접속용) =====
     async function checkMyDevice() {
+        if (sessionStorage.getItem('token')) return;   // 관리자/로그인 사용자 화면에는 띄우지 않음
         try {
             const me = await fetch('/api/ai/whoami', { headers: { 'X-Device-Id': getDeviceId() } }).then(r => r.json());
             if (me.local || me.registered) return;
