@@ -6540,7 +6540,7 @@
     async function pollMyConnectRequest() {              // 기기(iPad) 화면: 로그인 없이 동작
         if (document.getElementById('ai-modal')) return;
         try {
-            const q = (await fetch('/api/ai/my-connect-request').then(r => r.json())).request;
+            const q = (await fetch('/api/ai/my-connect-request', { headers: { 'X-Device-Id': getDeviceId() } }).then(r => r.json())).request;
             if (!q || shownConn.has(q.id)) return;
             shownConn.add(q.id);
             showModal(`
@@ -6555,7 +6555,7 @@
     async function respondConnect(id, accept) {
         try {
             const r = await fetch('/api/ai/connect-respond', { method: 'POST',
-                headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request_id: id, accept }) });
+                headers: { 'Content-Type': 'application/json', 'X-Device-Id': getDeviceId() }, body: JSON.stringify({ request_id: id, accept }) });
             if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
             aiToast(accept ? '연결을 승인했어요' : '연결을 거절했어요');
         } catch (e) { aiToast(e.message); }
