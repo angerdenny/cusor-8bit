@@ -6439,7 +6439,8 @@
         try {
             const list = await aiFetch('/api/ai/pending-devices');   // 관리자만 성공, 일반 사용자는 403 → 무시
             const key = x => (x.client_uuid || x.ip) + (x.requested ? ':req' : '');
-            const d = [...list].sort((a, b) => (b.requested ? 1 : 0) - (a.requested ? 1 : 0))
+            // 팝업은 사용자가 직접 '등록 요청'한 기기만 띄운다 (scanner/agent 가 자동 발견한 IP는 팝업 없이 목록에만)
+            const d = [...list].filter(x => x.requested)
                                .find(x => !askedIps.has(key(x)));
             if (!d || document.getElementById('ai-modal')) return;
             askedIps.add(key(d));
