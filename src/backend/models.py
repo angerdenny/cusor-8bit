@@ -35,7 +35,8 @@ class Device(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(100))
-    ip: Mapped[str] = mapped_column(String(45), unique=True)
+    ip: Mapped[str] = mapped_column(String(45))
+    client_uuid: Mapped[str | None] = mapped_column(String(64), unique=True)
     type: Mapped[str] = mapped_column(String(20), default="server")
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     x: Mapped[float | None] = mapped_column(Double)

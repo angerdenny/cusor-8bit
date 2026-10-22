@@ -33,7 +33,7 @@ SUSPECT_TTL = 60  # 초. 이보다 오래된 의심 프로세스 보고는 무�
 _lock = threading.Lock()
 _commands: dict[int, list[dict]] = {}  # device_id -> 대기 중 명령 (서버 재시작 시 초기화)
 _suspects: dict[int, dict] = {}        # device_id -> 에이전트가 보고한 의심 프로세스
-_pending: dict[str, dict] = {}         # ip -> 미등록 기기
+_pending: dict[str, dict] = {}         # client_uuid -> 미등록 기기
 _conn_reqs: dict[int, dict] = {}   # 승인자(기기) device_id -> 연결 요청
 _conn_done: list[dict] = []        # 관리자에게 알릴 처리 결과
 
@@ -54,6 +54,29 @@ _last_req: dict[str, float] = {}
 def _clean_name(s: str) -> str:
     """팝업 HTML에 들어가므로 위험 문자를 제거한다."""
     return re.sub(r'[<>"\'&`\\]', "", s or "").strip()[:50]
+
+
+_UUID_RE = re.compile(r"^[A-Za-z0-9-]{8,64}$")
+
+
+def _client_uuid(request: Request, required: bool = True) -> str:
+    """브라우저가 보내는 X-Device-Id 헤더. 같은 공인 IP여도 기기마다 다르다."""
+    cid = (request.headers.get("x-device-id") or "").strip()
+    if not _UUID_RE.match(cid):
+        if required:
+            raise HTTPException(status_code=400, detail="기기 식별자가 없습니다. 페이지를 새로고침해 주세요")
+        return ""
+    return cid
+
+
+def _client_ip(request: Request) -> str:
+    """프록시(Render) 뒤에서는 X-Forwarded-For 의 첫 번째 값을 쓴다. 표시용 정보일 뿐 식별에는 쓰지 않는다."""
+    fwd = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+    raw = fwd or (request.client.host if request.client else "")
+    try:
+        return str(ipaddress.ip_address(raw))
+    except ValueError:
+        return "0.0.0.0"
 
 
 class SelfRegisterReq(BaseModel):
@@ -120,6 +143,7 @@ class CmdResult(BaseModel):
 
 class EnrollReq(BaseModel):
     ip: str
+    client_uuid: str = ""  # 브라우저 기기는 UUID, 로컬 agent PC는 비움
     name: str
     type: str = "pc"
     vlan_code: str
@@ -277,48 +301,51 @@ def build_ai_router(get_db, get_current_user, require_admin, agent_key: str) -> 
             ip = str(ipaddress.ip_address(req.ip.strip()))
         except ValueError:
             raise HTTPException(status_code=400, detail="IP 형식이 올바르지 않습니다")
+        cid = req.client_uuid.strip()
+        if cid and not _UUID_RE.match(cid):
+            raise HTTPException(status_code=400, detail="기기 식별자가 올바르지 않습니다")
         if not req.name.strip():
             raise HTTPException(status_code=400, detail="장비 이름을 입력해 주세요")
         vlan = db.execute(text("SELECT id FROM vlans WHERE code=:c"), {"c": req.vlan_code}).first()
         if not vlan:
             raise HTTPException(status_code=400, detail="Unknown vlan_code")
         try:
-            db.execute(text("INSERT INTO devices (name, ip, type, owner_id, x, y, vlan_id) "
-                            "VALUES (:n,:ip,:t,:o,50,50,:v)"),
-                       {"n": req.name.strip(), "ip": ip, "t": req.type, "o": user["user_id"], "v": vlan[0]})
+            db.execute(text("INSERT INTO devices (name, ip, client_uuid, type, owner_id, x, y, vlan_id) "
+                            "VALUES (:n,:ip,:cu,:t,:o,50,50,:v)"),
+                       {"n": req.name.strip(), "ip": ip, "cu": cid or None, "t": req.type,
+                        "o": user["user_id"], "v": vlan[0]})
             add_alert(db, "info", "기기 등록", f"{req.name.strip()} ({ip}) 등록", "관리자 승인")
             db.commit()
         except IntegrityError:
             db.rollback()
-            raise HTTPException(status_code=400, detail="이미 등록되었거나 장비 정보가 올바르지 않습니다")
-        _pending.pop(ip, None)
+            raise HTTPException(status_code=400, detail="이미 등록된 기기이거나 장비 정보가 올바르지 않습니다")
+        _pending.pop(cid or ip, None)  # agent PC는 IP 키로 대기 중
         return {"ok": True}
-    
-    # ---------- 기기 본인 화면용 (로그인 없이 접근, 접속한 IP를 서버가 직접 확인) ----------
+
+    # ---------- 기기 본인 화면용 (X-Device-Id 헤더로 기기 구분) ----------
     @r.get("/api/ai/whoami")
     def whoami(request: Request, db=Depends(get_db)):
-        ip = request.client.host if request.client else ""
-        if ip in ("127.0.0.1", "::1"):  # 서버 PC 자신은 건너뜀
-            return {"ip": ip, "local": True, "registered": True}
-        row = db.execute(text("SELECT id, name FROM devices WHERE ip=:ip"), {"ip": ip}).first()
-        return {"ip": ip, "registered": bool(row), "name": row.name if row else None}
+        direct = request.client.host if request.client else ""
+        if direct in ("127.0.0.1", "::1"):  # 서버 PC 자신은 건너뜀
+            return {"ip": direct, "local": True, "registered": True}
+        cid = _client_uuid(request, required=False)
+        row = (db.execute(text("SELECT id, name FROM devices WHERE client_uuid=:c"), {"c": cid}).first()
+               if cid else None)
+        return {"ip": _client_ip(request), "registered": bool(row), "name": row.name if row else None}
 
     @r.post("/api/ai/register-request")
     def register_request(req: SelfRegisterReq, request: Request, db=Depends(get_db)):
-        ip = request.client.host if request.client else ""
-        try:
-            ip = str(ipaddress.ip_address(ip))
-        except ValueError:
-            raise HTTPException(status_code=400, detail="접속 IP를 확인할 수 없습니다")
-        if time.time() - _last_req.get(ip, 0) < 5:
+        cid = _client_uuid(request)
+        ip = _client_ip(request)
+        if time.time() - _last_req.get(cid, 0) < 5:
             raise HTTPException(status_code=429, detail="잠시 후 다시 시도해 주세요")
-        _last_req[ip] = time.time()
+        _last_req[cid] = time.time()
         name = _clean_name(req.name)
         if not name:
             raise HTTPException(status_code=400, detail="기기 이름을 입력해 주세요")
         if req.type not in ALLOWED_TYPES:
             raise HTTPException(status_code=400, detail="허용되지 않은 기기 종류입니다")
-        if db.execute(text("SELECT 1 FROM devices WHERE ip=:ip"), {"ip": ip}).first():
+        if db.execute(text("SELECT 1 FROM devices WHERE client_uuid=:c"), {"c": cid}).first():
             return {"registered": True}
 
         auto = os.getenv("AUTO_ENROLL_VLAN", "").strip()  # 시연용: 승인 없이 이 구역에 바로 등록
@@ -328,25 +355,27 @@ def build_ai_router(get_db, get_current_user, require_admin, agent_key: str) -> 
             if not vlan or not admin:
                 raise HTTPException(status_code=500, detail="자동 등록 설정(구역 또는 관리자)을 확인해 주세요")
             try:
-                db.execute(text("INSERT INTO devices (name, ip, type, owner_id, x, y, vlan_id) "
-                                "VALUES (:n,:ip,:t,:o,50,50,:v)"),
-                           {"n": name, "ip": ip, "t": req.type, "o": admin[0], "v": vlan[0]})
+                db.execute(text("INSERT INTO devices (name, ip, client_uuid, type, owner_id, x, y, vlan_id) "
+                                "VALUES (:n,:ip,:cu,:t,:o,50,50,:v)"),
+                           {"n": name, "ip": ip, "cu": cid, "t": req.type, "o": admin[0], "v": vlan[0]})
                 db.commit()
             except IntegrityError:
                 db.rollback()
                 raise HTTPException(status_code=400, detail="등록할 수 없습니다")
-            _pending.pop(ip, None)
+            _pending.pop(cid, None)
             return {"registered": True}
 
-        if len(_pending) >= 100 and ip not in _pending:
+        if len(_pending) >= 100 and cid not in _pending:
             raise HTTPException(status_code=429, detail="대기 중인 요청이 너무 많습니다")
-        _pending[ip] = {"ip": ip, "hostname": name, "type": req.type, "requested": True}
+        _pending[cid] = {"client_uuid": cid, "ip": ip, "hostname": name, "type": req.type, "requested": True}
         return {"registered": False}
-    
+
     # ---------- 연결 요청 (관리자 → 기기 승인) ----------
     def _me(db, request: Request):
-        ip = request.client.host if request.client else ""
-        return db.execute(text("SELECT id, name FROM devices WHERE ip=:ip"), {"ip": ip}).first()
+        cid = _client_uuid(request, required=False)
+        if not cid:
+            return None
+        return db.execute(text("SELECT id, name FROM devices WHERE client_uuid=:c"), {"c": cid}).first()
 
     def _linked(db, a, b):
         return db.execute(text("SELECT 1 FROM links WHERE (source_id=:a AND target_id=:b) "

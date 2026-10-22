@@ -62,11 +62,13 @@ CREATE TABLE devices (
     owner_id    INT          NULL,                                -- users 테이블 참조
     x           DOUBLE       NULL,                                -- 맵 X 좌표(%)
     y           DOUBLE       NULL,                                -- 맵 Y 좌표(%)
+    client_uuid VARCHAR(64)  NULL,                           -- 브라우저 기기 식별자 (IP 대신 사용)
     vlan_id     INT          NOT NULL,
     created_at  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
     PRIMARY KEY (id),
-    UNIQUE KEY ux_devices_ip (ip),
+    KEY idx_devices_ip (ip),
+    UNIQUE KEY ux_devices_client_uuid (client_uuid),
     KEY idx_devices_vlan (vlan_id),
     KEY idx_devices_owner (owner_id),
 
@@ -75,7 +77,7 @@ CREATE TABLE devices (
     CONSTRAINT fk_devices_owner FOREIGN KEY (owner_id) REFERENCES users (id)
         ON UPDATE CASCADE ON DELETE SET NULL,
 
-    CONSTRAINT ck_devices_type CHECK (type IN ('router','switch','server','app','pc','mobile','firewall','printer','access-point'))
+    CONSTRAINT ck_devices_type CHECK (type IN ('router','switch','server','app','pc','mobile','firewall','printer','access-point')),
     CONSTRAINT ck_devices_x    CHECK (x IS NULL OR x BETWEEN -50 AND 150),
     CONSTRAINT ck_devices_y    CHECK (y IS NULL OR y BETWEEN -50 AND 150),
     CONSTRAINT ck_devices_xy   CHECK ((x IS NULL) = (y IS NULL))

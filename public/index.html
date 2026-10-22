@@ -6434,7 +6434,7 @@
     async function pollPendingDevices() {
         try {
             const list = await aiFetch('/api/ai/pending-devices');   // 관리자만 성공, 일반 사용자는 403 → 무시
-            const key = x => x.ip + (x.requested ? ':req' : '');
+            const key = x => (x.client_uuid || x.ip) + (x.requested ? ':req' : '');
             const d = [...list].sort((a, b) => (b.requested ? 1 : 0) - (a.requested ? 1 : 0))
                                .find(x => !askedIps.has(key(x)));
             if (!d || document.getElementById('ai-modal')) return;
@@ -6451,25 +6451,36 @@
                     ${vl.map(v => `<option value="${aiEsc(v.code)}">${aiEsc(v.name)}</option>`).join('')}
                 </select>
                 <div style="display:flex;gap:8px">
-                    <button onclick="enrollPending('${aiEsc(d.ip)}')" style="flex:1;padding:10px;border-radius:10px;background:#3b82f6">등록</button>
+                    <button onclick="enrollPending('${aiEsc(d.ip)}', '${aiEsc(d.client_uuid)}')" style="flex:1;padding:10px;border-radius:10px;background:#3b82f6">등록</button>
                     <button onclick="closeModal()" style="padding:10px;border-radius:10px;background:#334">나중에</button>
                 </div>`);
         } catch (e) { /* 무시 */ }
     }
-    async function enrollPending(ip) {
+    async function enrollPending(ip, cid) {
         try {
             await aiFetch('/api/ai/enroll', { method: 'POST', body: JSON.stringify({
-                ip, name: document.getElementById('enroll-name').value,
+                ip, client_uuid: cid, name: document.getElementById('enroll-name').value,
                 type: document.getElementById('enroll-type').value,
                 vlan_code: document.getElementById('enroll-vlan').value }) });
             toast('기기를 등록했습니다'); closeModal(); loadDevices();
         } catch (e) { toast(e.message); }
     }
 
+    // ===== 기기 식별자: 브라우저마다 한 번 만들어 localStorage에 저장 (같은 IP여도 기기별로 구분) =====
+    function getDeviceId() {
+        let id = null;
+        try { id = localStorage.getItem('device_id'); } catch (e) { }
+        if (!id) {
+            id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+               : (Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2));
+            try { localStorage.setItem('device_id', id); } catch (e) { }
+        }
+        return id;
+    }
     // ===== 기기 본인 화면: 미등록이면 등록 요청 (iPad/스마트폰 접속용) =====
     async function checkMyDevice() {
         try {
-            const me = await fetch('/api/ai/whoami').then(r => r.json());
+            const me = await fetch('/api/ai/whoami', { headers: { 'X-Device-Id': getDeviceId() } }).then(r => r.json());
             if (me.local || me.registered) return;
             showModal(`
                 <h3 style="font-weight:800;margin-bottom:8px">✋ 잠시만요! 이 기기는 등록되어 있지 않아요</h3>
@@ -6493,7 +6504,7 @@
         if (!name) return aiToast('기기 이름을 입력해 주세요');
         try {
             const r = await fetch('/api/ai/register-request', { method: 'POST',
-                headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, type }) });
+                headers: { 'Content-Type': 'application/json', 'X-Device-Id': getDeviceId() }, body: JSON.stringify({ name, type }) });
             const j = await r.json().catch(() => ({}));
             if (!r.ok) throw new Error(j.detail || r.statusText);
             document.getElementById('my-dev-form').remove();
@@ -6505,7 +6516,7 @@
     function waitApproval() {
         const t = setInterval(async () => {
             try {
-                const me = await fetch('/api/ai/whoami').then(r => r.json());
+                const me = await fetch('/api/ai/whoami', { headers: { 'X-Device-Id': getDeviceId() } }).then(r => r.json());
                 if (me.registered) {
                     clearInterval(t);
                     const m = document.getElementById('my-dev-msg');
