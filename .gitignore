@@ -4,3 +4,5 @@ venv_test/
 __pycache__/
 
 src/ai/models/
+
+backup/

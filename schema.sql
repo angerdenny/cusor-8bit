@@ -1,3 +1,7 @@
+-- !!! 경고: 이 파일은 처음 DB를 만들 때만 사용하세요 !!!
+-- 맨 위 DROP TABLE 들이 기존 데이터를 모두 삭제합니다.
+-- 운영 DB(Aiven)에는 절대 재실행하지 말고, 변경은 migrations/ 의 마이그레이션 파일로만 하세요.
+
 -- =====================================================================
 --  8bit AI Pulse 통합 네트워크 관제 DB 스키마 (MySQL 8.0 기준)
 -- =====================================================================
@@ -168,9 +172,9 @@ INSERT INTO users (username, password_hash, role) VALUES
 ('user1', '$2b$12$jNurpDAw6liuAT5j5yDhJeNy2T0.5dnXbtkD4CIR.vZCpECQ6yJWi', 'user');
 
 INSERT INTO vlans (id, code, name, cidr, color) VALUES
-(1, 'Backbone (백본)', '192.168.1.0/24', '#22d3ee'),
-(2, 'VLAN1 (Dev)', '10.0.0.0/24', '#a78bfa'),
-(3, 'VLAN2 (Biz)', '192.168.1.0/25', '#fb923c');
+(1, '100', 'Backbone (백본)', '192.168.1.0/24', '#22d3ee'),
+(2, '101', 'VLAN1 (Dev)', '10.0.0.0/24', '#a78bfa'),
+(3, '102', 'VLAN2 (Biz)', '192.168.1.0/25', '#fb923c');
 
 INSERT INTO devices (id, name, ip, type, owner_id, x, y, vlan_id) VALUES
 (1, 'Core Router 01', '192.168.1.1', 'router', 1, 50, 12, 1),

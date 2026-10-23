@@ -27,7 +27,9 @@ CANDIDATES = {
     "ping": ("ping", "latency", "latency_ms"),
     "loss": ("packet_loss", "loss"),
 }
-TRAIN_SQL = "SELECT * FROM telemetry WHERE device_id = 85 ORDER BY id DESC LIMIT 5000"
+_TRAIN_DEV = os.getenv("AI_TRAIN_DEVICE_ID", "").strip()   # 예: 65 (비우면 전체 텔레메트리로 학습)
+TRAIN_SQL = (f"SELECT * FROM telemetry WHERE device_id = {int(_TRAIN_DEV)} ORDER BY id DESC LIMIT 5000"
+             if _TRAIN_DEV.isdigit() else "SELECT * FROM telemetry ORDER BY id DESC LIMIT 5000")
 SUSPECT_TTL = 60  # 초. 이보다 오래된 의심 프로세스 보고는 무시
 
 _lock = threading.Lock()
