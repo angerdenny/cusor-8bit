@@ -3151,6 +3151,8 @@
                         </div>
                         <button class="btn primary" onclick="createBackup()"><i data-lucide="database-backup"
                                 class="w-4 h-4"></i>지금 백업하기</button>
+                        <button class="btn" onclick="openRestorePicker()">백업 파일로 복구</button>
+                        <input type="file" id="restore-file" accept=".json,application/json" onchange="restoreBackup()" style="display:none">
                         <span class="text-xs t-dim">현재 저장된 백업 <strong id="backup-count"
                                 class="t-muted">0</strong>건</span>
                     </div>
@@ -3535,49 +3537,17 @@
             switchView('vlan');
         }
 
-        // ===== 백업 / 복구 (관리자 전용) =====
-        function ensureBackupUI() {
-            if (document.getElementById('backup-fab')) return;
-            const fab = document.createElement('button');
-            fab.id = 'backup-fab';
-            fab.textContent = '💾 백업/복구';
-            fab.style.cssText = 'position:fixed;left:84px;bottom:16px;z-index:60;padding:8px 14px;border-radius:10px;background:#1e293b;color:#e2e8f0;border:1px solid #334155;font-size:13px;cursor:pointer;display:none';
-            fab.onclick = () => { document.getElementById('backup-modal').style.display = 'flex'; };
-            document.body.appendChild(fab);
-
-            const m = document.createElement('div');
-            m.id = 'backup-modal';
-            m.style.cssText = 'position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6)';
-            m.innerHTML = `
-              <div style="background:#0f172a;border:1px solid #334155;border-radius:14px;padding:20px;width:min(440px,92vw);color:#e2e8f0">
-                <div style="font-weight:700;font-size:16px;margin-bottom:6px">💾 백업 / 복구</div>
-                <div style="font-size:12px;color:#94a3b8;margin-bottom:14px">구역, 장비, 연결, 계정 정보를 JSON 파일로 저장하고 다시 불러올 수 있습니다. 측정 기록은 포함되지 않습니다.</div>
-                <button id="backup-save-btn" style="width:100%;padding:10px;border-radius:10px;background:#2563eb;color:#fff;font-weight:600;cursor:pointer">백업 파일 저장</button>
-                <div style="font-size:11px;color:#64748b;margin-top:6px">Chrome, Edge에서는 저장 창에서 폴더를 직접 고를 수 있습니다.</div>
-                <div style="margin:16px 0 6px;font-size:13px;font-weight:600">백업 파일로 복구</div>
-                <input id="backup-file" type="file" accept=".json,application/json" style="font-size:12px;width:100%">
-                <button id="backup-restore-btn" style="width:100%;margin-top:8px;padding:10px;border-radius:10px;background:#7f1d1d;color:#fecaca;font-weight:600;cursor:pointer">선택한 파일로 복구</button>
-                <div style="font-size:11px;color:#f87171;margin-top:8px">복구하면 현재 구역, 장비, 연결 설정이 백업 내용으로 바뀝니다. 지금 로그인한 계정은 바뀌지 않습니다.</div>
-                <div style="text-align:right;margin-top:14px"><button id="backup-close-btn" style="padding:6px 14px;border-radius:8px;background:#334155;color:#e2e8f0;cursor:pointer">닫기</button></div>
-              </div>`;
-            m.onclick = (e) => { if (e.target === m) m.style.display = 'none'; };
-            document.body.appendChild(m);
-            document.getElementById('backup-save-btn').onclick = saveBackup;
-            document.getElementById('backup-restore-btn').onclick = restoreBackup;
-            document.getElementById('backup-close-btn').onclick = () => { m.style.display = 'none'; };
-        }
-        function updateBackupFab() {
-            const f = document.getElementById('backup-fab');
-            if (f) f.style.display = state.isAdmin ? '' : 'none';
-        }
         async function saveBackup() {
             try {
                 const res = await apiFetch('/api/admin/backup');
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.detail || '백업 실패');
-                const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
+                const now = new Date();
+                const stamp = now.toISOString().slice(0, 16).replace(/[-:T]/g, '');
                 const name = `8bit_backup_${stamp}.json`;
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const sizeLabel = blob.size >= 1048576 ? (blob.size / 1048576).toFixed(2) + ' MB'
+                                                       : (blob.size / 1024).toFixed(1) + ' KB';
                 if (window.showSaveFilePicker) {
                     try {
                         const h = await showSaveFilePicker({ suggestedName: name,
@@ -3586,21 +3556,28 @@
                         await w.write(blob);
                         await w.close();
                         toast('백업 파일을 저장했습니다');
-                        return;
+                        return { time: now, sizeLabel };
                     } catch (e) {
-                        if (e.name === 'AbortError') return;   // 저장 창에서 취소
+                        if (e.name === 'AbortError') return null;   // 저장 창에서 취소
                     }
                 }
-                const a = document.createElement('a');   // 저장 창을 지원하지 않는 브라우저: 다운로드 폴더로 저장
+                const a = document.createElement('a');   // 저장 창을 지원하지 않는 브라우저: 다운로드 폴더
                 a.href = URL.createObjectURL(blob);
                 a.download = name;
                 a.click();
                 toast('백업 파일을 다운로드했습니다');
-            } catch (e) { toast(e.message); }
+                return { time: now, sizeLabel };
+            } catch (e) { toast(e.message); return null; }
+        }
+        function openRestorePicker() {
+            if (!state.isAdmin) return;
+            document.getElementById('restore-file').click();
         }
         async function restoreBackup() {
-            const f = document.getElementById('backup-file').files[0];
-            if (!f) { toast('복구할 백업 파일을 선택해 주세요'); return; }
+            const input = document.getElementById('restore-file');
+            const f = input.files[0];
+            input.value = '';
+            if (!f) return;
             const typed = prompt('현재 구역, 장비, 연결 설정이 백업 내용으로 바뀝니다.\n계속하려면 RESTORE 를 입력하세요.');
             if (typed !== 'RESTORE') { toast('복구를 취소했습니다'); return; }
             try {
@@ -3615,7 +3592,6 @@
             } catch (e) { toast(e.message); }
         }
         function showDashboard() {
-            ensureBackupUI(); updateBackupFab();
             if (orbAnimationId) { cancelAnimationFrame(orbAnimationId); orbAnimationId = null; }
             $('login-screen').classList.add('hide');
             $('dashboard-screen').classList.add('show');
@@ -5889,17 +5865,19 @@
             return r;
         }
 
-        function createBackup() {
+        async function createBackup() {
             if (!state.isAdmin) return;
             const months = parseInt($('backup-retention').value, 10);
-            const now = new Date();
+            const info = await saveBackup();   // 실제 파일 저장 (취소하면 null)
+            if (!info) return;
+            const now = info.time;
             const expires = months > 0 ? addMonths(now, months) : null;
             const b = {
                 id: ++backupSeq,
                 time: formatDateTime(now),
                 months,
                 expiresLabel: expires ? formatDateTime(expires).slice(0, 10) + ' 만료' : '영구 보관',
-                sizeMB: (180 + Math.random() * 90).toFixed(1)
+                sizeLabel: info.sizeLabel
             };
             backups.unshift(b);
             renderBackups();
@@ -5926,7 +5904,7 @@
                     <td class="mono font-semibold">${b.time}</td>
                     <td><span class="tag">${RETENTION_LABEL[b.months]}</span></td>
                     <td class="t-muted">${b.expiresLabel}</td>
-                    <td class="mono">${b.sizeMB} MB</td>
+                    <td class="mono">${b.sizeLabel}</td>
                     <td class="c-green font-semibold">● 정상</td>
                     <td>${state.isAdmin ? `<button class="text-xs font-semibold" style="color:var(--red)" onclick="deleteBackup(${b.id})">삭제</button>` : ''}</td>
                 </tr>`).join('')
