@@ -5340,6 +5340,8 @@
             const alertList = (window.alerts || []);
             const list = alertList.filter(a => state.logFilter == 'all' || a.lv === state.logFilter);
             $('alert-full').innerHTML = list.length ? list.map(alertHtml).join('') : '<p class="text-sm t-dim py-6 text-center">이용 중인 로그가 없어요.</p>';
+            const mini = document.getElementById('alert-mini');   // 대시보드 "최근 알림" 칸
+            if (mini) mini.innerHTML = alertList.length ? alertList.slice(0, 5).map(alertHtml).join('') : '<p class="text-sm t-dim py-6 text-center">최근 알림이 없어요.</p>';
         }
 
         /* ═════════ 6-1. 알림 상세 팝업 ═════════ */
@@ -6541,6 +6543,7 @@
     }
     // ===== 연결 품질 측정: 이 브라우저에서 서버까지 응답 시간과 실패 여부를 5초마다 보고 =====
     async function sendHeartbeat() {
+        if (sessionStorage.getItem('token')) return;   // 로그인 화면(관리자 PC)은 등록 기기가 아님 → 404 방지
         let ok = false, rtt = null;
         try {
             const t0 = performance.now();
