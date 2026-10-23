@@ -27,9 +27,13 @@ CANDIDATES = {
     "ping": ("ping", "latency", "latency_ms"),
     "loss": ("packet_loss", "loss"),
 }
-_TRAIN_DEV = os.getenv("AI_TRAIN_DEVICE_ID", "").strip()   # 예: 65 (비우면 전체 텔레메트리로 학습)
-TRAIN_SQL = (f"SELECT * FROM telemetry WHERE device_id = {int(_TRAIN_DEV)} ORDER BY id DESC LIMIT 5000"
-             if _TRAIN_DEV.isdigit() else "SELECT * FROM telemetry ORDER BY id DESC LIMIT 5000")
+def train_query():
+    """학습에 쓸 텔레메트리 조회. AI_TRAIN_DEVICE_ID가 있으면 그 장비만, 없으면 전체."""
+    dev = os.getenv("AI_TRAIN_DEVICE_ID", "").strip()
+    if dev.isdigit():
+        return (text("SELECT * FROM telemetry WHERE device_id = :d ORDER BY id DESC LIMIT 5000"),
+                {"d": int(dev)})
+    return text("SELECT * FROM telemetry ORDER BY id DESC LIMIT 5000"), {}
 SUSPECT_TTL = 60  # 초. 이보다 오래된 의심 프로세스 보고는 무시
 
 _lock = threading.Lock()
@@ -166,7 +170,7 @@ def score_rows(db, rows: list[dict]) -> list[dict]:
     """telemetry 행들에 risk_score를 붙이고, 이상이면 경보(ai_incidents)와 보안 로그(alerts)를 만든다.
     main.py의 /api/telemetry/latest 에서 호출."""
     if not detector.trained:
-        train = [to_features(dict(x._mapping)) for x in db.execute(text(TRAIN_SQL))]
+        train = [to_features(dict(x._mapping)) for x in db.execute(*train_query())]
         if len(train) >= 50:
             detector.train_baseline(train)
 
@@ -224,7 +228,7 @@ def build_ai_router(get_db, get_current_user, require_admin, agent_key: str) -> 
 
     @r.post("/api/ai/train")
     def retrain(db=Depends(get_db), user=Depends(require_admin)):
-        rows = [to_features(dict(x._mapping)) for x in db.execute(text(TRAIN_SQL))]
+        rows = [to_features(dict(x._mapping)) for x in db.execute(*train_query())]
         try:
             return {"trained_samples": detector.train_baseline(rows)}
         except ValueError as e:

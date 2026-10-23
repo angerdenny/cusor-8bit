@@ -24,7 +24,7 @@ class Vlan(Base):
     __tablename__ = "vlans"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    code: Mapped[str] = mapped_column(String(20), unique=True)   # 프론트가 보내는 vlan_code
+    code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)  # 프론트 vlan_code (100/101/102)
     name: Mapped[str] = mapped_column(String(100), unique=True)
     cidr: Mapped[str | None] = mapped_column(String(50))
     color: Mapped[str] = mapped_column(String(7), default="#a78bfa")
