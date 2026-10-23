@@ -1,8 +1,11 @@
 .env
+.env.*
+!.env.example
 __pycache__/
+*.pyc
+venv/
 venv_test/
-__pycache__/
-
+.venv/
+*.log
 src/ai/models/
-
 backup/

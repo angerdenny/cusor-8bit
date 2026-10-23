@@ -16,7 +16,6 @@ cryptography==50.0.1
 # Config and validation
 python-dotenv==1.2.3
 pydantic==2.13.5
-pydantic-settings==2.15.0
 
 # Collector and agent
 psutil==7.2.2
