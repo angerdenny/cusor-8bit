@@ -175,13 +175,14 @@ def require_admin(current_user: dict = Depends(get_current_user)):
 def login(payload: LoginRequest, http_request: Request, db: Session = Depends(get_db)):
     """Login: blocks an IP after 10 failures for 1 hour, issues JWT on success."""
     username = payload.username.strip()
-    client_ip = http_request.client.host if http_request.client else "unknown"
+    # 프록시(Render) 뒤에서는 IP가 전부 같아서, IP 기준이면 한 사람의 실패가 모두를 막는다 → 계정명 기준
+    attempt_key = username.lower()
 
     # Check block status
-    if client_ip in login_attempts:
-        attempts, last_attempt = login_attempts[client_ip]
+    if attempt_key in login_attempts:
+        attempts, last_attempt = login_attempts[attempt_key]
         if datetime.now() - last_attempt >= BLOCK_DURATION:
-            del login_attempts[client_ip]
+            del login_attempts[attempt_key]
         elif attempts >= MAX_ATTEMPTS:
             raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
 
@@ -192,7 +193,7 @@ def login(payload: LoginRequest, http_request: Request, db: Session = Depends(ge
     ).fetchone()
 
     if result is None:
-        record_failure(client_ip)
+        record_failure(attempt_key)
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     user_id, username, password_hash, role = result
@@ -204,11 +205,11 @@ def login(payload: LoginRequest, http_request: Request, db: Session = Depends(ge
         valid = False
 
     if not valid:
-        record_failure(client_ip)
+        record_failure(attempt_key)
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     # Success - clear failed login attempts
-    login_attempts.pop(client_ip, None)
+    login_attempts.pop(attempt_key, None)
 
     token = create_access_token({"user_id": user_id, "username": username, "role": role})
     return LoginResponse(access_token=token, token_type="bearer", role=role, username=username)
