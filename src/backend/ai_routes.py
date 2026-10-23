@@ -42,6 +42,11 @@ class HeartbeatReq(BaseModel):
     rtt_ms: float | None = None
 
 
+class RestoreReq(BaseModel):
+    confirm: str
+    data: dict
+
+
 class ConnReq(BaseModel):
     source_id: int
     target_id: int
@@ -393,6 +398,79 @@ def build_ai_router(get_db, get_current_user, require_admin, agent_key: str) -> 
                    {"d": row.id})
         db.commit()
         return {"ok": True}
+
+    # ---------- 백업 / 복구 (관리자 전용, JSON) ----------
+    BACKUP_FORMAT = "8bit-backup-v1"
+    ROLES = {"admin", "user"}
+
+    @r.get("/api/admin/backup")
+    def backup_export(db=Depends(get_db), user=Depends(require_admin)):
+        def fetch(sql):
+            try:
+                return [dict(x._mapping) for x in db.execute(text(sql)).fetchall()]
+            except Exception:
+                return []   # 테이블이 없는 DB에서도 백업이 실패하지 않도록
+        tables = {
+            "users": fetch("SELECT id, username, password_hash, role FROM users"),
+            "vlans": fetch("SELECT id, code, name, cidr, color FROM vlans"),
+            "devices": fetch("SELECT id, name, ip, client_uuid, type, owner_id, x, y, vlan_id FROM devices"),
+            "links": fetch("SELECT source_id, target_id FROM links"),
+            "user_vlans": fetch("SELECT user_id, vlan_id, access_level FROM user_vlans"),
+        }
+        return {
+            "meta": {"format": BACKUP_FORMAT,
+                     "created_at": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
+                     "counts": {k: len(v) for k, v in tables.items()}},
+            "tables": tables,
+        }
+
+    @r.post("/api/admin/restore")
+    def backup_restore(req: RestoreReq, db=Depends(get_db), user=Depends(require_admin)):
+        if req.confirm != "RESTORE":
+            raise HTTPException(status_code=400, detail="확인 문구가 올바르지 않습니다")
+        if (req.data.get("meta") or {}).get("format") != BACKUP_FORMAT:
+            raise HTTPException(status_code=400, detail="백업 파일 형식이 아닙니다")
+        t = req.data.get("tables") or {}
+        for k in ("users", "vlans", "devices", "links", "user_vlans"):
+            if not isinstance(t.get(k, []), list):
+                raise HTTPException(status_code=400, detail=f"{k} 항목이 올바르지 않습니다")
+        me = int(user["user_id"])   # 지금 복구를 실행하는 본인 계정은 건드리지 않는다
+        try:
+            db.execute(text("DELETE FROM links"))
+            db.execute(text("DELETE FROM user_vlans"))
+            db.execute(text("DELETE FROM devices"))
+            db.execute(text("DELETE FROM vlans"))
+            for u in t.get("users", []):
+                if int(u["id"]) == me:
+                    continue
+                if u.get("role") not in ROLES:
+                    raise ValueError(f"계정 권한이 올바르지 않습니다: {u.get('username')}")
+                db.execute(text(
+                    "INSERT INTO users (id, username, password_hash, role) VALUES (:i,:u,:p,:r) "
+                    "ON DUPLICATE KEY UPDATE username=VALUES(username), password_hash=VALUES(password_hash), role=VALUES(role)"),
+                    {"i": int(u["id"]), "u": u["username"], "p": u["password_hash"], "r": u["role"]})
+            for v in t.get("vlans", []):
+                db.execute(text("INSERT INTO vlans (id, code, name, cidr, color) VALUES (:i,:c,:n,:ci,:co)"),
+                           {"i": int(v["id"]), "c": v["code"], "n": v["name"], "ci": v.get("cidr"),
+                            "co": v.get("color") or "#a78bfa"})
+            for d in t.get("devices", []):
+                db.execute(text(
+                    "INSERT INTO devices (id, name, ip, client_uuid, type, owner_id, x, y, vlan_id) "
+                    "VALUES (:i,:n,:ip,:cu,:ty,:o,:x,:y,:v)"),
+                    {"i": int(d["id"]), "n": d["name"], "ip": d["ip"], "cu": d.get("client_uuid") or None,
+                     "ty": d["type"], "o": d.get("owner_id"), "x": d.get("x"), "y": d.get("y"),
+                     "v": int(d["vlan_id"])})
+            for l in t.get("links", []):
+                db.execute(text("INSERT INTO links (source_id, target_id) VALUES (:s,:t)"),
+                           {"s": int(l["source_id"]), "t": int(l["target_id"])})
+            for uv in t.get("user_vlans", []):
+                db.execute(text("INSERT INTO user_vlans (user_id, vlan_id, access_level) VALUES (:u,:v,:a)"),
+                           {"u": int(uv["user_id"]), "v": int(uv["vlan_id"]), "a": uv.get("access_level") or "view"})
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=f"복구 실패, 변경 사항을 되돌렸습니다: {e}")
+        return {"ok": True, "counts": {k: len(t.get(k, []) or []) for k in ("users", "vlans", "devices", "links", "user_vlans")}}
 
     # ---------- 연결 요청 (관리자 → 기기 승인) ----------
     def _me(db, request: Request):
