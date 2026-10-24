@@ -9,3 +9,6 @@ venv_test/
 *.log
 src/ai/models/
 backup/
+
+# 수집기가 만드는 PC 고유 ID (커밋 금지)
+agent_id.txt
