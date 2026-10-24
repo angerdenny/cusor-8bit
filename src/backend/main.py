@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session, sessionmaker
 import ipaddress
 from sqlalchemy import bindparam
 from .ai_routes import build_ai_router, score_rows, visible_device_ids
+from .agent_link import build_link_router
 
 # ========================
 # Environment variables (.env must be next to main.py)
@@ -175,14 +176,13 @@ def require_admin(current_user: dict = Depends(get_current_user)):
 def login(payload: LoginRequest, http_request: Request, db: Session = Depends(get_db)):
     """Login: blocks an IP after 10 failures for 1 hour, issues JWT on success."""
     username = payload.username.strip()
-    # 프록시(Render) 뒤에서는 IP가 전부 같아서, IP 기준이면 한 사람의 실패가 모두를 막는다 → 계정명 기준
-    attempt_key = username.lower()
+    client_ip = http_request.client.host if http_request.client else "unknown"
 
     # Check block status
-    if attempt_key in login_attempts:
-        attempts, last_attempt = login_attempts[attempt_key]
+    if client_ip in login_attempts:
+        attempts, last_attempt = login_attempts[client_ip]
         if datetime.now() - last_attempt >= BLOCK_DURATION:
-            del login_attempts[attempt_key]
+            del login_attempts[client_ip]
         elif attempts >= MAX_ATTEMPTS:
             raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
 
@@ -193,7 +193,7 @@ def login(payload: LoginRequest, http_request: Request, db: Session = Depends(ge
     ).fetchone()
 
     if result is None:
-        record_failure(attempt_key)
+        record_failure(client_ip)
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     user_id, username, password_hash, role = result
@@ -205,11 +205,11 @@ def login(payload: LoginRequest, http_request: Request, db: Session = Depends(ge
         valid = False
 
     if not valid:
-        record_failure(attempt_key)
+        record_failure(client_ip)
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     # Success - clear failed login attempts
-    login_attempts.pop(attempt_key, None)
+    login_attempts.pop(client_ip, None)
 
     token = create_access_token({"user_id": user_id, "username": username, "role": role})
     return LoginResponse(access_token=token, token_type="bearer", role=role, username=username)
@@ -547,6 +547,8 @@ def get_devices(current_user: dict = Depends(get_current_user), db: Session = De
         {"vlan_ids": vlan_ids},
     ).fetchall()
 
+    if current_user.get("role") != "admin":
+        device_rows = [r for r in device_rows if r.owner_id == current_user["user_id"]]
     device_ids = [r.id for r in device_rows]
     link_rows = []
     if device_ids:
@@ -901,6 +903,7 @@ def db_test(current_user: dict = Depends(require_admin), db: Session = Depends(g
 
 
 app.include_router(build_ai_router(get_db, get_current_user, require_admin, AGENT_API_KEY))
+app.include_router(build_link_router(get_db, get_current_user, pwd_context, AGENT_API_KEY))
 # ========================
 # Static files (MUST be registered last, otherwise it shadows /api routes)
 # ========================

@@ -27,13 +27,7 @@ CANDIDATES = {
     "ping": ("ping", "latency", "latency_ms"),
     "loss": ("packet_loss", "loss"),
 }
-def train_query():
-    """학습에 쓸 텔레메트리 조회. AI_TRAIN_DEVICE_ID가 있으면 그 장비만, 없으면 전체."""
-    dev = os.getenv("AI_TRAIN_DEVICE_ID", "").strip()
-    if dev.isdigit():
-        return (text("SELECT * FROM telemetry WHERE device_id = :d ORDER BY id DESC LIMIT 5000"),
-                {"d": int(dev)})
-    return text("SELECT * FROM telemetry ORDER BY id DESC LIMIT 5000"), {}
+TRAIN_SQL = "SELECT * FROM telemetry WHERE device_id = 85 ORDER BY id DESC LIMIT 5000"
 SUSPECT_TTL = 60  # 초. 이보다 오래된 의심 프로세스 보고는 무시
 
 _lock = threading.Lock()
@@ -123,11 +117,11 @@ def add_alert(db, lv, title, msg, cause="", action=""):
                {"lv": lv, "t": title[:190], "m": msg, "c": cause[:490], "a": action[:490]})
 
 def visible_device_ids(db, user):
-    """admin이면 None(전체), 일반 사용자는 user_vlans 구역의 장비 id 집합."""
+    """admin이면 None(전체), 일반 사용자는 본인(owner_id)이 연결한 장비 id 집합."""
     if user.get("role") == "admin":
         return None
-    rows = db.execute(text("SELECT d.id FROM devices d JOIN user_vlans uv ON uv.vlan_id = d.vlan_id "
-                           "WHERE uv.user_id = :u"), {"u": user["user_id"]}).fetchall()
+    rows = db.execute(text("SELECT d.id FROM devices d WHERE d.owner_id = :u"),
+                      {"u": user["user_id"]}).fetchall()
     return {x.id for x in rows}
 
 
@@ -170,7 +164,7 @@ def score_rows(db, rows: list[dict]) -> list[dict]:
     """telemetry 행들에 risk_score를 붙이고, 이상이면 경보(ai_incidents)와 보안 로그(alerts)를 만든다.
     main.py의 /api/telemetry/latest 에서 호출."""
     if not detector.trained:
-        train = [to_features(dict(x._mapping)) for x in db.execute(*train_query())]
+        train = [to_features(dict(x._mapping)) for x in db.execute(text(TRAIN_SQL))]
         if len(train) >= 50:
             detector.train_baseline(train)
 
@@ -228,7 +222,7 @@ def build_ai_router(get_db, get_current_user, require_admin, agent_key: str) -> 
 
     @r.post("/api/ai/train")
     def retrain(db=Depends(get_db), user=Depends(require_admin)):
-        rows = [to_features(dict(x._mapping)) for x in db.execute(*train_query())]
+        rows = [to_features(dict(x._mapping)) for x in db.execute(text(TRAIN_SQL))]
         try:
             return {"trained_samples": detector.train_baseline(rows)}
         except ValueError as e:
