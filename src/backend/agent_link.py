@@ -39,6 +39,10 @@ class ClaimReq(BaseModel):
     code: str = Field(min_length=6, max_length=6, pattern=r"^[0-9]{6}$")
 
 
+class WithdrawReq(BaseModel):
+    password: str = Field(min_length=1, max_length=64)
+
+
 class TelemetryReq(BaseModel):
     agent_id: str = Field(min_length=8, max_length=64, pattern=r"^[A-Za-z0-9-]+$")
     cpu_usage: float = Field(ge=0, le=100)
@@ -112,6 +116,8 @@ def build_link_router(get_db, get_current_user, pwd_context, agent_key: str):
     @router.post("/api/link/claim")
     def claim(body: ClaimReq, current_user: dict = Depends(get_current_user), db=Depends(get_db)):
         uid = current_user["user_id"]
+        if not db.execute(text("SELECT 1 FROM users WHERE id=:u"), {"u": uid}).first():
+            raise HTTPException(status_code=401, detail="계정이 없습니다. 다시 로그인하세요")
         with _pair_lock:
             _cleanup()
             pending = _pairs.get(body.code)
@@ -140,6 +146,22 @@ def build_link_router(get_db, get_current_user, pwd_context, agent_key: str):
         with _pair_lock:
             _pairs.pop(body.code, None)
         return {"ok": True, "device_id": device_id, "name": pending["name"]}
+
+    @router.delete("/api/auth/me")
+    def withdraw(body: WithdrawReq, current_user: dict = Depends(get_current_user), db=Depends(get_db)):
+        """회원 탈퇴. 계정과 구역 권한은 삭제되고, 연결된 PC는 소유자만 비워서 남긴다."""
+        if current_user.get("role") == "admin":
+            raise HTTPException(status_code=403, detail="관리자 계정은 탈퇴할 수 없습니다")
+        uid = current_user["user_id"]
+        row = db.execute(text("SELECT password_hash FROM users WHERE id=:u"), {"u": uid}).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="계정을 찾을 수 없습니다")
+        if not pwd_context.verify(body.password, row.password_hash):
+            raise HTTPException(status_code=400, detail="비밀번호가 올바르지 않습니다")
+        # user_vlans 는 CASCADE, devices.owner_id 는 SET NULL 로 DB가 처리한다
+        db.execute(text("DELETE FROM users WHERE id=:u"), {"u": uid})
+        db.commit()
+        return {"ok": True}
 
     @router.post("/api/agent/telemetry", dependencies=[Depends(agent_auth)])
     def telemetry(body: TelemetryReq, db=Depends(get_db)):

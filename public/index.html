@@ -3114,6 +3114,17 @@
                     <p id="pclink-msg" class="text-xs mt-2"></p>
                     <h3 class="text-sm font-semibold mt-6 mb-2">내 계정에 연결된 PC</h3>
                     <div id="pclink-list" class="grid gap-2"></div>
+
+                    <div class="mt-8 pt-4 border-t border-slate-700/50">
+                        <p class="text-xs t-dim">회원 탈퇴 시 계정이 삭제됩니다. 연결된 PC는 소유자 없이 남고, 다시 연결할 수 있습니다.</p>
+                        <button type="button" onclick="openWithdraw()" class="mt-2 text-xs text-rose-400 hover:underline">회원 탈퇴</button>
+                        <form id="withdraw-form" class="hide mt-3 flex gap-2" onsubmit="withdrawAccount(event)">
+                            <input id="withdraw-pw" type="password" placeholder="비밀번호 확인" required autocomplete="current-password"
+                                class="flex-1 px-3 py-2 rounded-lg border border-slate-600/70 bg-transparent text-sm" />
+                            <button type="submit" class="px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold">탈퇴 확인</button>
+                        </form>
+                        <p id="withdraw-msg" class="hide text-xs mt-2 text-rose-400"></p>
+                    </div>
                 </div>
             </section>
 
@@ -3930,6 +3941,38 @@
                     : '<p class="text-xs t-dim">아직 연결된 PC가 없어요.</p>';
             } catch (err) {
                 box.innerHTML = '<p class="text-xs t-dim">목록을 불러오지 못했습니다.</p>';
+            }
+        }
+
+        function openWithdraw() {
+            if (state.role === 'admin') {
+                $('withdraw-msg').textContent = '⚠️ 관리자 계정은 탈퇴할 수 없습니다.';
+                $('withdraw-msg').classList.remove('hide');
+                return;
+            }
+            $('withdraw-form').classList.toggle('hide');
+            $('withdraw-msg').classList.add('hide');
+        }
+
+        async function withdrawAccount(e) {
+            e.preventDefault();
+            const msg = $('withdraw-msg');
+            const show = (text) => { msg.textContent = text; msg.classList.remove('hide'); };
+            if (!confirm('정말 탈퇴하시겠습니까?\n계정은 삭제되며 되돌릴 수 없습니다. 연결된 PC는 소유자 없이 남습니다.')) return;
+
+            try {
+                const res = await apiFetch('/api/auth/me', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: $('withdraw-pw').value })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) return show('⚠️ ' + (data.detail || '탈퇴에 실패했습니다.'));
+                $('withdraw-pw').value = '';
+                logout();
+                showLoginCard('', '회원 탈퇴가 완료되었습니다.');
+            } catch (err) {
+                show('⚠️ ' + err.message);
             }
         }
 
