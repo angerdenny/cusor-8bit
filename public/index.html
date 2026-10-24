@@ -2420,6 +2420,7 @@
                 </div>
             </div>
 
+            <p id="login-notice" class="hide text-xs text-emerald-400 font-medium mb-3 text-left"></p>
             <form id="login-form" class="space-y-4" onsubmit="handleStep1Login(event)">
                 <div class="text-left">
                     <label class="block text-[11px] font-semibold text-slate-400 mb-1">이름</label>
@@ -2444,6 +2445,40 @@
             <span>다음 (구역 선택)</span><span>→</span>
         </button>
         </form>
+        <p class="text-xs text-center text-slate-400 mt-4">계정이 없나요?
+            <button type="button" onclick="showSignupCard()" class="text-indigo-400 font-semibold hover:underline">회원가입</button>
+        </p>
+    </div>
+
+    <!-- ════ 회원가입 카드 ════ -->
+    <div id="signup-card" class="hide login-card rounded-2xl p-7 max-w-sm w-full relative">
+        <div class="mb-4 text-left">
+            <h2 class="text-lg font-bold text-slate-100">회원가입</h2>
+            <p class="text-xs text-slate-400 mt-0.5">아이디와 비밀번호를 만들어 주세요. 가입 후 바로 로그인할 수 있어요.</p>
+        </div>
+        <form id="signup-form" class="space-y-4" onsubmit="handleSignup(event)">
+            <div class="text-left">
+                <label class="block text-[11px] font-semibold text-slate-400 mb-1">아이디</label>
+                <input type="text" id="signup-username" placeholder="영문·숫자·_ . - (3~50자)" required autocomplete="username"
+                    class="w-full px-3.5 py-2.5 bg-[#1a2035]/80 border border-slate-700/70 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500" />
+            </div>
+            <div class="text-left">
+                <label class="block text-[11px] font-semibold text-slate-400 mb-1">비밀번호</label>
+                <input type="password" id="signup-password" placeholder="8자 이상" required autocomplete="new-password"
+                    class="w-full px-3.5 py-2.5 bg-[#1a2035]/80 border border-slate-700/70 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500" />
+            </div>
+            <div class="text-left">
+                <label class="block text-[11px] font-semibold text-slate-400 mb-1">비밀번호 확인</label>
+                <input type="password" id="signup-password2" placeholder="한 번 더 입력" required autocomplete="new-password"
+                    class="w-full px-3.5 py-2.5 bg-[#1a2035]/80 border border-slate-700/70 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500" />
+            </div>
+            <p id="signup-msg" class="hide text-xs text-rose-400 font-medium text-left"></p>
+            <button type="submit"
+                class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow-lg shadow-indigo-600/30 text-sm">가입하기</button>
+        </form>
+        <p class="text-xs text-center text-slate-400 mt-4">
+            <button type="button" onclick="showLoginCard()" class="text-indigo-400 font-semibold hover:underline">← 로그인으로 돌아가기</button>
+        </p>
     </div>
 
     <!-- ════ STEP 2: VLAN 구역 코드 입력 ════ -->
@@ -2503,6 +2538,8 @@
                 </button>
                 <button id="nav-devices" class="nav-btn hide" data-nav="devices" data-label="기기 관리"
                     onclick="switchView('devices')"><i data-lucide="server" class="w-5 h-5"></i></button>
+                <button class="nav-btn" data-nav="pclink" data-label="내 PC 연결" onclick="switchView('pclink')"><i
+                        data-lucide="plug" class="w-5 h-5"></i></button>
                 <button class="nav-btn" data-nav="guide" data-label="AI 가이드" onclick="switchView('guide')"><i
                         data-lucide="bot" class="w-5 h-5"></i></button>
             </nav>
@@ -3064,6 +3101,22 @@
             </section>
 
             <!-- ───── VIEW: AI 가이드 ───── -->
+            <!-- ───── VIEW: 내 PC 연결 ───── -->
+            <section class="view" data-view="pclink">
+                <div class="card max-w-xl">
+                    <h2 class="ctitle"><i data-lucide="plug" class="w-4 h-4 c-indigo"></i>PC 연결하기</h2>
+                    <p class="text-xs t-dim mt-1">연결할 PC에서 collector.py를 실행하면 화면에 6자리 코드가 나옵니다. 그 코드를 아래에 입력하세요.</p>
+                    <form id="pclink-form" class="flex gap-2 mt-4" onsubmit="claimPcCode(event)">
+                        <input id="pclink-code" type="text" inputmode="numeric" maxlength="6" placeholder="6자리 코드" required
+                            class="flex-1 px-3 py-2 rounded-lg border border-slate-600/70 bg-transparent" />
+                        <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold">연결</button>
+                    </form>
+                    <p id="pclink-msg" class="text-xs mt-2"></p>
+                    <h3 class="text-sm font-semibold mt-6 mb-2">내 계정에 연결된 PC</h3>
+                    <div id="pclink-list" class="grid gap-2"></div>
+                </div>
+            </section>
+
             <section class="view" data-view="guide">
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
                     <div class="card lg:col-span-6 self-start">
@@ -3810,8 +3863,101 @@
             analytics: ['트래픽 · AI 분석', '최근 트래픽 흐름과 AI 위험도, 장비별 부하를 비교하세요'],
             logs: ['보안 로그', 'AI가 예측한 장애 위험과 보안 경보 기록이에요'],
             guide: ['AI 가이드', '시스템 사용법과 팀원 담당 역할을 확인하세요'],
+            pclink: ['내 PC 연결', '내 계정에 PC를 연결하고 상태를 확인하세요'],
             devices: ['기기 관리', '기기별 소유자를 할당하고 권한을 관리하세요']
         };
+
+        /* ───── 회원가입 / 내 PC 연결 ───── */
+        function showSignupCard() {
+            $('login-step-1').classList.add('hide');
+            $('login-notice').classList.add('hide');
+            $('signup-card').classList.remove('hide');
+        }
+        function showLoginCard(username, notice) {
+            $('signup-card').classList.add('hide');
+            $('signup-msg').classList.add('hide');
+            $('signup-password').value = '';
+            $('signup-password2').value = '';
+            $('login-step-1').classList.remove('hide');
+            if (username) $('username-input').value = username;
+            $('password-input').value = '';
+            const n = $('login-notice');
+            if (notice) { n.textContent = notice; n.classList.remove('hide'); }
+            else n.classList.add('hide');
+        }
+        async function handleSignup(e) {
+            e.preventDefault();
+            const u = $('signup-username').value.trim();
+            const p1 = $('signup-password').value;
+            const p2 = $('signup-password2').value;
+            const show = (text) => { $('signup-msg').textContent = text; $('signup-msg').classList.remove('hide'); };
+
+            if (!/^[A-Za-z0-9_.-]{3,50}$/.test(u)) return show('⚠️ 아이디는 영문·숫자·_ . - 조합으로 3~50자 입력하세요.');
+            if (p1.length < 8 || p1.length > 64) return show('⚠️ 비밀번호는 8~64자로 입력하세요.');
+            if (new TextEncoder().encode(p1).length > 72) return show('⚠️ 비밀번호가 너무 깁니다.');
+            if (p1 !== p2) return show('⚠️ 비밀번호가 서로 다릅니다.');
+
+            let res, data;
+            try {
+                res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: u, password: p1 })
+                });
+                data = await res.json().catch(() => ({}));
+            } catch (err) {
+                return show('⚠️ 서버에 연결할 수 없습니다.');
+            }
+            if (!res.ok) {
+                const msg = (res.status === 409 || res.status === 429 || res.status === 400) ? data.detail : null;
+                return show('⚠️ ' + (msg || '가입에 실패했습니다. 입력값을 확인하세요.'));
+            }
+            showLoginCard(u, '가입이 완료되었습니다. 비밀번호를 입력해 로그인하세요.');
+        }
+
+        async function loadPcList() {
+            const box = $('pclink-list');
+            if (!box) return;
+            try {
+                const res = await apiFetch('/api/devices');
+                if (!res.ok) throw new Error('load');
+                const data = await res.json();
+                const list = (data.devices || []).filter(d => d.owner);
+                box.innerHTML = list.length
+                    ? list.map(d => `<div class="card p-3 flex justify-between items-center text-sm">
+                        <span>${escHtml(d.name)} <span class="t-dim text-xs">${escHtml(d.ip)}</span></span>
+                        <span class="text-xs t-dim">${escHtml(d.owner)}</span></div>`).join('')
+                    : '<p class="text-xs t-dim">아직 연결된 PC가 없어요.</p>';
+            } catch (err) {
+                box.innerHTML = '<p class="text-xs t-dim">목록을 불러오지 못했습니다.</p>';
+            }
+        }
+
+        async function claimPcCode(e) {
+            e.preventDefault();
+            const code = $('pclink-code').value.trim();
+            const msg = $('pclink-msg');
+            const show = (text, ok) => {
+                msg.textContent = text;
+                msg.className = 'text-xs mt-2 ' + (ok ? 'text-emerald-400' : 'text-rose-400');
+            };
+            if (!/^[0-9]{6}$/.test(code)) return show('⚠️ 6자리 숫자를 입력하세요.', false);
+            try {
+                const res = await apiFetch('/api/link/claim', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) return show('⚠️ ' + (data.detail || '연결에 실패했습니다.'), false);
+                $('pclink-code').value = '';
+                show(`✅ "${data.name}" PC가 연결되었습니다.`, true);
+                loadPcList();
+                if (typeof loadDevices === 'function') loadDevices();
+            } catch (err) {
+                show('⚠️ ' + err.message, false);
+            }
+        }
 
         function switchView(name) {
             if (state.view === 'guide' && name !== 'guide') resetChat();
@@ -3833,6 +3979,7 @@
             if (name === 'vlan') { const zv = vlanById(state.vlanView); if (zv) $('page-title').textContent = `${zv.name} 구역`; }
             if (name === 'logs') { state.unread = 0; updateBadge(); markAlertsRead(); renderAlerts(); }
             if (name === 'devices') { renderDevices(); renderBackups(); }
+            if (name === 'pclink') loadPcList();
             if (name === 'vlan') { renderVlanView(); }
             if (name === 'topology') { buildNodeUI(); updateNodeUI(); lucide.createIcons(); } // 이 시점에야 실제 크기를 알 수 있어 구역 도형을 다시 계산
             window.scrollTo({ top: 0 });

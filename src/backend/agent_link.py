@@ -77,9 +77,14 @@ def build_link_router(get_db, get_current_user, pwd_context, agent_key: str):
         if db.execute(text("SELECT id FROM users WHERE username=:u"), {"u": body.username}).first():
             raise HTTPException(status_code=409, detail="이미 사용 중인 아이디입니다")
 
-        db.execute(
+        result = db.execute(
             text("INSERT INTO users (username, password_hash, role) VALUES (:u, :h, 'user')"),
             {"u": body.username, "h": pwd_context.hash(body.password)},
+        )
+        # 2단계(구역 선택)에서 막히지 않도록 기본 구역 조회 권한을 함께 준다
+        db.execute(
+            text("INSERT INTO user_vlans (user_id, vlan_id, access_level) VALUES (:u, :v, 'view')"),
+            {"u": result.lastrowid, "v": DEFAULT_VLAN_ID},
         )
         db.commit()
         return {"ok": True, "username": body.username}
