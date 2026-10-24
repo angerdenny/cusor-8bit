@@ -6543,7 +6543,8 @@
     }
     // ===== 연결 품질 측정: 이 브라우저에서 서버까지 응답 시간과 실패 여부를 5초마다 보고 =====
     async function sendHeartbeat() {
-        if (sessionStorage.getItem('token')) return;   // 로그인 화면(관리자 PC)은 등록 기기가 아님 → 404 방지
+        if (window.__hbOff) return;                    // 미등록 기기로 판정되면 이 페이지에서 더 보내지 않음
+        if (sessionStorage.getItem('token')) return;   // 로그인 화면(관리자 PC)은 등록 기기가 아님
         let ok = false, rtt = null;
         try {
             const t0 = performance.now();
@@ -6552,9 +6553,10 @@
             if (ok) rtt = Math.round(performance.now() - t0);
         } catch (e) { ok = false; }
         try {
-            await fetch('/api/ai/heartbeat', { method: 'POST',
+            const hb = await fetch('/api/ai/heartbeat', { method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-Device-Id': getDeviceId() },
                 body: JSON.stringify({ ok, rtt_ms: rtt }) });
+            if (hb.status === 404) window.__hbOff = true;   // 등록되지 않은 기기 → 404 반복 방지
         } catch (e) { /* 네트워크가 끊기면 보고도 실패 → 서버는 시간이 지나면 offline 으로 판단 */ }
     }
     // ===== 기기 본인 화면: 미등록이면 등록 요청 (iPad/스마트폰 접속용) =====
