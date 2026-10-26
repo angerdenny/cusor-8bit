@@ -85,10 +85,10 @@ def build_link_router(get_db, get_current_user, pwd_context, agent_key: str):
             text("INSERT INTO users (username, password_hash, role) VALUES (:u, :h, 'user')"),
             {"u": body.username, "h": pwd_context.hash(body.password)},
         )
-        # 2단계(구역 선택)에서 막히지 않도록 기본 구역 조회 권한을 함께 준다
+        # 구역 선택 단계를 모두 열어 준다. 장비는 owner_id 기준으로만 보이므로 다른 사람 PC는 보이지 않는다
         db.execute(
-            text("INSERT INTO user_vlans (user_id, vlan_id, access_level) VALUES (:u, :v, 'view')"),
-            {"u": result.lastrowid, "v": DEFAULT_VLAN_ID},
+            text("INSERT INTO user_vlans (user_id, vlan_id, access_level) SELECT :u, id, 'view' FROM vlans"),
+            {"u": result.lastrowid},
         )
         db.commit()
         return {"ok": True, "username": body.username}
@@ -146,6 +146,16 @@ def build_link_router(get_db, get_current_user, pwd_context, agent_key: str):
         with _pair_lock:
             _pairs.pop(body.code, None)
         return {"ok": True, "device_id": device_id, "name": pending["name"]}
+
+    @router.get("/api/link/pending")
+    def pending_pcs(current_user: dict = Depends(get_current_user)):
+        """아직 연결되지 않고 코드 입력을 기다리는 PC 목록 (연결 코드는 보여주지 않는다)"""
+        now = time.time()
+        with _pair_lock:
+            _cleanup()
+            items = [{"name": v["name"], "ip": v["ip"], "expires_in": int(v["expires"] - now)}
+                     for v in _pairs.values()]
+        return {"pending": items}
 
     @router.delete("/api/auth/me")
     def withdraw(body: WithdrawReq, current_user: dict = Depends(get_current_user), db=Depends(get_db)):

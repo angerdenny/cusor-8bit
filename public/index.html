@@ -3106,6 +3106,7 @@
                 <div class="card max-w-xl">
                     <h2 class="ctitle"><i data-lucide="plug" class="w-4 h-4 c-indigo"></i>PC 연결하기</h2>
                     <p class="text-xs t-dim mt-1">연결할 PC에서 collector.py를 실행하면 화면에 6자리 코드가 나옵니다. 그 코드를 아래에 입력하세요.</p>
+                    <div id="pclink-pending" class="hide mt-4 space-y-2"></div>
                     <form id="pclink-form" class="flex gap-2 mt-4" onsubmit="claimPcCode(event)">
                         <input id="pclink-code" type="text" inputmode="numeric" maxlength="6" placeholder="6자리 코드" required
                             class="flex-1 px-3 py-2 rounded-lg border border-slate-600/70 bg-transparent" />
@@ -3976,6 +3977,32 @@
             }
         }
 
+        let _pcPollTimer = null;
+        async function loadPendingPcs() {
+            const box = $('pclink-pending');
+            if (!box) return;
+            try {
+                const res = await apiFetch('/api/link/pending');
+                if (!res.ok) return;
+                const list = (await res.json()).pending || [];
+                if (!list.length) { box.classList.add('hide'); box.innerHTML = ''; return; }
+                box.classList.remove('hide');
+                box.innerHTML = '<p class="text-xs font-semibold text-amber-400">미연결 PC가 감지되었습니다. 아래 연결 코드를 입력하세요.</p>' +
+                    list.map(p => `<div class="card p-3 flex justify-between items-center text-sm">
+                        <span>${escHtml(p.name)} <span class="t-dim text-xs">${escHtml(p.ip)}</span></span>
+                        <span class="text-xs t-dim">약 ${Math.max(1, Math.ceil(p.expires_in / 60))}분 남음</span></div>`).join('');
+            } catch (err) { /* 무시 */ }
+        }
+        function startPcPolling() {
+            loadPendingPcs();
+            clearInterval(_pcPollTimer);
+            _pcPollTimer = setInterval(loadPendingPcs, 10000);
+        }
+        function stopPcPolling() {
+            clearInterval(_pcPollTimer);
+            _pcPollTimer = null;
+        }
+
         async function claimPcCode(e) {
             e.preventDefault();
             const code = $('pclink-code').value.trim();
@@ -4022,7 +4049,7 @@
             if (name === 'vlan') { const zv = vlanById(state.vlanView); if (zv) $('page-title').textContent = `${zv.name} 구역`; }
             if (name === 'logs') { state.unread = 0; updateBadge(); markAlertsRead(); renderAlerts(); }
             if (name === 'devices') { renderDevices(); renderBackups(); }
-            if (name === 'pclink') loadPcList();
+            if (name === 'pclink') { loadPcList(); startPcPolling(); } else stopPcPolling();
             if (name === 'vlan') { renderVlanView(); }
             if (name === 'topology') { buildNodeUI(); updateNodeUI(); lucide.createIcons(); } // 이 시점에야 실제 크기를 알 수 있어 구역 도형을 다시 계산
             window.scrollTo({ top: 0 });
@@ -6751,7 +6778,14 @@
     }
     // ===== 기기 본인 화면: 미등록이면 등록 요청 (iPad/스마트폰 접속용) =====
     async function checkMyDevice() {
-        if (sessionStorage.getItem('token')) return;   // 관리자/로그인 사용자 화면에는 띄우지 않음
+        if (sessionStorage.getItem('token')) {          // 로그인한 사용자: 관리자 계정은 알림 제외
+            try {
+                const meRes = await apiFetch('/api/auth/me');
+                if (!meRes.ok) return;
+                const meUser = await meRes.json();
+                if (meUser.role === 'admin') return;
+            } catch (e) { return; }
+        }
         try {
             const me = await fetch('/api/ai/whoami', { headers: { 'X-Device-Id': getDeviceId() } }).then(r => r.json());
             if (me.local || me.registered) return;
