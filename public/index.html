@@ -2250,7 +2250,7 @@
             position: fixed;
             left: 50%;
             bottom: 84px;
-            z-index: 80;
+            z-index: 10000;
             transform: translate(-50%, 16px);
             opacity: 0;
             pointer-events: none;
@@ -6697,14 +6697,20 @@
             </div>`);
     }
     async function approveBlock(id) {
-        try { await aiFetch('/api/security/block', { method: 'POST', body: JSON.stringify({ incident_id: id }) });
-              toast('차단 명령을 에이전트에 전달했습니다'); } catch (e) { toast(e.message); }
         closeModal();
+        toast('차단 명령 전달 중...');
+        try {
+            await aiFetch('/api/security/block', { method: 'POST', body: JSON.stringify({ incident_id: id }) });
+            toast('차단 명령을 에이전트에 전달했습니다');
+        } catch (e) { toast(e.message); }
     }
     async function markFalsePositive(id) {
-        try { const r = await aiFetch('/api/ai/feedback', { method: 'POST', body: JSON.stringify({ incident_id: id }) });
-              toast(`재학습 완료: 위험도 ${r.risk_before}% → ${r.risk_after}%`); } catch (e) { toast(e.message); }
         closeModal();
+        toast('재학습 중... 잠시만 기다려 주세요');
+        try {
+            const r = await aiFetch('/api/ai/feedback', { method: 'POST', body: JSON.stringify({ incident_id: id }) });
+            toast(`재학습 완료: 위험도 ${r.risk_before}% → ${r.risk_after}%`);
+        } catch (e) { toast(e.message); }
     }
 
     // ===== 미등록 기기 등록 팝업 (관리자 화면) =====
