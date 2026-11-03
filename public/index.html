@@ -2791,13 +2791,18 @@
                         </div>
                         <p id="inspect-node-id" class="text-lg font-extrabold mb-4">Core Router 01</p>
                         <div class="grid gap-4">
-                            <div>
+                        <div id="inspect-conn-box" class="hide">
+                            <div class="flex justify-between text-xs mb-1.5"><span class="t-muted">연결 상태</span></div>
+                            <p id="inspect-conn-badge" class="text-xl font-extrabold"></p>
+                            <p id="inspect-conn-detail" class="text-xs t-muted mt-1"></p>
+                        </div>
+                            <div id="inspect-cpu-box">
                                 <div class="flex justify-between text-xs mb-1.5"><span class="t-muted">CPU
                                         사용률</span><span id="inspect-cpu-text" class="mono font-bold c-cyan">24%</span>
                                 </div>
                                 <div class="bar"><i id="inspect-cpu-bar" class="cy" style="width:24%"></i></div>
-                            </div>
-                            <div>
+                            </div >
+                            <div id="inspect-ram-box">
                                 <div class="flex justify-between text-xs mb-1.5"><span class="t-muted">메모리</span><span
                                         id="inspect-ram-text" class="mono font-bold"
                                         style="color:var(--blue)">42%</span></div>
@@ -4964,11 +4969,22 @@
                 return;
             }
             $('inspect-node-id').textContent = n.name;
-            if (n.noMetric) {
-                $('inspect-cpu-text').textContent = '측정 안 됨';
-                $('inspect-cpu-bar').style.width = '0%';
-                $('inspect-ram-text').textContent = '측정 안 됨';
-                $('inspect-ram-bar').style.width = '0%';
+            const simple = !!n.noMetric;   // CPU/메모리를 측정할 수 없는 기기는 연결 상태만 표시
+            $('inspect-cpu-box').classList.toggle('hide', simple);
+            $('inspect-ram-box').classList.toggle('hide', simple);
+            $('inspect-conn-box').classList.toggle('hide', !simple);
+            if (simple) {
+                const CONN = {
+                    online:   ['🟢 온라인', 'var(--green)'],
+                    offline:  ['🔴 연결 끊김', 'var(--red)'],
+                    unstable: ['🟡 연결 불안정', 'var(--amber)'],
+                    slow:     ['🟠 응답 느림', 'var(--amber)'],
+                };
+                const c = CONN[n.conn] || ['⏳ 확인 중', 'var(--muted)'];
+                const b = $('inspect-conn-badge');
+                b.textContent = c[0]; b.style.color = c[1];
+                $('inspect-conn-detail').textContent = n.conn
+                    ? n.connText.replace(/^\S+\s+/, '') : '연결 상태를 측정하는 중이에요';
             } else {
                 $('inspect-cpu-text').textContent = `${Math.round(n.lc)}%`;
                 $('inspect-cpu-bar').style.width = `${n.lc}%`;
@@ -5053,12 +5069,12 @@
                 const n = NODES[k];
                 setLv($('tn-' + k), n.lv);
                 setLv($('nc-' + k), n.lv);
-                const ncc = $('ncc-' + k); if (ncc) ncc.textContent = n.noMetric ? '측정 안 됨' : Math.round(n.lc) + '%';
+                const ncc = $('ncc-' + k); if (ncc) ncc.textContent = n.noMetric ? connShort(n) : Math.round(n.lc) + '%';
                 setLv($('tr-' + k), n.lv);
                 const tc = $('tc-' + k); if (tc) tc.style.width = n.lc + '%';
-                const tct = $('tct-' + k); if (tct) tct.textContent = n.noMetric ? '측정 안 됨' : Math.round(n.lc) + '%';
+                const tct = $('tct-' + k); if (tct) tct.textContent = n.noMetric ? '—' : Math.round(n.lc) + '%';
                 const tr2 = $('tr2-' + k); if (tr2) tr2.style.width = n.lr + '%';
-                const trt = $('trt-' + k); if (trt) trt.textContent = n.noMetric ? '측정 안 됨' : Math.round(n.lr) + '%';
+                const trt = $('trt-' + k); if (trt) trt.textContent = n.noMetric ? '—' : Math.round(n.lr) + '%';
                 const ts = $('ts-' + k); if (ts) ts.textContent = nodeStatus(n);
             });
             EDGES.forEach(([a, b]) => {
@@ -7099,6 +7115,8 @@
         toast(id ? '이 장비를 내 기기로 표시했어요' : '내 기기 표시를 해제했어요');
     }
     detectMyDevice();
+    const CONN_SHORT = { online: '온라인', offline: '끊김', unstable: '불안정', slow: '느림' };
+    function connShort(n) { return CONN_SHORT[n.conn] || '확인 중'; }
 
     </script>
 </body>
