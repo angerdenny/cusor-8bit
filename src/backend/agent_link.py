@@ -15,8 +15,10 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
-PAIR_TTL = 600  # 연결 코드 유효 시간(초)
+PAIR_TTL = 1800  # 연결 코드 유효 시간(초). 컬렉터가 켜져 있는 동안은 계속 연장된다
 DEFAULT_VLAN_ID = int(os.getenv("DEFAULT_VLAN_ID", "1"))
+ADMIN_AGENT_IDS = {x.strip() for x in os.getenv("ADMIN_AGENT_IDS", "").split(",") if x.strip()}
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "").strip()
 
 _pairs: dict[str, dict] = {}      # code -> {agent_id, name, ip, expires}
 _pair_lock = threading.Lock()
@@ -37,6 +39,15 @@ class PairReq(BaseModel):
 
 class ClaimReq(BaseModel):
     code: str = Field(min_length=6, max_length=6, pattern=r"^[0-9]{6}$")
+
+
+class UserIdReq(BaseModel):
+    user_id: int
+
+
+class PcApproveReq(BaseModel):
+    ref: str = Field(min_length=4, max_length=32, pattern=r"^[A-Za-z0-9-]+$")
+    user_id: int
 
 
 class WithdrawReq(BaseModel):
@@ -85,11 +96,7 @@ def build_link_router(get_db, get_current_user, pwd_context, agent_key: str):
             text("INSERT INTO users (username, password_hash, role) VALUES (:u, :h, 'user')"),
             {"u": body.username, "h": pwd_context.hash(body.password)},
         )
-        # 구역 선택 단계를 모두 열어 준다. 장비는 owner_id 기준으로만 보이므로 다른 사람 PC는 보이지 않는다
-        db.execute(
-            text("INSERT INTO user_vlans (user_id, vlan_id, access_level) SELECT :u, id, 'view' FROM vlans"),
-            {"u": result.lastrowid},
-        )
+        # 구역 접근은 관리자가 승인(/api/access/approve-user)해야 열린다. 그 전까지는 user_vlans 행이 없다
         db.commit()
         return {"ok": True, "username": body.username}
 
@@ -97,6 +104,27 @@ def build_link_router(get_db, get_current_user, pwd_context, agent_key: str):
     def pair_request(body: PairReq, db=Depends(get_db)):
         row = db.execute(text("SELECT id, owner_id FROM devices WHERE client_uuid=:c"),
                          {"c": body.agent_id}).first()
+        if body.agent_id in ADMIN_AGENT_IDS:   # 관리자 노트북: 코드 입력 없이 항상 관리자 소유로 연결
+            if ADMIN_USERNAME:
+                admin = db.execute(text("SELECT id FROM users WHERE username=:u AND role='admin'"),
+                                   {"u": ADMIN_USERNAME}).first()
+            else:
+                admin = db.execute(text("SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1")).first()
+            if admin:
+                if row:
+                    if row.owner_id != admin.id:
+                        db.execute(text("UPDATE devices SET owner_id=:u WHERE id=:id"), {"u": admin.id, "id": row.id})
+                        db.commit()
+                    return {"linked": True, "device_id": row.id}
+                result = db.execute(
+                    text("""INSERT INTO devices (name, ip, type, owner_id, x, y, client_uuid, vlan_id)
+                            VALUES (:n,:ip,'pc',:u,:x,:y,:c,:v)"""),
+                    {"n": body.name or "관리자 노트북", "ip": body.ip or "0.0.0.0", "u": admin.id,
+                     "x": random.uniform(15, 85), "y": random.uniform(15, 85),
+                     "c": body.agent_id, "v": DEFAULT_VLAN_ID})
+                db.commit()
+                return {"linked": True, "device_id": result.lastrowid}
+
         if row and row.owner_id:
             return {"linked": True, "device_id": row.id}
 
@@ -104,13 +132,15 @@ def build_link_router(get_db, get_current_user, pwd_context, agent_key: str):
             _cleanup()
             for code, v in _pairs.items():
                 if v["agent_id"] == body.agent_id:          # 같은 PC는 같은 코드 재사용
-                    return {"linked": False, "code": code, "expires_in": int(v["expires"] - time.time())}
+                    v["expires"] = time.time() + PAIR_TTL    # 컬렉터가 켜져 있는 동안 승인 대기 유지
+                    return {"linked": False, "code": code, "expires_in": PAIR_TTL}
             while True:
                 code = f"{secrets.randbelow(10**6):06d}"
                 if code not in _pairs:
                     break
             _pairs[code] = {"agent_id": body.agent_id, "name": body.name or "PC",
-                            "ip": body.ip or "0.0.0.0", "expires": time.time() + PAIR_TTL}
+                            "ip": body.ip or "0.0.0.0", "expires": time.time() + PAIR_TTL,
+                            "approved_user": None}   # 관리자가 승인한 사용자 id (승인 전에는 None)
         return {"linked": False, "code": code, "expires_in": PAIR_TTL}
 
     @router.post("/api/link/claim")
@@ -121,8 +151,9 @@ def build_link_router(get_db, get_current_user, pwd_context, agent_key: str):
         with _pair_lock:
             _cleanup()
             pending = _pairs.get(body.code)
-            if not pending:
-                raise HTTPException(status_code=404, detail="코드가 없거나 만료되었습니다")
+            # 코드 존재 여부가 드러나지 않도록, 없는 코드와 승인되지 않은 코드는 같은 메시지로 거절한다
+            if not pending or (current_user.get("role") != "admin" and pending.get("approved_user") != uid):
+                raise HTTPException(status_code=404, detail="코드가 없거나 관리자 승인이 필요합니다")
 
         existing = db.execute(text("SELECT id, owner_id FROM devices WHERE client_uuid=:c"),
                               {"c": pending["agent_id"]}).first()
@@ -149,13 +180,70 @@ def build_link_router(get_db, get_current_user, pwd_context, agent_key: str):
 
     @router.get("/api/link/pending")
     def pending_pcs(current_user: dict = Depends(get_current_user)):
-        """아직 연결되지 않고 코드 입력을 기다리는 PC 목록 (연결 코드는 보여주지 않는다)"""
+        """코드 입력을 기다리는 PC 목록. 관리자는 전체, 일반 사용자는 관리자가 본인에게 승인한 PC만 본다.
+        (연결 코드는 보여주지 않는다)"""
         now = time.time()
+        is_admin = current_user.get("role") == "admin"
         with _pair_lock:
             _cleanup()
             items = [{"name": v["name"], "ip": v["ip"], "expires_in": int(v["expires"] - now)}
-                     for v in _pairs.values()]
+                     for v in _pairs.values()
+                     if is_admin or v.get("approved_user") == current_user["user_id"]]
         return {"pending": items}
+
+    # ---------- 관리자 승인 (가입 구역 접근 / 새 PC 연결) ----------
+    def _need_admin(u: dict):
+        if u.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="관리자만 사용할 수 있습니다")
+
+    @router.get("/api/access/requests")
+    def access_requests(current_user: dict = Depends(get_current_user), db=Depends(get_db)):
+        """관리자 승인 대기 목록: 구역 권한이 없는 신규 사용자 + 아직 누구에게도 승인되지 않은 PC"""
+        _need_admin(current_user)
+        users = db.execute(text(
+            "SELECT u.id, u.username FROM users u WHERE u.role='user' "
+            "AND NOT EXISTS (SELECT 1 FROM user_vlans uv WHERE uv.user_id=u.id) ORDER BY u.id")).fetchall()
+        with _pair_lock:
+            _cleanup()
+            pcs = [{"ref": v["agent_id"][:12], "name": v["name"], "ip": v["ip"]}
+                   for v in _pairs.values() if v.get("approved_user") is None]
+        return {"users": [{"id": x.id, "username": x.username} for x in users], "pcs": pcs}
+
+    @router.post("/api/access/approve-user")
+    def approve_user(body: UserIdReq, current_user: dict = Depends(get_current_user), db=Depends(get_db)):
+        _need_admin(current_user)
+        if not db.execute(text("SELECT 1 FROM users WHERE id=:u AND role='user'"), {"u": body.user_id}).first():
+            raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다")
+        db.execute(text("INSERT INTO user_vlans (user_id, vlan_id, access_level) "
+                        "SELECT :u, v.id, 'view' FROM vlans v WHERE NOT EXISTS "
+                        "(SELECT 1 FROM user_vlans x WHERE x.user_id=:u AND x.vlan_id=v.id)"), {"u": body.user_id})
+        db.commit()
+        return {"ok": True}
+
+    @router.post("/api/access/reject-user")
+    def reject_user(body: UserIdReq, current_user: dict = Depends(get_current_user), db=Depends(get_db)):
+        """가입 거절 = 아직 구역 권한이 없는 일반 사용자 계정 삭제"""
+        _need_admin(current_user)
+        r = db.execute(text("DELETE FROM users WHERE id=:u AND role='user' "
+                            "AND NOT EXISTS (SELECT 1 FROM user_vlans WHERE user_id=:u)"), {"u": body.user_id})
+        db.commit()
+        if r.rowcount == 0:
+            raise HTTPException(status_code=404, detail="삭제할 수 있는 신규 가입자가 아닙니다")
+        return {"ok": True}
+
+    @router.post("/api/access/approve-pc")
+    def approve_pc(body: PcApproveReq, current_user: dict = Depends(get_current_user), db=Depends(get_db)):
+        """새 PC를 특정 사용자에게 승인한다. 그 사용자만 PC 화면의 6자리 코드를 입력해 연결할 수 있다."""
+        _need_admin(current_user)
+        if not db.execute(text("SELECT 1 FROM users WHERE id=:u"), {"u": body.user_id}).first():
+            raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다")
+        with _pair_lock:
+            _cleanup()
+            for v in _pairs.values():
+                if v["agent_id"][:12] == body.ref:
+                    v["approved_user"] = body.user_id
+                    return {"ok": True, "name": v["name"]}
+        raise HTTPException(status_code=404, detail="대기 중인 PC가 없거나 만료되었습니다")
 
     @router.delete("/api/auth/me")
     def withdraw(body: WithdrawReq, current_user: dict = Depends(get_current_user), db=Depends(get_db)):
