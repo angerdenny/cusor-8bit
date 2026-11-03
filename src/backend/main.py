@@ -20,6 +20,7 @@ import ipaddress
 from sqlalchemy import bindparam
 from .ai_routes import build_ai_router, score_rows, visible_device_ids
 from .agent_link import build_link_router
+from .sim_routes import build_sim_router, apply_active_sims
 
 # ========================
 # Environment variables (.env must be next to main.py)
@@ -809,6 +810,7 @@ def delete_link(
 @app.get("/api/telemetry/latest")
 def get_latest_telemetry(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """Latest telemetry + AI risk score. admin = 전체, 일반 사용자 = 자기 구역 장비만."""
+    apply_active_sims(db)
     ids = visible_device_ids(db, current_user)
     if ids is None:
         rows = db.execute(text("SELECT * FROM telemetry ORDER BY id DESC LIMIT 50")).fetchall()
@@ -905,6 +907,7 @@ def db_test(current_user: dict = Depends(require_admin), db: Session = Depends(g
 
 app.include_router(build_ai_router(get_db, get_current_user, require_admin, AGENT_API_KEY))
 app.include_router(build_link_router(get_db, get_current_user, pwd_context, AGENT_API_KEY))
+app.include_router(build_sim_router(get_db, get_current_user, require_admin))
 # ========================
 # Static files (MUST be registered last, otherwise it shadows /api routes)
 # ========================
