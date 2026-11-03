@@ -116,7 +116,8 @@ def main() -> None:
 
         try:
             r = api("POST", "/api/agent/telemetry", json={
-                "agent_id": agent_id, "cpu_usage": cpu, "ram_usage": ram,
+                "agent_id": agent_id, "ip": local_ip(),
+                "cpu_usage": cpu, "ram_usage": ram,
                 "traffic_in_mbps": traffic_in, "packet_loss": loss,
             })
             if r.status_code in (403, 404):

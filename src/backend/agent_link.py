@@ -5,6 +5,7 @@
 - POST /api/agent/telemetry      : 에이전트가 CPU/메모리/트래픽을 API로 보고 (DB 비밀번호 불필요)
 """
 import hmac
+import ipaddress
 import os
 import random
 import secrets
@@ -60,6 +61,18 @@ class TelemetryReq(BaseModel):
     ram_usage: float = Field(ge=0, le=100)
     traffic_in_mbps: float = Field(default=0, ge=0)
     packet_loss: float = Field(default=0, ge=0, le=100)
+    ip: str = Field(default="", max_length=45)   # 에이전트 PC의 현재 IP (DHCP로 바뀌어도 서버가 따라간다)
+
+
+def _usable_ip(value: str) -> str:
+    """보고된 IP가 쓸 만한 주소면 정규화해서 돌려주고, 아니면 빈 문자열."""
+    try:
+        ip = ipaddress.ip_address((value or "").strip())
+    except ValueError:
+        return ""
+    if ip.is_loopback or ip.is_unspecified or ip.is_multicast:
+        return ""
+    return str(ip)
 
 
 def build_link_router(get_db, get_current_user, pwd_context, agent_key: str):
@@ -263,7 +276,7 @@ def build_link_router(get_db, get_current_user, pwd_context, agent_key: str):
 
     @router.post("/api/agent/telemetry", dependencies=[Depends(agent_auth)])
     def telemetry(body: TelemetryReq, db=Depends(get_db)):
-        row = db.execute(text("SELECT id, owner_id FROM devices WHERE client_uuid=:c"),
+        row = db.execute(text("SELECT id, owner_id, ip FROM devices WHERE client_uuid=:c"),
                          {"c": body.agent_id}).first()
         if not row:
             raise HTTPException(status_code=404, detail="연결되지 않은 PC입니다")
@@ -275,6 +288,9 @@ def build_link_router(get_db, get_current_user, pwd_context, agent_key: str):
             {"d": row.id, "c": body.cpu_usage, "r": body.ram_usage,
              "t": body.traffic_in_mbps, "p": body.packet_loss},
         )
+        new_ip = _usable_ip(body.ip)
+        if new_ip and new_ip != row.ip:      # 공유기가 IP를 바꿔 줬다면 표시 IP도 갱신
+            db.execute(text("UPDATE devices SET ip=:ip WHERE id=:id"), {"ip": new_ip, "id": row.id})
         db.commit()
         return {"ok": True}
 
