@@ -4360,7 +4360,7 @@
                 if (txt) {
                     txt.setAttribute('x', geo.cxPercent + '%');
                     txt.setAttribute('y', geo.cyPercent + '%');
-                    txt.setAttribute('dy', `calc(${offsetY}px * var(--topo-node-scale, 1))`);
+                    txt.style.transform = `translateY(calc(${offsetY}px * var(--topo-node-scale, 1)))`;
                 }
             });
         }
