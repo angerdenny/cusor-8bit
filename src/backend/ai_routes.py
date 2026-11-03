@@ -348,7 +348,8 @@ def build_ai_router(get_db, get_current_user, require_admin, agent_key: str) -> 
         cid = _client_uuid(request, required=False)
         row = (db.execute(text("SELECT id, name FROM devices WHERE client_uuid=:c"), {"c": cid}).first()
                if cid else None)
-        return {"ip": _client_ip(request), "registered": bool(row), "name": row.name if row else None}
+        return {"ip": _client_ip(request), "registered": bool(row), "name": row.name if row else None,
+                "id": row.id if row else None}
 
     @r.post("/api/ai/register-request")
     def register_request(req: SelfRegisterReq, request: Request, db=Depends(get_db)):

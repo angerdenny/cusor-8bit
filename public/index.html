@@ -1242,6 +1242,29 @@
             border-style: dashed;
             border-color: var(--amber);
         }
+        
+        .tnode.me {
+            box-shadow: 0 0 0 3px rgba(168, 85, 247, .9), 0 0 22px 6px rgba(168, 85, 247, .5);
+            animation: meGlow 2s ease-in-out infinite;
+        }
+        .tnode.me::after {
+            content: "📍 내 기기";
+            position: absolute;
+            bottom: -13px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            font-weight: 800;
+            padding: 1px 9px;
+            border-radius: 999px;
+            background: #a855f7;
+            color: #fff;
+            white-space: nowrap;
+        }
+        @keyframes meGlow {
+            0%, 100% { box-shadow: 0 0 0 3px rgba(168, 85, 247, .9), 0 0 14px 3px rgba(168, 85, 247, .35); }
+            50%      { box-shadow: 0 0 0 3px rgba(168, 85, 247, .9), 0 0 26px 9px rgba(168, 85, 247, .6); }
+        }
 
         .tnode .unlinked-badge {
             position: absolute;
@@ -5044,6 +5067,8 @@
             });
             updateInspector();
             if (state.view === 'vlan') updateVlanView();
+            renderMyDeviceBtn();
+            applyMyDevice();
         }
 
         /* ═════════ 5-1. VLAN 구역 관리 ═════════ */
@@ -7031,6 +7056,49 @@
         closeModal();
     }
     setInterval(pollAccessRequests, 5000);
+
+    let myDeviceId = null;
+    function applyMyDevice() {
+        NODE_KEYS.forEach(k => {
+            const el = $('tn-' + k);
+            if (el) el.classList.toggle('me', !!myDeviceId && NODES[k].dbId === myDeviceId);
+        });
+    }
+    async function detectMyDevice() {
+        let saved = null;
+        try { saved = Number(localStorage.getItem('my_device_id')) || null; } catch (e) { }
+        if (saved) { myDeviceId = saved; applyMyDevice(); return; }
+        try {
+            const me = await fetch('/api/ai/whoami', { headers: { 'X-Device-Id': getDeviceId() } }).then(r => r.json());
+            if (me.id) { myDeviceId = me.id; applyMyDevice(); }
+        } catch (e) { /* 무시 */ }
+    }
+    function renderMyDeviceBtn() {
+        const host = $('inspect-node-id');
+        if (!host) return;
+        const n = NODES[state.selected];
+        let b = $('btn-my-device');
+        if (!b) {
+            b = document.createElement('button');
+            b.id = 'btn-my-device';
+            b.type = 'button';
+            b.style.cssText = 'display:block;margin-top:8px;font-size:12px;padding:5px 10px;border-radius:8px;border:1px solid #a855f7;color:#c084fc;background:transparent;cursor:pointer';
+            host.insertAdjacentElement('afterend', b);
+        }
+        if (!n || !n.dbId) { b.style.display = 'none'; return; }
+        b.style.display = 'block';
+        const mine = n.dbId === myDeviceId;
+        b.textContent = mine ? '📍 내 기기 표시 해제' : '📍 이 장비를 내 기기로 지정';
+        b.onclick = () => setMyDevice(mine ? null : n.dbId);
+    }
+    function setMyDevice(id) {
+        myDeviceId = id;
+        try { if (id) localStorage.setItem('my_device_id', id); else localStorage.removeItem('my_device_id'); } catch (e) { }
+        if (!id) detectMyDevice();
+        applyMyDevice(); renderMyDeviceBtn();
+        toast(id ? '이 장비를 내 기기로 표시했어요' : '내 기기 표시를 해제했어요');
+    }
+    detectMyDevice();
 
     </script>
 </body>
