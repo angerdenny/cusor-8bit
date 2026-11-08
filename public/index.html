@@ -6342,9 +6342,9 @@
         }
 
         if (!IS_REAL_ENV) setInterval(tick, 1000);
-        else { pollTelemetry(); setInterval(pollTelemetry, 5000); setInterval(refreshSimTargets, 2000); }
+        else { pollTelemetry(); setInterval(pollTelemetry, 10000); setInterval(refreshSimTargets, 2000); }
         pollEndpointSecurity();
-        setInterval(pollEndpointSecurity, 5000);
+        setInterval(pollEndpointSecurity, 10000);
         
         /* ═════════ 기기 추가 기능 ═════════ */
         function openModal(modalId) {
@@ -6610,7 +6610,7 @@
    
         function startAlertsPoll() {
         if (alertsPollInterval) clearInterval(alertsPollInterval);
-        alertsPollInterval = setInterval(loadAlerts, 5000);  // 5초마다
+        alertsPollInterval = setInterval(loadAlerts, 10000);  // 5초마다
         }
 
         function stopAlertsPoll() {
@@ -7138,7 +7138,7 @@
         } catch (e) { toast(e.message); }
         closeModal();
     }
-    setInterval(pollAccessRequests, 5000);
+    setInterval(pollAccessRequests, 10000);
 
     let myDeviceId = null;
     function applyMyDevice() {
