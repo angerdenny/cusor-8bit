@@ -6881,6 +6881,7 @@
                 </select>
                 <div style="display:flex;gap:8px">
                     <button onclick="enrollPending('${aiEsc(d.ip)}', '${aiEsc(d.client_uuid)}')" style="flex:1;padding:10px;border-radius:10px;background:#3b82f6">등록</button>
+                    <button onclick="rejectPending('${aiEsc(d.client_uuid)}')" style="flex:1;padding:10px;border-radius:10px;background:#ef4444">거절</button>
                     <button onclick="closeModal()" style="padding:10px;border-radius:10px;background:#334">나중에</button>
                 </div>`);
         } catch (e) { /* 무시 */ }
@@ -6969,18 +6970,38 @@
         } catch (e) { aiToast(e.message); }
     }
     function waitApproval() {
+        const hdr = { headers: { 'X-Device-Id': getDeviceId() } };
         const t = setInterval(async () => {
             try {
-                const me = await fetch('/api/ai/whoami', { headers: { 'X-Device-Id': getDeviceId() } }).then(r => r.json());
+                const me = await fetch('/api/ai/whoami', hdr).then(r => r.json());
                 if (me.registered) {
                     clearInterval(t);
                     const m = document.getElementById('my-dev-msg');
                     if (m) m.textContent = '✅ 등록이 완료되었습니다!';
                     setTimeout(closeModal, 2500);
+                    return;
+                }
+                const st = await fetch('/api/sim/my-status', hdr).then(r => r.json());
+                if (st.state === 'rejected') {
+                    clearInterval(t);
+                    closeModal();
+                    showModal(`<h3 style="font-weight:800;margin-bottom:8px">❌ 등록이 거절되었어요</h3>
+                        <p style="font-size:14px;margin-bottom:16px">관리자가 이 기기의 등록 요청을 거절했어요.</p>
+                        <div style="display:flex;gap:8px">
+                            <button onclick="closeModal();checkMyDevice()" style="flex:1;padding:10px;border-radius:10px;background:#3b82f6">다시 요청</button>
+                            <button onclick="closeModal()" style="flex:1;padding:10px;border-radius:10px;background:#334">닫기</button></div>`);
                 }
             } catch (e) { /* 무시 */ }
         }, 3000);
     }
+    async function rejectPending(cid) {
+        closeModal();
+        try {
+            await aiFetch('/api/sim/reject-request', { method: 'POST', body: JSON.stringify({ client_uuid: cid }) });
+            toast('등록 요청을 거절했어요');
+        } catch (e) { toast(e.message); }
+    }
+    
     restoreSession();
     // ===== 연결 요청: 관리자 요청 → 기기(iPad) 승인 =====
     const shownConn = new Set();
@@ -7060,7 +7081,7 @@
         pollDeviceNotice();
         if (sessionStorage.getItem('token')) { pollAiIncidents(); pollPendingDevices(); pollConnectResults(); pollConnectivity(); pollSimState(); }
     }, 5000);
-    
+
     if (IS_REAL) checkMyDevice();
     if (IS_REAL) setInterval(sendHeartbeat, 5000);
     

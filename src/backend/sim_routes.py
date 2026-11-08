@@ -15,7 +15,9 @@
 - POST /api/sim/unblock   {device_id}         관리자
 - POST /api/sim/reset     {device_id?}        관리자 (생략하면 전체 해제)
 - GET  /api/sim/status                        로그인 사용자 (본인에게 보이는 장비만)
-- GET  /api/sim/my-status                     로그인 없이 X-Device-Id 로 자기 기기 상태
+- GET  /api/sim/my-status                     로그인 없이 X-Device-Id 로 자기 기기 상태 (등록 대기·거절 포함)
+- POST /api/sim/device-inject {kind}          로그인 없이 X-Device-Id 로 '자기 기기'에만 장애 발생 (결정은 관리자만)
+- POST /api/sim/reject-request {client_uuid}  관리자: 등록 요청 거절
 
 위치: src/backend/sim_routes.py
 """
@@ -26,13 +28,16 @@ import time
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 
-from .ai_routes import add_alert, to_features, visible_device_ids
+from .ai_routes import _pending, add_alert, to_features, visible_device_ids
 
 SIM_TTL = 600        # 시뮬레이션 자동 종료 시간(초)
 INSERT_EVERY = 4     # 장비당 합성 텔레메트리 최소 간격(초)
+DEVICE_COOLDOWN = 8  # 기기가 장애 버튼을 다시 누를 수 있기까지 대기(초)
+MAX_ACTIVE = 30      # 동시에 진행할 수 있는 시뮬레이션 수
+REJECT_TTL = 600     # 거절 안내를 유지하는 시간(초)
 
 PROFILES = {
     "ddos": {
@@ -74,6 +79,8 @@ _active: dict = {}   # device_id -> {kind, until, started, name, mitigated}
 _last_ins: dict = {}
 _lock = threading.Lock()
 _blocks_ready = False
+_rejected: dict = {}   # client_uuid -> 거절한 시각
+_dev_cd: dict = {}     # device_id -> 마지막으로 장애 버튼을 누른 시각
 
 
 def _ensure_blocks(db) -> bool:
@@ -151,6 +158,14 @@ class ResetReq(BaseModel):
     device_id: Optional[int] = None
 
 
+class DeviceInjectReq(BaseModel):
+    kind: str
+
+
+class RejectReq(BaseModel):
+    client_uuid: str = Field(min_length=8, max_length=80)
+
+
 def _device(db, device_id: int):
     dev = db.execute(text("SELECT id, name FROM devices WHERE id=:i"), {"i": device_id}).first()
     if not dev:
@@ -175,6 +190,33 @@ def _need_blocks(db) -> None:
         raise HTTPException(status_code=500, detail="차단 목록 테이블(device_blocks)을 만들 수 없습니다. DB 권한을 확인하세요")
 
 
+def _start_sim(db, dev, kind: str, clear_block: bool) -> dict:
+    """장애 시작 공용 로직: 합성 텔레메트리 + AI 경보 + 보안 로그."""
+    p = PROFILES[kind]
+    if _ensure_blocks(db) and clear_block:
+        db.execute(text("DELETE FROM device_blocks WHERE device_id=:d"), {"d": dev.id})   # 새 시나리오는 차단 해제 상태로 시작
+    started = db.execute(text("SELECT NOW(3)")).scalar()
+
+    row = _insert_telemetry(db, dev.id, kind)
+    _resolve_incidents(db, dev.id)
+    risk = round(random.uniform(90, 98), 1)
+    msg = (f"{dev.name}: {p['label']} 감지 · CPU {row['cpu_usage']}% · "
+           f"트래픽 {row['traffic_in_mbps']}Mbps · 손실 {row['packet_loss']}%")[:250]
+    db.execute(
+        text("INSERT INTO ai_incidents (device_id, risk_score, message, features) VALUES (:d,:r,:m,:f)"),
+        {"d": dev.id, "r": risk, "m": msg, "f": json.dumps(to_features(row))})
+    add_alert(db, "crit", f"🤖 AI 이상 감지 — {p['label']}", msg,
+              f"{p['cause']} (위험도 {risk}%)", p["action"])
+    db.commit()
+
+    with _lock:
+        _active[dev.id] = {"kind": kind, "until": time.time() + SIM_TTL, "started": started,
+                           "name": dev.name, "mitigated": False}
+        _last_ins[dev.id] = time.time()
+    return {"ok": True, "device_id": dev.id, "kind": kind, "ttl": SIM_TTL,
+            "recommend": p["recommend"], "reason": p["reason"]}
+
+
 def build_sim_router(get_db, get_current_user, require_admin) -> APIRouter:
     r = APIRouter()
 
@@ -183,29 +225,48 @@ def build_sim_router(get_db, get_current_user, require_admin) -> APIRouter:
         if req.kind not in PROFILES or req.kind == "mitigated":
             raise HTTPException(status_code=400, detail="알 수 없는 시뮬레이션 종류입니다")
         dev = _device(db, req.device_id)
-        if _ensure_blocks(db):
-            db.execute(text("DELETE FROM device_blocks WHERE device_id=:d"), {"d": dev.id})   # 새 시나리오는 차단 해제 상태로 시작
-        p = PROFILES[req.kind]
-        started = db.execute(text("SELECT NOW(3)")).scalar()
+        return _start_sim(db, dev, req.kind, clear_block=True)
 
-        row = _insert_telemetry(db, dev.id, req.kind)
-        _resolve_incidents(db, dev.id)
-        risk = round(random.uniform(90, 98), 1)
-        msg = (f"{dev.name}: {p['label']} 감지 · CPU {row['cpu_usage']}% · "
-               f"트래픽 {row['traffic_in_mbps']}Mbps · 손실 {row['packet_loss']}%")[:250]
-        db.execute(
-            text("INSERT INTO ai_incidents (device_id, risk_score, message, features) VALUES (:d,:r,:m,:f)"),
-            {"d": dev.id, "r": risk, "m": msg, "f": json.dumps(to_features(row))})
-        add_alert(db, "crit", f"🤖 AI 이상 감지 — {p['label']}", msg,
-                  f"{p['cause']} (위험도 {risk}%)", p["action"])
-        db.commit()
-
+    @r.post("/api/sim/device-inject")
+    def device_inject(req: DeviceInjectReq, db=Depends(get_db), x_device_id: str = Header(default="")):
+        """등록된 기기(폰·아이패드)가 로그인 없이 '자기 자신'에게만 장애를 일으킨다.
+        이후 완화·차단 결정은 관리자만 할 수 있고, 기기는 알림만 받는다."""
+        cid = x_device_id.strip()
+        if not (8 <= len(cid) <= 80):
+            raise HTTPException(status_code=401, detail="기기 식별 정보가 없어요")
+        if req.kind not in PROFILES or req.kind == "mitigated":
+            raise HTTPException(status_code=400, detail="알 수 없는 시뮬레이션 종류입니다")
+        dev = db.execute(text("SELECT id, name FROM devices WHERE client_uuid=:c"), {"c": cid}).first()
+        if not dev:
+            raise HTTPException(status_code=403, detail="등록된 기기만 사용할 수 있어요")
+        if _ensure_blocks(db) and db.execute(text("SELECT 1 FROM device_blocks WHERE device_id=:d"),
+                                             {"d": dev.id}).first():
+            raise HTTPException(status_code=403, detail="연결이 차단된 상태에서는 사용할 수 없어요")
+        now = time.time()
         with _lock:
-            _active[dev.id] = {"kind": req.kind, "until": time.time() + SIM_TTL, "started": started,
-                               "name": dev.name, "mitigated": False}
-            _last_ins[dev.id] = time.time()
-        return {"ok": True, "device_id": dev.id, "kind": req.kind, "ttl": SIM_TTL,
-                "recommend": p["recommend"], "reason": p["reason"]}
+            cur = _active.get(dev.id)
+            if cur and cur["until"] > now:
+                raise HTTPException(status_code=409, detail="이미 장애가 진행 중이에요. 관리자 조치를 기다려 주세요")
+            if len(_active) >= MAX_ACTIVE:
+                raise HTTPException(status_code=429, detail="지금은 시뮬레이션이 너무 많아요. 잠시 후 다시 시도해 주세요")
+            if now - _dev_cd.get(dev.id, 0) < DEVICE_COOLDOWN:
+                raise HTTPException(status_code=429, detail="잠시 후 다시 눌러 주세요")
+            _dev_cd[dev.id] = now
+        _start_sim(db, dev, req.kind, clear_block=False)
+        return {"ok": True}
+
+    @r.post("/api/sim/reject-request")
+    def reject_request(req: RejectReq, db=Depends(get_db), user=Depends(require_admin)):
+        """등록 요청 거절: 대기 목록에서 지우고, 요청한 기기에는 '거절됨'으로 안내한다."""
+        cid = req.client_uuid.strip()
+        item = _pending.pop(cid, None)
+        if item is None:
+            raise HTTPException(status_code=404, detail="대기 중인 요청이 없습니다")
+        _rejected[cid] = time.time()
+        add_alert(db, "info", "등록 요청 거절", f"{item.get('hostname') or '이름 없는 기기'} ({item.get('ip', '')}) 등록 요청을 거절했어요",
+                  "관리자가 거절", "필요하면 기기에서 다시 요청할 수 있어요.")
+        db.commit()
+        return {"ok": True}
 
     @r.post("/api/sim/mitigate")
     def mitigate(req: DeviceReq, db=Depends(get_db), user=Depends(require_admin)):
@@ -305,6 +366,11 @@ def build_sim_router(get_db, get_current_user, require_admin) -> APIRouter:
         ready = _ensure_blocks(db)
         dev = db.execute(text("SELECT id, name FROM devices WHERE client_uuid=:c"), {"c": cid}).first()
         if not dev:
+            if cid in _pending:
+                return {"state": "pending"}
+            if time.time() - _rejected.get(cid, 0) < REJECT_TTL:
+                return {"state": "rejected"}
+            _rejected.pop(cid, None)
             return {"state": "none"}
         if ready and db.execute(text("SELECT 1 FROM device_blocks WHERE device_id=:d"), {"d": dev.id}).first():
             return {"state": "blocked", "name": dev.name}
