@@ -7001,7 +7001,7 @@
             toast('등록 요청을 거절했어요');
         } catch (e) { toast(e.message); }
     }
-    
+
     restoreSession();
     // ===== 연결 요청: 관리자 요청 → 기기(iPad) 승인 =====
     const shownConn = new Set();
@@ -7246,11 +7246,45 @@
         } else { el.remove(); }
         renderDeviceNotice.prev = s;
     }
+    const SIM_BTNS = [['ddos', '⚡ DDoS 부하'], ['loss', '📉 패킷 손실'], ['cpu', '🔥 CPU 고부하'], ['down', '🔌 회선 다운']];
+    function renderDevicePanel(j) {
+        let el = document.getElementById('device-sim-panel');
+        const s = j && j.state;
+        if (!['normal', 'warning', 'mitigated'].includes(s)) { if (el) el.remove(); return; }
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'device-sim-panel';
+            el.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);z-index:8000;padding:14px;border-radius:16px;background:rgba(15,20,36,.96);color:#fff;border:1px solid #334155;box-shadow:0 10px 30px rgba(0,0,0,.45);max-width:520px;margin:0 auto';
+            document.body.appendChild(el);
+        }
+        const busy = s !== 'normal';
+        el.innerHTML = `<div style="font-weight:800;margin-bottom:4px">🧪 장애 시뮬레이션 · ${aiEsc(j.name)}</div>
+            <div style="font-size:12px;color:#cbd5e1;margin-bottom:10px">${busy
+                ? '관리자가 조치를 결정하는 중이에요. 위 알림을 확인해 주세요.'
+                : '버튼을 누르면 이 기기에 장애가 발생하고, 관리자 화면에 경보가 떠요.'}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${SIM_BTNS.map(([k, t]) =>
+                `<button ${busy ? 'disabled' : ''} onclick="deviceSim('${k}')" style="min-height:48px;border:0;border-radius:12px;background:#334155;color:#fff;font-weight:700;font-size:14px;touch-action:manipulation;-webkit-tap-highlight-color:transparent;cursor:pointer;opacity:${busy ? .45 : 1}">${t}</button>`).join('')}</div>`;
+    }
+    async function deviceSim(kind) {
+        try {
+            const r = await fetch('/api/sim/device-inject', { method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Device-Id': getDeviceId() }, body: JSON.stringify({ kind }) });
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(j.detail || r.statusText);
+            aiToast('장애가 발생했어요. 관리자가 확인 중이에요');
+            pollDeviceNotice();
+        } catch (e) { aiToast(e.message); }
+    }
     async function pollDeviceNotice() {
-        if (!IS_REAL || sessionStorage.getItem('token')) return;      // 로그인하지 않은 기기 화면에서만
+        if (!IS_REAL) return;
+        if (sessionStorage.getItem('token')) {              // 로그인한 화면에는 기기용 알림·패널을 두지 않음
+            ['device-notice', 'device-sim-panel'].forEach(id => { const e = document.getElementById(id); if (e) e.remove(); });
+            return;
+        }
         try {
             const j = await fetch('/api/sim/my-status', { headers: { 'X-Device-Id': getDeviceId() } }).then(r => r.json());
             renderDeviceNotice(j);
+            renderDevicePanel(j);
         } catch (e) { /* 무시 */ }
     }
     </script>
