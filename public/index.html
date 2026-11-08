@@ -1247,6 +1247,9 @@
             box-shadow: 0 0 0 3px rgba(168, 85, 247, .9), 0 0 22px 6px rgba(168, 85, 247, .5);
             animation: meGlow 2s ease-in-out infinite;
         }
+        
+        .tnode.blocked { opacity: .55; filter: grayscale(.8); outline: 3px dashed #f87171; outline-offset: 2px; }
+
         .tnode.me::after {
             content: "📍 내 기기";
             position: absolute;
@@ -4981,7 +4984,10 @@
                     slow:     ['🟠 응답 느림', 'var(--amber)'],
                 };
                 let badge, color, detail;
-                if (n.alert) {
+                if (n.blocked) {
+                    badge = '🚫 연결 차단됨'; color = 'var(--red)';
+                    detail = `송수신이 차단된 상태예요${n.blockReason ? ' (사유: ' + n.blockReason + ')' : ''}`;
+                } else if (n.alert) {
                     badge = '🚨 이상 감지'; color = 'var(--red)'; detail = 'AI가 이 기기에서 이상 징후를 감지했어요';
                 } else if (isUnlinked(state.selected)) {
                     badge = '⚪ 측정 불가'; color = 'var(--muted)';
@@ -5094,6 +5100,7 @@
             updateInspector();
             if (state.view === 'vlan') updateVlanView();
             renderMyDeviceBtn();
+            renderBlockBtn();
             applyMyDevice();
         }
 
@@ -6799,17 +6806,37 @@
             if (a && !document.getElementById('ai-modal')) showAiAlertPopup(a);
         } catch (e) { /* 로그인 전이면 무시 */ }
     }
-    function showAiAlertPopup(a) {
+    async function showAiAlertPopup(a) {
         shownAlerts.add(a.id);
-        const act = aiCanAct ? `
-            ${a.pid ? `<button onclick="approveBlock(${a.id})" style="flex:1;padding:10px;border-radius:10px;background:#ef4444">승인/차단</button>` : ''}
-            <button onclick="markFalsePositive(${a.id})" style="flex:1;padding:10px;border-radius:10px;background:#22c55e">오탐/재학습</button>` : '';
-        showModal(`
-            <h3 style="font-weight:800;margin-bottom:8px">🚨 AI 이상 감지 (위험도 ${Math.round(a.risk_score)}%)</h3>
-            <p style="margin-bottom:16px;font-size:14px">${aiEsc(a.message)}</p>
-            <div style="display:flex;gap:8px">${act}
-                <button onclick="closeModal()" style="padding:10px;border-radius:10px;background:#334">나중에</button>
-            </div>`);
+        let body;
+        if (aiCanAct && a.pid) {            // 에이전트가 있는 PC: 기존 방식
+            body = `<div style="display:flex;gap:8px">
+                <button onclick="approveBlock(${a.id})" style="flex:1;padding:10px;border-radius:10px;background:#ef4444">승인/차단</button>
+                <button onclick="markFalsePositive(${a.id})" style="flex:1;padding:10px;border-radius:10px;background:#22c55e">오탐/재학습</button>
+                <button onclick="closeModal()" style="padding:10px;border-radius:10px;background:#334">나중에</button></div>`;
+        } else if (aiCanAct) {              // 에이전트 없는 기기(폰·아이패드): 분석 후 완화/차단 선택
+            let rec = a.risk_score >= 90 ? 'block' : 'mitigate', why = '';
+            try {
+                const s = await aiFetch('/api/sim/status');
+                const sim = (s.active || []).find(x => x.device_id === a.device_id);
+                if (sim && sim.recommend) { rec = sim.recommend; why = sim.reason; }
+            } catch (e) { /* 무시 */ }
+            const hi = k => (rec === k ? 'outline:3px solid #fff;outline-offset:2px;' : '');
+            body = `<div style="padding:10px 12px;border-radius:10px;background:#1b2236;font-size:13px;margin-bottom:12px">
+                    <b>🤖 AI 분석 · ${rec === 'block' ? '🚫 연결 차단 권장' : '🛡️ 위험도 완화 권장'}</b><br>
+                    ${aiEsc(why || '위험도와 연결 상태를 기준으로 판단했어요.')}</div>
+                <div style="display:flex;gap:8px;margin-bottom:8px">
+                    <button onclick="simAct('mitigate', ${a.device_id})" style="flex:1;padding:10px;border-radius:10px;background:#3b82f6;${hi('mitigate')}">🛡️ 위험도 완화</button>
+                    <button onclick="simAct('block', ${a.device_id})" style="flex:1;padding:10px;border-radius:10px;background:#ef4444;${hi('block')}">🚫 연결 차단·조치</button></div>
+                <div style="display:flex;gap:8px">
+                    <button onclick="markFalsePositive(${a.id})" style="flex:1;padding:10px;border-radius:10px;background:#22c55e">오탐/재학습</button>
+                    <button onclick="closeModal()" style="flex:1;padding:10px;border-radius:10px;background:#334">나중에</button></div>`;
+        } else {
+            body = `<div style="display:flex;gap:8px"><button onclick="closeModal()" style="padding:10px;border-radius:10px;background:#334">나중에</button></div>`;
+        }
+        if (document.getElementById('ai-modal')) { shownAlerts.delete(a.id); return; }
+        showModal(`<h3 style="font-weight:800;margin-bottom:8px">🚨 AI 이상 감지 (위험도 ${Math.round(a.risk_score)}%)</h3>
+            <p style="margin-bottom:14px;font-size:14px">${aiEsc(a.message)}</p>${body}`);
     }
     async function approveBlock(id) {
         closeModal();
@@ -7030,8 +7057,10 @@
     
     if (IS_REAL) setInterval(() => {
         pollMyConnectRequest();
-        if (sessionStorage.getItem('token')) { pollAiIncidents(); pollPendingDevices(); pollConnectResults(); pollConnectivity(); }
+        pollDeviceNotice();
+        if (sessionStorage.getItem('token')) { pollAiIncidents(); pollPendingDevices(); pollConnectResults(); pollConnectivity(); pollSimState(); }
     }, 5000);
+    
     if (IS_REAL) checkMyDevice();
     if (IS_REAL) setInterval(sendHeartbeat, 5000);
     
@@ -7140,7 +7169,69 @@
     }
     function isSimple(n) { return !!(n.noMetric || n.rawType === 'mobile'); }
     function isUnlinked(k) { return !EDGES.some(([a, b]) => a === k || b === k); }
-
+    
+    async function simAct(kind, deviceId) {          // kind: mitigate | block | unblock
+        closeModal();
+        toast({ mitigate: '위험도 완화 적용 중...', block: '연결 차단 중...', unblock: '차단 해제 중...' }[kind]);
+        try {
+            await aiFetch('/api/sim/' + kind, { method: 'POST', body: JSON.stringify({ device_id: deviceId }) });
+            toast({ mitigate: '🛡️ 완화 조치를 적용했어요', block: '🚫 연결을 차단했어요', unblock: '✅ 차단을 해제했어요' }[kind]);
+            pollSimState(); pollAiIncidents(); pollTelemetry();
+        } catch (e) { toast(e.message); }
+    }
+    async function pollSimState() {                   // 관리자 화면: 차단된 장비 표시
+        if (!IS_REAL) return;
+        try {
+            const s = await aiFetch('/api/sim/status');
+            const blocked = {}; (s.blocked || []).forEach(b => { blocked[b.device_id] = b; });
+            Object.values(NODES).forEach(n => { n.blocked = !!(n.dbId && blocked[n.dbId]); n.blockReason = n.blocked ? blocked[n.dbId].reason : ''; });
+            NODE_KEYS.forEach(k => { const el = $('tn-' + k); if (el) el.classList.toggle('blocked', !!(NODES[k] && NODES[k].blocked)); });
+            renderBlockBtn();
+        } catch (e) { /* 무시 */ }
+    }
+    function renderBlockBtn() {
+        const host = $('inspect-conn-detail');
+        if (!host) return;
+        const n = NODES[state.selected];
+        let b = $('btn-unblock');
+        if (!b) {
+            b = document.createElement('button');
+            b.id = 'btn-unblock'; b.type = 'button';
+            b.style.cssText = 'display:none;margin-top:10px;width:100%;min-height:44px;padding:8px 12px;border-radius:10px;border:0;background:#22c55e;color:#fff;font-weight:700;cursor:pointer;touch-action:manipulation';
+            b.textContent = '✅ 조치 완료 · 차단 해제';
+            host.insertAdjacentElement('afterend', b);
+        }
+        const show = !!(state.isAdmin && n && n.blocked);
+        b.style.display = show ? 'block' : 'none';
+        if (show) b.onclick = () => simAct('unblock', n.dbId);
+    }
+    function renderDeviceNotice(j) {                  // 로그인 없이 쓰는 기기(아이패드) 화면의 알림
+        let el = document.getElementById('device-notice');
+        if (!el) { el = document.createElement('div'); el.id = 'device-notice'; document.body.appendChild(el); }
+        const s = j && j.state;
+        if (s === 'blocked') {
+            el.style.cssText = 'position:fixed;inset:0;z-index:9500;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;background:rgba(15,20,36,.97);color:#fff';
+            el.innerHTML = `<div><div style="font-size:64px">🚫</div>
+                <div style="font-size:22px;font-weight:800;margin:12px 0 8px">연결이 차단되었어요</div>
+                <div style="font-size:15px;color:#cbd5e1">관리자가 이 기기(${aiEsc(j.name)})의 송수신을 차단했어요.<br>점검과 조치가 끝나면 자동으로 복구돼요.</div></div>`;
+        } else if (s === 'warning' || s === 'mitigated') {
+            const warn = s === 'warning';
+            el.style.cssText = `position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 12px);z-index:9000;padding:14px 16px;border-radius:14px;text-align:center;font-weight:700;font-size:15px;color:#fff;box-shadow:0 8px 30px rgba(0,0,0,.4);background:${warn ? '#d97706' : '#16a34a'}`;
+            el.textContent = warn ? `⚠️ 이상 징후가 감지되어 관리자가 분석 중이에요 (${j.label})` : '🛡️ 관리자가 완화 조치를 적용했어요. 위험도가 낮아지고 있어요';
+        } else if (renderDeviceNotice.prev === 'blocked' && s === 'normal') {
+            el.style.cssText = 'position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 12px);z-index:9000;padding:14px 16px;border-radius:14px;text-align:center;font-weight:700;font-size:15px;color:#fff;background:#16a34a';
+            el.textContent = '✅ 차단이 해제되어 정상 연결로 복구됐어요';
+            setTimeout(() => { if (renderDeviceNotice.prev === 'normal' && el.parentNode) el.remove(); }, 6000);
+        } else { el.remove(); }
+        renderDeviceNotice.prev = s;
+    }
+    async function pollDeviceNotice() {
+        if (!IS_REAL || sessionStorage.getItem('token')) return;      // 로그인하지 않은 기기 화면에서만
+        try {
+            const j = await fetch('/api/sim/my-status', { headers: { 'X-Device-Id': getDeviceId() } }).then(r => r.json());
+            renderDeviceNotice(j);
+        } catch (e) { /* 무시 */ }
+    }
     </script>
 </body>
 
