@@ -4987,8 +4987,12 @@
                 if (n.blocked) {
                     badge = '🚫 연결 차단됨'; color = 'var(--red)';
                     detail = `송수신이 차단된 상태예요${n.blockReason ? ' (사유: ' + n.blockReason + ')' : ''}`;
+                } else if (n.sim && n.sim.mitigated) {
+                    badge = '🛡️ 완화 적용 중'; color = 'var(--amber)';
+                    detail = '트래픽 제한과 모니터링을 적용했어요. 안정되면 해결 완료를 눌러 주세요';
                 } else if (n.alert) {
                     badge = '🚨 이상 감지'; color = 'var(--red)'; detail = 'AI가 이 기기에서 이상 징후를 감지했어요';
+                } else if (isUnlinked(state.selected)) {
                 } else if (isUnlinked(state.selected)) {
                     badge = '⚪ 측정 불가'; color = 'var(--muted)';
                     detail = '아직 연결되지 않아 측정할 수 없어요. 회선을 연결하면 온라인 / 연결 끊김을 알 수 있어요';
@@ -7196,21 +7200,27 @@
     function isSimple(n) { return !!(n.noMetric || n.rawType === 'mobile'); }
     function isUnlinked(k) { return !EDGES.some(([a, b]) => a === k || b === k); }
     
-    async function simAct(kind, deviceId) {          // kind: mitigate | block | unblock
+    async function simAct(kind, deviceId) {          // kind: mitigate | block | unblock | resolve
         closeModal();
-        toast({ mitigate: '위험도 완화 적용 중...', block: '연결 차단 중...', unblock: '차단 해제 중...' }[kind]);
+        toast({ mitigate: '위험도 완화 적용 중...', block: '연결 차단 중...', unblock: '차단 해제 중...', resolve: '해결 처리 중...' }[kind]);
         try {
             await aiFetch('/api/sim/' + kind, { method: 'POST', body: JSON.stringify({ device_id: deviceId }) });
-            toast({ mitigate: '🛡️ 완화 조치를 적용했어요', block: '🚫 연결을 차단했어요', unblock: '✅ 차단을 해제했어요' }[kind]);
+            toast({ mitigate: '🛡️ 완화 조치를 적용했어요', block: '🚫 연결을 차단했어요', unblock: '✅ 차단을 해제했어요', resolve: '✅ 해결 완료 처리했어요' }[kind]);
             pollSimState(); pollAiIncidents(); pollTelemetry();
         } catch (e) { toast(e.message); }
     }
-    async function pollSimState() {                   // 관리자 화면: 차단된 장비 표시
+    async function pollSimState() {
         if (!IS_REAL) return;
         try {
             const s = await aiFetch('/api/sim/status');
-            const blocked = {}; (s.blocked || []).forEach(b => { blocked[b.device_id] = b; });
-            Object.values(NODES).forEach(n => { n.blocked = !!(n.dbId && blocked[n.dbId]); n.blockReason = n.blocked ? blocked[n.dbId].reason : ''; });
+            const blocked = {}, act = {};
+            (s.blocked || []).forEach(b => { blocked[b.device_id] = b; });
+            (s.active || []).forEach(a => { act[a.device_id] = a; });
+             Object.values(NODES).forEach(n => {
+                n.blocked = !!(n.dbId && blocked[n.dbId]);
+                n.blockReason = n.blocked ? blocked[n.dbId].reason : '';
+                n.sim = (n.dbId && act[n.dbId]) || null;
+            });
             NODE_KEYS.forEach(k => { const el = $('tn-' + k); if (el) el.classList.toggle('blocked', !!(NODES[k] && NODES[k].blocked)); });
             renderBlockBtn();
         } catch (e) { /* 무시 */ }
@@ -7218,51 +7228,73 @@
     function renderBlockBtn() {
         const host = $('inspect-conn-detail');
         if (!host) return;
+        const old = $('btn-unblock'); if (old) old.remove();
         const n = NODES[state.selected];
-        let b = $('btn-unblock');
-        if (!b) {
-            b = document.createElement('button');
-            b.id = 'btn-unblock'; b.type = 'button';
-            b.style.cssText = 'display:none;margin-top:10px;width:100%;min-height:44px;padding:8px 12px;border-radius:10px;border:0;background:#22c55e;color:#fff;font-weight:700;cursor:pointer;touch-action:manipulation';
-            b.textContent = '✅ 조치 완료 · 차단 해제';
-            host.insertAdjacentElement('afterend', b);
+        let box = $('sim-actions');
+        if (!box) {
+            box = document.createElement('div');
+            box.id = 'sim-actions';
+            box.style.cssText = 'margin-top:10px';
+            host.insertAdjacentElement('afterend', box);
         }
-        const show = !!(state.isAdmin && n && n.blocked);
-        b.style.display = show ? 'block' : 'none';
-        if (show) b.onclick = () => simAct('unblock', n.dbId);
+        const btn = (label, bg, act, hi) => `<button type="button" onclick="${act}" style="flex:1;min-width:120px;min-height:44px;padding:8px 10px;border:0;border-radius:10px;background:${bg};color:#fff;font-weight:700;font-size:13px;cursor:pointer;touch-action:manipulation;${hi ? 'outline:3px solid #fff;outline-offset:2px;' : ''}">${label}</button>`;
+        let html = '';
+        if (state.isAdmin && n && n.dbId) {
+            const id = n.dbId;
+            if (n.blocked) {
+                html = btn('✅ 조치 완료 · 차단 해제', '#22c55e', `simAct('unblock', ${id})`);
+            } else if (n.sim && n.sim.mitigated) {
+                html = btn('✅ 해결 완료', '#22c55e', `simAct('resolve', ${id})`) + btn('🚫 연결 차단', '#ef4444', `simAct('block', ${id})`);
+            } else if (n.sim) {
+                html = `<div style="width:100%;font-size:12px;color:#cbd5e1;margin-bottom:2px">🤖 ${aiEsc(n.sim.reason || '조치를 선택해 주세요')}</div>`
+                     + btn('🛡️ 위험도 완화', '#3b82f6', `simAct('mitigate', ${id})`, n.sim.recommend === 'mitigate')
+                     + btn('🚫 연결 차단·조치', '#ef4444', `simAct('block', ${id})`, n.sim.recommend === 'block');
+            }
+        }
+        html = html ? `<div style="display:flex;gap:8px;flex-wrap:wrap">${html}</div>` : '';
+        if (box.dataset.sig !== html) { box.innerHTML = html; box.dataset.sig = html; }
     }
-    function renderDeviceNotice(j) {                  // 로그인 없이 쓰는 기기(아이패드) 화면의 알림
+    
+    const NOTICE_STEPS = ['감지', '분석', '조치', '해결'];
+    function noticeSteps(cur) {
+        return NOTICE_STEPS.map((t, i) => `<span style="opacity:${i <= cur ? 1 : .45};font-weight:${i === cur ? 800 : 600}">${i < cur ? '✓' : (i + 1)} ${t}</span>`).join(' → ');
+    }
+    function renderDeviceNotice(j) {
         let el = document.getElementById('device-notice');
         if (!el) { el = document.createElement('div'); el.id = 'device-notice'; document.body.appendChild(el); }
         const s = j && j.state;
+        const bar = bg => `position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 12px);z-index:9000;padding:12px 14px;border-radius:14px;text-align:center;font-size:15px;color:#fff;box-shadow:0 8px 30px rgba(0,0,0,.4);background:${bg}`;
         if (s === 'blocked') {
             el.style.cssText = 'position:fixed;inset:0;z-index:9500;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;background:rgba(15,20,36,.97);color:#fff';
             el.innerHTML = `<div><div style="font-size:64px">🚫</div>
                 <div style="font-size:22px;font-weight:800;margin:12px 0 8px">연결이 차단되었어요</div>
-                <div style="font-size:15px;color:#cbd5e1">관리자가 이 기기(${aiEsc(j.name)})의 송수신을 차단했어요.<br>점검과 조치가 끝나면 자동으로 복구돼요.</div></div>`;
-        } else if (s === 'warning' || s === 'mitigated') {
-            const warn = s === 'warning';
-            el.style.cssText = `position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 12px);z-index:9000;padding:14px 16px;border-radius:14px;text-align:center;font-weight:700;font-size:15px;color:#fff;box-shadow:0 8px 30px rgba(0,0,0,.4);background:${warn ? '#d97706' : '#16a34a'}`;
-            el.textContent = warn ? `⚠️ 이상 징후가 감지되어 관리자가 분석 중이에요 (${j.label})` : '🛡️ 관리자가 완화 조치를 적용했어요. 위험도가 낮아지고 있어요';
-        } else if (renderDeviceNotice.prev === 'blocked' && s === 'normal') {
-            el.style.cssText = 'position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 12px);z-index:9000;padding:14px 16px;border-radius:14px;text-align:center;font-weight:700;font-size:15px;color:#fff;background:#16a34a';
-            el.textContent = '✅ 차단이 해제되어 정상 연결로 복구됐어요';
-            setTimeout(() => { if (renderDeviceNotice.prev === 'normal' && el.parentNode) el.remove(); }, 6000);
+                <div style="font-size:15px;color:#cbd5e1">관리자가 이 기기(${aiEsc(j.name)})의 송수신을 차단하고 원인을 점검하고 있어요.<br>조치가 끝나면 자동으로 복구돼요.</div>
+                <div style="margin-top:18px;font-size:12px;color:#94a3b8">${noticeSteps(2)}</div></div>`;
+        } else if (s === 'warning') {
+            el.style.cssText = bar('#d97706');
+            el.innerHTML = `<div style="font-weight:800">⚠️ 이상 징후가 감지되어 관리자가 분석 중이에요 (${aiEsc(j.label)})</div><div style="font-size:12px;margin-top:6px">${noticeSteps(1)}</div>`;
+        } else if (s === 'mitigated') {
+            el.style.cssText = bar('#2563eb');
+            el.innerHTML = `<div style="font-weight:800">🛡️ 관리자가 완화 조치를 적용했어요. 상태를 지켜보는 중이에요</div><div style="font-size:12px;margin-top:6px">${noticeSteps(2)}</div>`;
+        } else if (s === 'resolved') {
+            el.style.cssText = bar('#16a34a');
+            el.innerHTML = `<div style="font-weight:800">✅ 문제가 해결되어 정상 상태로 돌아왔어요</div><div style="font-size:12px;margin-top:6px">${noticeSteps(3)}</div>`;
         } else { el.remove(); }
-        renderDeviceNotice.prev = s;
     }
+
     const SIM_BTNS = [['ddos', '⚡ DDoS 부하'], ['loss', '📉 패킷 손실'], ['cpu', '🔥 CPU 고부하'], ['down', '🔌 회선 다운']];
     function renderDevicePanel(j) {
         let el = document.getElementById('device-sim-panel');
         const s = j && j.state;
-        if (!['normal', 'warning', 'mitigated'].includes(s)) { if (el) el.remove(); return; }
+        if (!['normal', 'warning', 'mitigated', 'resolved'].includes(s)) { if (el) el.remove(); return; }
         if (!el) {
             el = document.createElement('div');
             el.id = 'device-sim-panel';
             el.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);z-index:8000;padding:14px;border-radius:16px;background:rgba(15,20,36,.96);color:#fff;border:1px solid #334155;box-shadow:0 10px 30px rgba(0,0,0,.45);max-width:520px;margin:0 auto';
             document.body.appendChild(el);
+            document.body.style.paddingBottom = '240px';
         }
-        const busy = s !== 'normal';
+        const busy = s === 'warning' || s === 'mitigated';
         el.innerHTML = `<div style="font-weight:800;margin-bottom:4px">🧪 장애 시뮬레이션 · ${aiEsc(j.name)}</div>
             <div style="font-size:12px;color:#cbd5e1;margin-bottom:10px">${busy
                 ? '관리자가 조치를 결정하는 중이에요. 위 알림을 확인해 주세요.'
