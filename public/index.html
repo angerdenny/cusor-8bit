@@ -5674,6 +5674,7 @@
         let epsConnected = false;
 
         async function pollEndpointSecurity() {
+            if (document.hidden) return;
             if (!sessionStorage.getItem('token')) return;
             try {
                 const res = await apiFetch(`${ENDPOINT_SECURITY_API}?since=${epsLastId}`, { cache: 'no-store' });
@@ -6575,6 +6576,7 @@
         let lastSeenAlertId = 0;
 
         async function loadAlerts() {
+            if (document.hidden) return; 
             if (!sessionStorage.getItem('token')) return;
             try {
                 const res = await apiFetch('/api/alerts');
@@ -7071,6 +7073,7 @@
         } catch (e) { /* 무시 */ }
     }
     async function pollDevices() {                       // 다른 기기에서 바뀐 장비/위치를 가져온다
+        if (document.hidden) return;
         if (typeof nodeDragState !== 'undefined' && nodeDragState) return;   // 드래그 중에는 건너뜀
         if (document.getElementById('ai-modal')) return;
         try { await loadDevices(); await Promise.all([pollConnectivity(), pollTelemetry(), pollAiIncidents()]); } catch (e) { /* 무시 */ }
@@ -7088,6 +7091,7 @@
     
     const askedAccess = new Set();
     async function pollAccessRequests() {
+        if (document.hidden) return;
         if (!state.isAdmin || !sessionStorage.getItem('token') || document.getElementById('ai-modal')) return;
         try {
             const res = await apiFetch('/api/access/requests');
