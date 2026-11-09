@@ -7149,7 +7149,7 @@
     }
     setInterval(pollAccessRequests, 10000);
 
-    let myDeviceId = null;
+    var myDeviceId = null;
     function applyMyDevice() {
         NODE_KEYS.forEach(k => {
             const el = $('tn-' + k);
@@ -7191,7 +7191,7 @@
         toast(id ? '이 장비를 내 기기로 표시했어요' : '내 기기 표시를 해제했어요');
     }
     detectMyDevice();
-    const CONN_SHORT = { online: '온라인', offline: '끊김', unstable: '불안정', slow: '느림' };
+    var CONN_SHORT = { online: '온라인', offline: '끊김', unstable: '불안정', slow: '느림' };
     function connShort(n, k) {
         if (n.alert) return '이상 감지';
         if (k && isUnlinked(k)) return '측정 불가';
