@@ -13,11 +13,17 @@
 - POST /api/sim/mitigate  {device_id}         관리자
 - POST /api/sim/block     {device_id}         관리자
 - POST /api/sim/unblock   {device_id}         관리자
+- POST /api/sim/resolve   {device_id}         관리자 (완화 후 해결 완료 처리)
 - POST /api/sim/reset     {device_id?}        관리자 (생략하면 전체 해제)
 - GET  /api/sim/status                        로그인 사용자 (본인에게 보이는 장비만)
 - GET  /api/sim/my-status                     로그인 없이 X-Device-Id 로 자기 기기 상태 (등록 대기·거절 포함)
 - POST /api/sim/device-inject {kind}          로그인 없이 X-Device-Id 로 '자기 기기'에만 장애 발생 (결정은 관리자만)
 - POST /api/sim/reject-request {client_uuid}  관리자: 등록 요청 거절
+
+[가상 장비]
+ seed_virtual_devices.py 로 만든 가상 장비(virtual_devices 테이블)는 /api/telemetry/latest 가 불릴 때마다
+ 정상 범위의 CPU·메모리·트래픽을 약 10초 간격으로 만들어 넣는다. 장애 시뮬레이션 중이거나 차단된 장비는 건너뛴다.
+ (값은 AI 기준선과 비슷하게 낮게 잡아 가짜 경보가 뜨지 않게 했다)
 
 위치: src/backend/sim_routes.py
 """
@@ -38,6 +44,9 @@ INSERT_EVERY = 4     # 장비당 합성 텔레메트리 최소 간격(초)
 DEVICE_COOLDOWN = 8  # 기기가 장애 버튼을 다시 누를 수 있기까지 대기(초)
 MAX_ACTIVE = 30      # 동시에 진행할 수 있는 시뮬레이션 수
 REJECT_TTL = 600     # 거절 안내를 유지하는 시간(초)
+RESOLVED_TTL = 20    # 기기 화면에 '해결 완료' 안내를 보여 주는 시간(초)
+VIRTUAL_EVERY = 10   # 가상 장비 텔레메트리 생성 간격(초)
+VIRTUAL_KEEP_MIN = 30  # 가상 장비 데이터 보관 시간(분)
 
 PROFILES = {
     "ddos": {
@@ -81,6 +90,12 @@ _lock = threading.Lock()
 _blocks_ready = False
 _rejected: dict = {}   # client_uuid -> 거절한 시각
 _dev_cd: dict = {}     # device_id -> 마지막으로 장애 버튼을 누른 시각
+_resolved: dict = {}   # device_id -> 해결 완료 처리한 시각
+_virtual_ids: set = set()   # 가상 장비 id 목록 (DB virtual_devices 캐시)
+_virtual_loaded = 0.0
+_vstate: dict = {}     # device_id -> 가상 수치의 현재 값
+_vlast: dict = {}      # device_id -> 마지막 생성 시각
+_vprune = 0.0
 
 
 def _ensure_blocks(db) -> bool:
@@ -122,9 +137,90 @@ def _insert_telemetry(db, device_id: int, kind: str) -> dict:
     return row
 
 
+def _clamp(v, lo, hi):
+    return max(lo, min(hi, v))
+
+
+def _virtual_sample(dev_id: int) -> dict:
+    """장비마다 고정된 '성격'을 가진 정상 범위 랜덤 워크. AI 기준선(노트북 수치)과 비슷하게 낮게 유지한다."""
+    st = _vstate.get(dev_id)
+    if st is None:
+        rnd = random.Random(dev_id)
+        st = {"cb": rnd.uniform(12, 38), "rb": rnd.uniform(56, 74), "tb": rnd.uniform(0.05, 0.45)}
+        st.update(cpu=st["cb"], ram=st["rb"], tr=st["tb"])
+        _vstate[dev_id] = st
+    st["cpu"] = _clamp(st["cpu"] + (st["cb"] - st["cpu"]) * 0.18 + random.gauss(0, 3.5), 4, 80)
+    st["ram"] = _clamp(st["ram"] + (st["rb"] - st["ram"]) * 0.06 + random.gauss(0, 0.7), 40, 85)
+    st["tr"] = _clamp(st["tr"] + (st["tb"] - st["tr"]) * 0.25 + random.gauss(0, 0.06), 0.01, 0.9)
+    return {"cpu_usage": round(st["cpu"], 1), "ram_usage": round(st["ram"], 1),
+            "traffic_in_mbps": round(st["tr"], 3), "packet_loss": 0.0}
+
+
+def _ensure_virtual(db) -> bool:
+    try:
+        db.execute(text("CREATE TABLE IF NOT EXISTS virtual_devices (device_id INT PRIMARY KEY)"))
+        db.commit()
+        return True
+    except Exception:
+        db.rollback()
+        return False
+
+
+def _load_virtual(db) -> None:
+    global _virtual_ids, _virtual_loaded
+    now = time.time()
+    if now - _virtual_loaded < 60:
+        return
+    _virtual_loaded = now
+    if not _ensure_virtual(db):
+        return
+    try:
+        _virtual_ids = {x[0] for x in db.execute(text("SELECT device_id FROM virtual_devices"))}
+    except Exception:
+        db.rollback()
+
+
+def _apply_virtual(db) -> None:
+    global _vprune
+    _load_virtual(db)
+    if not _virtual_ids:
+        return
+    now = time.time()
+    with _lock:
+        busy = set(_active)       # 시뮬레이션 중인 장비는 그쪽 데이터가 우선
+        due = [d for d in _virtual_ids if d not in busy and now - _vlast.get(d, 0) >= VIRTUAL_EVERY]
+        for d in due:
+            _vlast[d] = now
+    if not due:
+        return
+    blocked = set()
+    if _blocks_ready:             # 차단된 장비는 데이터를 보내지 않는다 (연결이 끊긴 것처럼 보임)
+        try:
+            blocked = {x[0] for x in db.execute(text("SELECT device_id FROM device_blocks"))}
+        except Exception:
+            db.rollback()
+    try:
+        for d in due:
+            if d in blocked:
+                continue
+            row = _virtual_sample(d)
+            db.execute(text("INSERT INTO telemetry (device_id, cpu_usage, ram_usage, traffic_in_mbps, packet_loss) "
+                            "VALUES (:d,:c,:r,:t,:l)"),
+                       {"d": d, "c": row["cpu_usage"], "r": row["ram_usage"],
+                        "t": row["traffic_in_mbps"], "l": row["packet_loss"]})
+        if now - _vprune > 600:   # 오래된 가상 데이터 정리 (10분에 한 번)
+            _vprune = now
+            db.execute(text("DELETE t FROM telemetry t JOIN virtual_devices v ON v.device_id = t.device_id "
+                            f"WHERE t.`timestamp` < NOW() - INTERVAL {int(VIRTUAL_KEEP_MIN)} MINUTE"))
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
 def apply_active_sims(db) -> None:
     """/api/telemetry/latest 에서 SELECT 하기 전에 호출한다.
-    진행 중인 시뮬레이션 장비마다 합성 텔레메트리를 (최소 INSERT_EVERY초 간격으로) 1건씩 넣는다."""
+    ① 진행 중인 시뮬레이션 장비마다 합성 텔레메트리를 (최소 INSERT_EVERY초 간격으로) 1건씩 넣고
+    ② 가상 장비에는 정상 범위 텔레메트리를 넣는다."""
     now = time.time()
     with _lock:
         for d in [d for d, v in _active.items() if v["until"] < now]:
@@ -132,17 +228,17 @@ def apply_active_sims(db) -> None:
         todo = [(d, v["kind"]) for d, v in _active.items() if now - _last_ins.get(d, 0) >= INSERT_EVERY]
         for d, _ in todo:
             _last_ins[d] = now
-    if not todo:
-        return
-    try:
-        for d, kind in todo:
-            _insert_telemetry(db, d, kind)
-        db.commit()
-    except Exception:
-        db.rollback()                                 # 장비가 삭제된 경우 등
-        with _lock:
-            for d, _ in todo:
-                _active.pop(d, None)
+    if todo:
+        try:
+            for d, kind in todo:
+                _insert_telemetry(db, d, kind)
+            db.commit()
+        except Exception:
+            db.rollback()                             # 장비가 삭제된 경우 등
+            with _lock:
+                for d, _ in todo:
+                    _active.pop(d, None)
+    _apply_virtual(db)
 
 
 class InjectReq(BaseModel):
@@ -193,6 +289,7 @@ def _need_blocks(db) -> None:
 def _start_sim(db, dev, kind: str, clear_block: bool) -> dict:
     """장애 시작 공용 로직: 합성 텔레메트리 + AI 경보 + 보안 로그."""
     p = PROFILES[kind]
+    _resolved.pop(dev.id, None)
     if _ensure_blocks(db) and clear_block:
         db.execute(text("DELETE FROM device_blocks WHERE device_id=:d"), {"d": dev.id})   # 새 시나리오는 차단 해제 상태로 시작
     started = db.execute(text("SELECT NOW(3)")).scalar()
@@ -320,6 +417,23 @@ def build_sim_router(get_db, get_current_user, require_admin) -> APIRouter:
         add_alert(db, "info", f"✅ 조치 완료 — {dev.name}", f"{dev.name}의 차단을 해제하고 정상 모니터링으로 복구했어요",
                   "점검과 조치가 끝났어요", "정상 트래픽 패턴을 계속 모니터링하세요.")
         db.commit()
+        _resolved[dev.id] = time.time()
+        return {"ok": True}
+
+    @r.post("/api/sim/resolve")
+    def resolve(req: DeviceReq, db=Depends(get_db), user=Depends(require_admin)):
+        """해결 완료: 완화 조치 후 상태가 안정되면 장애를 종료하고 정상으로 복구한다."""
+        dev = _device(db, req.device_id)
+        with _lock:
+            info = _active.pop(dev.id, None)
+        if not info:
+            raise HTTPException(status_code=409, detail="진행 중인 장애가 없습니다")
+        _drop_sim_rows(db, dev.id, info)
+        _resolve_incidents(db, dev.id)
+        add_alert(db, "info", f"✅ 해결 완료 — {dev.name}", f"{dev.name}의 장애를 해결하고 정상 상태로 복구했어요",
+                  "완화 조치 후 지표가 정상 범위로 돌아왔어요", "정상 트래픽 패턴을 계속 모니터링하세요.")
+        db.commit()
+        _resolved[dev.id] = time.time()
         return {"ok": True}
 
     @r.post("/api/sim/reset")
@@ -381,6 +495,8 @@ def build_sim_router(get_db, get_current_user, require_admin) -> APIRouter:
         if live:
             return {"state": "mitigated" if mitigated else "warning", "name": dev.name,
                     "label": PROFILES[kind]["label"]}
+        if time.time() - _resolved.get(dev.id, 0) < RESOLVED_TTL:
+            return {"state": "resolved", "name": dev.name}
         return {"state": "normal", "name": dev.name}
 
     return r
