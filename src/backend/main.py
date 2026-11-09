@@ -50,7 +50,8 @@ app = FastAPI(title="AI Pulse Network Monitor", version="1.0.0")
 # ========================
 # Database
 # ========================
-engine = create_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
+engine = create_engine(DATABASE_URL, echo=False, pool_pre_ping=True, pool_recycle=280,
+                       pool_size=8, max_overflow=4, pool_timeout=8)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

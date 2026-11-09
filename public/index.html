@@ -6286,6 +6286,7 @@
         drawAll();
 
         async function pollTelemetry() {
+            if (document.hidden) return;
             if (!sessionStorage.getItem('token')) return;
             try {
                 const res = await apiFetch('/api/telemetry/latest', { cache: 'no-store' });
