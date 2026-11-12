@@ -66,6 +66,26 @@ def measure_packet_loss() -> float:
 def api(method: str, path: str, **kwargs) -> requests.Response:
     return requests.request(method, BACKEND + path, headers=HEADERS, timeout=10, **kwargs)
 
+def print_fleet() -> None:
+    """서버에 모인 모든 장비(가상 PC 포함)의 최신 CPU·메모리와 평균을 cmd에 표시한다."""
+    try:
+        r = api("GET", "/api/agent/fleet")
+        r.raise_for_status()
+        d = r.json()
+    except (requests.RequestException, ValueError):
+        return
+    a, v = d["all"], d["virtual"]
+    if not a["count"]:
+        return
+    print("  ┌─ 전체 장비 현황 " + "─" * 36)
+    for x in d["devices"]:
+        tag = "가상" if x["virtual"] else "실제"
+        print(f"  │ [{tag}] {x['name'][:18]:<18} CPU {x['cpu']:>5.1f}%   메모리 {x['ram']:>5.1f}%")
+    line = f"  └─ 평균 · 전체 {a['count']}대  CPU {a['cpu']}% / 메모리 {a['ram']}%"
+    if v["count"]:
+        line += f"   (가상 {v['count']}대  CPU {v['cpu']}% / 메모리 {v['ram']}%)"
+    print(line)
+
 
 def wait_for_link(agent_id: str) -> None:
     """연결될 때까지 기다린다. 연결 코드는 화면에 표시한다."""
@@ -101,6 +121,8 @@ def main() -> None:
     psutil.cpu_percent(interval=None)  # 첫 측정값 버리기
     last = psutil.net_io_counters()
     last_t = time.time()
+    
+    cycle = 0
 
     while True:
         time.sleep(INTERVAL)
@@ -126,6 +148,9 @@ def main() -> None:
                 continue
             r.raise_for_status()
             print(f"[collector] cpu={cpu}% ram={ram}% in={traffic_in}Mbps loss={loss}%")
+            cycle += 1
+            if cycle % 2 == 0:
+                print_fleet()
         except requests.RequestException as e:
             print(f"[collector] 전송 실패, 다음 주기에 재시도: {e}")
 

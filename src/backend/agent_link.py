@@ -75,6 +75,26 @@ def _usable_ip(value: str) -> str:
     return str(ip)
 
 
+def _fleet_summary(rows) -> dict:
+    """장비별 최신 텔레메트리 행 목록 → 전체 평균과 가상 장비 평균.
+    rows: 각 항목은 name, owner, is_virtual, cpu_usage, ram_usage, traffic_in_mbps, age 속성을 가진다."""
+    def avg(items, key):
+        vals = [float(getattr(x, key) or 0) for x in items]
+        return round(sum(vals) / len(vals), 1) if vals else 0.0
+
+    def pack(items):
+        return {"count": len(items), "cpu": avg(items, "cpu_usage"), "ram": avg(items, "ram_usage"),
+                "traffic": round(sum(float(x.traffic_in_mbps or 0) for x in items), 2)}
+    virt = [x for x in rows if x.is_virtual]
+    real = [x for x in rows if not x.is_virtual]
+    return {
+        "devices": [{"name": x.name, "owner": x.owner or "", "virtual": bool(x.is_virtual),
+                     "cpu": round(float(x.cpu_usage), 1), "ram": round(float(x.ram_usage), 1),
+                     "traffic": round(float(x.traffic_in_mbps or 0), 3), "age": int(x.age or 0)} for x in rows],
+        "all": pack(rows), "virtual": pack(virt), "real": pack(real),
+    }
+
+
 def build_link_router(get_db, get_current_user, pwd_context, agent_key: str):
     router = APIRouter()
 
@@ -190,6 +210,22 @@ def build_link_router(get_db, get_current_user, pwd_context, agent_key: str):
         with _pair_lock:
             _pairs.pop(body.code, None)
         return {"ok": True, "device_id": device_id, "name": pending["name"]}
+
+    @router.get("/api/agent/fleet", dependencies=[Depends(agent_auth)])
+    def agent_fleet(db=Depends(get_db)):
+        """본체 cmd(collector)용: 최근 60초 안에 수치를 보낸 모든 장비의 최신 CPU·메모리와 평균."""
+        rows = db.execute(text("""
+            SELECT d.name AS name, u.username AS owner,
+                   (d.client_uuid LIKE 'virtual-%') AS is_virtual,
+                   t.cpu_usage, t.ram_usage, t.traffic_in_mbps,
+                   TIMESTAMPDIFF(SECOND, t.`timestamp`, NOW()) AS age
+            FROM telemetry t
+            JOIN (SELECT device_id, MAX(id) AS mid FROM telemetry
+                  WHERE `timestamp` > NOW() - INTERVAL 60 SECOND GROUP BY device_id) m ON m.mid = t.id
+            JOIN devices d ON d.id = t.device_id
+            LEFT JOIN users u ON u.id = d.owner_id
+            ORDER BY is_virtual, d.id""")).fetchall()
+        return _fleet_summary(rows)
 
     @router.get("/api/link/pending")
     def pending_pcs(current_user: dict = Depends(get_current_user)):

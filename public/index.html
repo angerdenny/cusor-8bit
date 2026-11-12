@@ -6505,6 +6505,8 @@
             });
             
             /* 2) 장비: 기존 데이터를 비우고 DB 값으로 다시 채움 */
+            const prevState = {};
+            Object.values(NODES).forEach(n => { if (n.dbId) prevState[n.dbId] = n; });
             Object.keys(NODES).forEach(k => delete NODES[k]);
             NODE_KEYS.length = 0;
             EDGES.length = 0;
@@ -7323,6 +7325,19 @@
             renderDeviceNotice(j);
             renderDevicePanel(j);
         } catch (e) { /* 무시 */ }
+    }
+
+    function refreshRealNodes() {                    // 실제 환경: 수신한 수치를 노드 화면에 반영
+        if (!IS_REAL_ENV) return;
+        NODE_KEYS.forEach(k => {
+            const n = NODES[k];
+            n.lc = n.noMetric ? 0 : (n.cpu || 0);
+            n.lr = n.noMetric ? 0 : (n.ram || 0);
+            n.lv = (n.blocked || n.alert || n.conn === 'offline') ? 'crit'
+                 : (n.conn === 'unstable' || n.conn === 'slow') ? 'warn'
+                 : n.lc >= 90 ? 'crit' : n.lc >= 70 ? 'warn' : 'ok';
+        });
+        updateNodeUI();
     }
     </script>
 </body>
