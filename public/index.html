@@ -6473,6 +6473,8 @@
                 return false;
             }
         }
+        
+        var serverPosSeen = {}; 
 
         async function loadDevices() {
             let data;
@@ -6533,6 +6535,14 @@
                     x: unplaced ? null : d.x,
                     y: unplaced ? null : d.y
                 };
+                const pv = prevState[d.id];
+                const sx = unplaced ? null : d.x, sy = unplaced ? null : d.y, seen = serverPosSeen[d.id];
+                if (pv && seen && seen.x === sx && seen.y === sy && pv.x != null) {
+                    NODES[key].x = pv.x; NODES[key].y = pv.y;
+                }
+                serverPosSeen[d.id] = { x: sx, y: sy };
+                if (pv) ['cpu', 'ram', 'lc', 'lr', 'lv', 'noMetric', 'conn', 'connText', 'connLoss', 'measured', 'alert', 'blocked', 'blockReason', 'sim']
+                    .forEach(f => { if (pv[f] !== undefined) NODES[key][f] = pv[f]; });
                 NODE_KEYS.push(key);
             });
  
@@ -6543,7 +6553,7 @@
                     NODES[k].x = p.x; NODES[k].y = p.y;
                 }
             });
-            relaxLayout();
+            if (!Object.keys(prevState).length) relaxLayout();
  
             /* 3) 연결선 */
             dbLinks.forEach(l => {
