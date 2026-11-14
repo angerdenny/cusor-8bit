@@ -6343,6 +6343,7 @@
                 $('an-peak').textContent = `${Math.max(...trafficHistory)} Mbps`;
                 $('an-risk').textContent = `${(riskHistory.reduce((a, b) => a + b, 0) / maxPoints).toFixed(1)}%`;
                 $('an-loss').textContent = `${Math.max(...lossHistory).toFixed(2)}%`;
+                refreshRealNodes();
                 drawAll();
             } catch (e) { /* 서버 연결 대기 */ }
         }
@@ -7085,6 +7086,7 @@
                     : c.status === 'slow' ? `▲ 느림 — 응답 ${rtt} · 손실 ${c.loss}%`
                     : `● 온라인 — 응답 ${rtt} · 손실 ${c.loss}%`;
             });
+            refreshRealNodes();
             updateDeviceCount();
         } catch (e) { /* 무시 */ }
     }
@@ -7099,7 +7101,7 @@
     if (IS_REAL) setInterval(() => {
         pollMyConnectRequest();
         pollDeviceNotice();
-        if (sessionStorage.getItem('token')) { pollAiIncidents(); pollPendingDevices(); pollConnectResults(); pollConnectivity(); pollSimState(); }
+        if (sessionStorage.getItem('token')) { pollAiIncidents(); if (state.isAdmin) { pollPendingDevices(); pollConnectResults(); } pollConnectivity(); pollSimState(); }
     }, 5000);
 
     if (IS_REAL) checkMyDevice();
@@ -7234,6 +7236,7 @@
                 n.sim = (n.dbId && act[n.dbId]) || null;
             });
             NODE_KEYS.forEach(k => { const el = $('tn-' + k); if (el) el.classList.toggle('blocked', !!(NODES[k] && NODES[k].blocked)); });
+            refreshRealNodes();
             renderBlockBtn();
         } catch (e) { /* 무시 */ }
     }
